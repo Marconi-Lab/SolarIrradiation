@@ -39,7 +39,6 @@ class ModisDataFetcher(ApiDataFetcher):
         self._kmAB = kmAB
         self._kmLR = kmLR
         self._prod_data = prod_data if prod_data is not None else []
-        a = 15
 
     # What does this function do? do you really need this one-line function? if yes, rename it so that it is clear what it does! does it need to be public?
     def cal_to_modis(self, cal_date: str) -> str:
