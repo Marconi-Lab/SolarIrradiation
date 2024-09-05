@@ -14,6 +14,10 @@ from ..api_data_fetcher import ApiDataFetcher
 
 
 class ModisDataFetcher(ApiDataFetcher):
+    """
+    This class handles the data fetching through the Modis API
+    """
+
     _MODIS_URL = "https://modis.ornl.gov/rst/api/v1/"
 
     def __init__(
