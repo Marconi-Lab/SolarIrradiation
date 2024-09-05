@@ -25,5 +25,7 @@ pytest-profiling==1.7.0
 requests==2.32.3
 six==1.16.0
 tox==4.18.0
+types-python-dateutil==2.9.0.20240821
+types-requests==2.32.0.20240905
 urllib3==2.2.2
 virtualenv==20.26.3

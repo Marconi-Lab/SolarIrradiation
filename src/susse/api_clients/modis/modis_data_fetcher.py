@@ -1,14 +1,10 @@
 import datetime
 import json
-import logging
-from calendar import monthrange
 from datetime import timedelta
 from typing import List
 
-import certifi
 import numpy as np
 import requests
-import urllib3
 
 from ..api_data_fetcher import ApiDataFetcher
 
@@ -51,7 +47,7 @@ class ModisDataFetcher(ApiDataFetcher):
     # same here, what does this function do? why is it public?
     def request_URL(self, latitude: float, longitude: float, dates: List[str]) -> str:
         return str(
-            self.base_url
+            self._base_url
             + self._product
             + "/subset?"
             + "latitude="
