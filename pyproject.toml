@@ -7,11 +7,15 @@ name = "SuSSE"
 description = "SubSahara Solar Estimation"
 readme = "README.md"
 requires-python = ">=3.11"
-dynamic = ["version"]  # Dynamically managed version by setuptools_scm
+dynamic = ["version", "dependencies"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = { find = { where = ["src"] } }  # Use the correct format for finding packages
+
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools_scm]
 # Automatically manage versions based on the SCM (git in your case)

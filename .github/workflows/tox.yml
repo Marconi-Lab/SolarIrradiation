@@ -37,6 +37,10 @@ jobs:
       - name: Run Tox
         run: tox
 
+      # Add this to your tox job in tox.yml
+      - name: Run Tests with Coverage
+        run: tox -e py311
+
   format-check:
     runs-on: ubuntu-latest
 
