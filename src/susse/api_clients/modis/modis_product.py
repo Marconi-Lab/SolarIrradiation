@@ -64,10 +64,10 @@ class ModisBand:
     def __init__(
         self,
         band_name: str,
-        description: str,
-        valid_range: Tuple[float, float],
-        add_offset: float,
-        scale_factor: float,
+        description: str = None,
+        valid_range: Tuple[float, float] = None,
+        add_offset: float = None,
+        scale_factor: float = None,
     ):
         self._band_name = band_name
         self._description = description
@@ -87,21 +87,25 @@ class ModisBand:
         return self._description
 
     @classmethod
-    def from_json_dict(cls, json_dict: dict):
+    def from_json_dict(cls, json_dict: Dict[str, str]):
         add_offset_str = json_dict.get(cls._ADD_OFFSET_TAG)
         scale_factor_str = json_dict.get(cls._SCALE_FACTOR_TAG)
         valid_range_str = json_dict.get(cls._VALID_RANGE_TAG)
 
         add_offset = float(add_offset_str) if add_offset_str is not None else None
         scale_factor = float(scale_factor_str) if scale_factor_str is not None else None
+
+        range_split = (
+            valid_range_str.split(" to ") if valid_range_str is not None else None
+        )
         valid_range = (
-            tuple(map(float, valid_range_str.split(" to ")))
-            if valid_range_str is not None
+            (float(range_split[0]), float(range_split[1]))
+            if range_split is not None
             else None
         )
 
         return cls(
-            band_name=json_dict.get(cls._BAND_TAG),
+            band_name=json_dict[cls._BAND_TAG],
             description=json_dict.get(cls._DESCRIPTION_TAG),
             valid_range=valid_range,
             add_offset=add_offset,
@@ -126,7 +130,7 @@ class ModisProduct:
         frequency: ModisProdFrequency,
         resolution_meters: float,
         description: str,
-        default_band_name: str = None,
+        default_band_name: Optional[str] = None,
     ):
         self._product_name = product_name
         self._frequency = frequency

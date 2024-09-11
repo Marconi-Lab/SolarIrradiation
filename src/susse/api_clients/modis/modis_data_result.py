@@ -27,15 +27,22 @@ class ModisDataResult:
     provided time-interval and location
     """
 
+    _LATITUDE_TAG = "latitude"
+    _LONGITUDE_TAG = "longitude"
+    _CELLSIZE_TAG = "cellsize"
+    _NROWS_TAG = "nrows"
+    _NCOLS_TAG = "ncols"
+    _UNITS_TAG = "units"
+
     def __init__(
         self,
         latitude: float,
         longitude: float,
-        cellsize: float,
-        nrows: int,
-        ncols: int,
-        units: str,
         data_points: List[ModisDataPoint],
+        cellsize: float = None,
+        nrows: int = None,
+        ncols: int = None,
+        units: str = None,
     ):
         self._latitude = latitude
         self._longitude = longitude
@@ -47,15 +54,20 @@ class ModisDataResult:
 
     @classmethod
     def from_request_response(cls, request_response: dict):
-        latitude_str = request_response.get("latitude")
-        longitude_str = request_response.get("longitude")
-        cellsize_str = request_response.get("cellsize")
-        nrows_str = request_response.get("nrows")
-        ncols_str = request_response.get("ncols")
-        units_str = request_response.get("units")
+        latitude_str = request_response.get(cls._LATITUDE_TAG)
+        longitude_str = request_response.get(cls._LONGITUDE_TAG)
+        cellsize_str = request_response.get(cls._CELLSIZE_TAG)
+        nrows_str = request_response.get(cls._NROWS_TAG)
+        ncols_str = request_response.get(cls._NCOLS_TAG)
+        units_str = request_response.get(cls._UNITS_TAG)
 
         data_points = []
-        for data_dict in request_response.get("subset"):
+
+        subset = request_response.get("subset", [])
+        if not isinstance(subset, list):
+            raise ValueError(f"Expected 'subset' to be a list but got {type(subset)}")
+
+        for data_dict in subset:
             date = datetime.strptime(data_dict.get("calendar_date"), "%Y-%m-%d")
             band_name = data_dict.get("band")
             data = data_dict.get("data")
@@ -75,11 +87,11 @@ class ModisDataResult:
         return cls(
             latitude=latitude,
             longitude=longitude,
+            data_points=data_points,
             cellsize=cellsize,
             nrows=nrows,
             ncols=ncols,
             units=units_str,
-            data_points=data_points,
         )
 
     @property
