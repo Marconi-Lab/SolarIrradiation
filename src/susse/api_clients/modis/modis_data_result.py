@@ -1,11 +1,10 @@
-
+from datetime import datetime
 from typing import List
 
-from numpy import number
-from .modis_product import ModisBand
-
-from datetime import datetime
 import numpy as np
+from numpy import number
+
+from .modis_product import ModisBand
 
 
 class ModisDataPoint:
@@ -17,7 +16,16 @@ class ModisDataPoint:
 
 
 class ModisDataResult:
-    def __init__(self, latitude: float, longitude: float, cellsize: float, nrows: int, ncols: int, units: str, data_points: List[ModisDataPoint]):
+    def __init__(
+        self,
+        latitude: float,
+        longitude: float,
+        cellsize: float,
+        nrows: int,
+        ncols: int,
+        units: str,
+        data_points: List[ModisDataPoint],
+    ):
         self._latitude = latitude
         self._longitude = longitude
         self._cellsize = cellsize
@@ -28,22 +36,24 @@ class ModisDataResult:
 
     @classmethod
     def from_request_response(cls, request_response: dict):
-        latitude_str = request_response.get('latitude')
-        longitude_str = request_response.get('longitude')
-        cellsize_str = request_response.get('cellsize')
-        nrows_str = request_response.get('nrows')
-        ncols_str = request_response.get('ncols')
-        units_str = request_response.get('units')
+        latitude_str = request_response.get("latitude")
+        longitude_str = request_response.get("longitude")
+        cellsize_str = request_response.get("cellsize")
+        nrows_str = request_response.get("nrows")
+        ncols_str = request_response.get("ncols")
+        units_str = request_response.get("units")
 
         data_points = []
-        for data_dict in request_response.get('subset'):
-            date = datetime.strptime(data_dict.get('calendar_date'), '%Y-%m-%d')
-            band_name = data_dict.get('band')
-            data = data_dict.get('data')
+        for data_dict in request_response.get("subset"):
+            date = datetime.strptime(data_dict.get("calendar_date"), "%Y-%m-%d")
+            band_name = data_dict.get("band")
+            data = data_dict.get("data")
             data_points.append(ModisDataPoint(date, band_name, data))
 
         if not latitude_str or not longitude_str:
-            raise ValueError("Missing latitude and longitude parameters from Modis result")
+            raise ValueError(
+                "Missing latitude and longitude parameters from Modis result"
+            )
 
         latitude = float(latitude_str)
         longitude = float(longitude_str)
@@ -51,8 +61,15 @@ class ModisDataResult:
         nrows = int(nrows_str) if nrows_str else None
         ncols = int(ncols_str) if ncols_str else None
 
-
-        return cls(latitude=latitude, longitude=longitude, cellsize=cellsize, nrows=nrows, ncols=ncols, units=units_str, data_points=data_points)
+        return cls(
+            latitude=latitude,
+            longitude=longitude,
+            cellsize=cellsize,
+            nrows=nrows,
+            ncols=ncols,
+            units=units_str,
+            data_points=data_points,
+        )
 
     @property
     def latitude(self):
@@ -69,7 +86,3 @@ class ModisDataResult:
     def get_time_average(self):
         values = [v.data_avg for v in self.data_points]
         return np.mean(np.asarray(values))
-
-
-
-

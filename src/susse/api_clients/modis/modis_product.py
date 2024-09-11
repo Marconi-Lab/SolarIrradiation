@@ -1,12 +1,11 @@
 import json
+import logging
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
 import requests
 
-from typing import Dict, Tuple, Optional, List
-
 from .modis_api_config import ModisConfig
-
-import logging
 
 
 class ModisProdFrequency(Enum):
@@ -35,9 +34,11 @@ class ModisProductEnum(Enum):
     # Add relevant products here
 
     def default_band_name(self) -> Optional[str]:
-        return {ModisProductEnum.LAND_SURFACE_TEMPERATURE: "Emis_29",
-                ModisProductEnum.DAYMET: "tmax",
-                ModisProductEnum.SURFACE_REFLACTANCE: "sur_refl_b01"}.get(self)
+        return {
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE: "Emis_29",
+            ModisProductEnum.DAYMET: "tmax",
+            ModisProductEnum.SURFACE_REFLACTANCE: "sur_refl_b01",
+        }.get(self)
 
 
 class ModisBand:
@@ -47,8 +48,14 @@ class ModisBand:
     _SCALE_FACTOR_TAG = "scale_factor"
     _ADD_OFFSET_TAG = "add_offset"
 
-    def __init__(self, band_name: str, description: str, valid_range: Tuple[float, float], add_offset: float,
-                 scale_factor: float):
+    def __init__(
+        self,
+        band_name: str,
+        description: str,
+        valid_range: Tuple[float, float],
+        add_offset: float,
+        scale_factor: float,
+    ):
         self._band_name = band_name
         self._description = description
         self._valid_range = valid_range
@@ -74,10 +81,19 @@ class ModisBand:
 
         add_offset = float(add_offset_str) if add_offset_str is not None else None
         scale_factor = float(scale_factor_str) if scale_factor_str is not None else None
-        valid_range = tuple(map(float, valid_range_str.split(' to '))) if valid_range_str is not None else None
+        valid_range = (
+            tuple(map(float, valid_range_str.split(" to ")))
+            if valid_range_str is not None
+            else None
+        )
 
-        return cls(band_name=json_dict.get(cls._BAND_TAG), description=json_dict.get(cls._DESCRIPTION_TAG),
-                   valid_range=valid_range, add_offset=add_offset, scale_factor=scale_factor)
+        return cls(
+            band_name=json_dict.get(cls._BAND_TAG),
+            description=json_dict.get(cls._DESCRIPTION_TAG),
+            valid_range=valid_range,
+            add_offset=add_offset,
+            scale_factor=scale_factor,
+        )
 
 
 class ModisProduct:
@@ -87,13 +103,24 @@ class ModisProduct:
     _RESOLUTION_METERS_TAG = "resolution_meters"
     _DESCRIPTION_TAG = "description"
 
-    def __init__(self, product_name: str, frequency: ModisProdFrequency, resolution_meters: float, description: str, default_band_name: str = None):
+    def __init__(
+        self,
+        product_name: str,
+        frequency: ModisProdFrequency,
+        resolution_meters: float,
+        description: str,
+        default_band_name: str = None,
+    ):
         self._product_name = product_name
         self._frequency = frequency
         self._resolution_meters = resolution_meters
         self._description = description
         self._bands = self._fetch_bands()
-        self._default_band = None if default_band_name is None else self.get_band_by_name(default_band_name)
+        self._default_band = (
+            None
+            if default_band_name is None
+            else self.get_band_by_name(default_band_name)
+        )
 
     @staticmethod
     def product_tag():
@@ -107,7 +134,9 @@ class ModisProduct:
         for band in self._bands:
             if band.name == band_name:
                 return band
-        logging.warning(f"Could not find band {band_name} for product {self._product_name}")
+        logging.warning(
+            f"Could not find band {band_name} for product {self._product_name}"
+        )
         return None
 
     def get_band_names(self) -> List[str]:
@@ -130,7 +159,7 @@ class ModisProduct:
             frequency=ModisProdFrequency.from_str(json_dict[cls._FREQUENCY_TAG]),
             resolution_meters=float(json_dict[cls._RESOLUTION_METERS_TAG]),
             description=json_dict[cls._DESCRIPTION_TAG],
-            default_band_name=default_band_name
+            default_band_name=default_band_name,
         )
 
     def _fetch_bands(self):
@@ -140,7 +169,9 @@ class ModisProduct:
             bands_data = json.loads(req_bands.text)[self._RESPONSE_BANDS_TAG]
             return [ModisBand.from_json_dict(band_data) for band_data in bands_data]
         else:
-            logging.warning(f"Failed to fetch bands for product {self._product_name}: {req_bands.text}")
+            logging.warning(
+                f"Failed to fetch bands for product {self._product_name}: {req_bands.text}"
+            )
             return None
 
     def __repr__(self):
@@ -164,7 +195,9 @@ class ModisProductFactory:
             json_dict = json.loads(response.text)
             self._products = json_dict[self._RESPONSE_PRODUCT_TAG]
         else:
-            raise requests.exceptions.HTTPError(f"Failed to fetch MODIS products: {response.text}")
+            raise requests.exceptions.HTTPError(
+                f"Failed to fetch MODIS products: {response.text}"
+            )
 
     def get_product_by_enum(self, product_enum: ModisProductEnum):
         if not self.products_fetched():
@@ -172,5 +205,7 @@ class ModisProductFactory:
 
         for product in self._products:
             if product_enum.value in product[ModisProduct.product_tag()]:
-                return ModisProduct.from_json_dict(product, default_band_name = product_enum.default_band_name())
+                return ModisProduct.from_json_dict(
+                    product, default_band_name=product_enum.default_band_name()
+                )
         raise ValueError(f"Product {product_enum.value} not found")
