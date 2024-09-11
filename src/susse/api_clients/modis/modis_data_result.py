@@ -8,6 +8,12 @@ from .modis_product import ModisBand
 
 
 class ModisDataPoint:
+    """
+    This class represents a single datapoint of a quantity of interest as obtained from Modis. The data is provided as
+    a list, since the data is generally obtained from a grid across a location of interest. This class might need to
+    be adjusted to be more flexible if it turns out that additional result structures exist
+    """
+
     def __init__(self, date: datetime, band_name: str, data: List[number]):
         self.date = date
         self.band = band_name
@@ -16,6 +22,11 @@ class ModisDataPoint:
 
 
 class ModisDataResult:
+    """
+    This class represents the result from a Modis API call. Each call will generally contain several datapoints for the
+    provided time-interval and location
+    """
+
     def __init__(
         self,
         latitude: float,

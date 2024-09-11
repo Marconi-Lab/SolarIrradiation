@@ -4,6 +4,10 @@ from mypyc.primitives.misc_ops import stop_async_iteration_op
 
 
 class ModisConfig:
+    """
+    This class provides the url calls for the Modis API and also save all keywords and urls related to basic api calls
+    """
+
     BASE_URL = "https://modis.ornl.gov/rst/api/v1"
     HEADERS = {"Accept": "application/json"}
 

@@ -9,6 +9,10 @@ from .modis_api_config import ModisConfig
 
 
 class ModisProdFrequency(Enum):
+    """
+    This enum represents the possible Modis result frequencies
+    """
+
     DAILY = "Daily"
     MONTHLY = "Monthly"
     YEARLY = "Yearly"
@@ -27,6 +31,11 @@ class ModisProdFrequency(Enum):
 
 
 class ModisProductEnum(Enum):
+    """
+    This class represents the different Modis products of interest. It also contains a function to provide a default
+    band of interest
+    """
+
     LAND_SURFACE_TEMPERATURE = "MYD21A2"
     SURFACE_REFLACTANCE = "MOD09A1"
     DAYMET = "Daymet"
@@ -42,6 +51,10 @@ class ModisProductEnum(Enum):
 
 
 class ModisBand:
+    """
+    This class contains the information about an individual band for a Modis product
+    """
+
     _BAND_TAG = "band"
     _DESCRIPTION_TAG = "description"
     _VALID_RANGE_TAG = "valid_range"
@@ -97,6 +110,10 @@ class ModisBand:
 
 
 class ModisProduct:
+    """
+    This class represents a full Modis Product with all required information
+    """
+
     _RESPONSE_BANDS_TAG = "bands"
     _PRODUCT_TAG = "product"
     _FREQUENCY_TAG = "frequency"
@@ -179,6 +196,10 @@ class ModisProduct:
 
 
 class ModisProductFactory:
+    """
+    A Factory class that creates individual Modis products form the respective enums
+    """
+
     _RESPONSE_PRODUCT_TAG = "products"
 
     def __init__(self):
