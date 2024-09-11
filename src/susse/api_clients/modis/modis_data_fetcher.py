@@ -1,12 +1,13 @@
-import datetime
-import json
-from datetime import timedelta
+import logging
+from datetime import datetime
 from typing import List
 
-import numpy as np
 import requests
 
 from ..api_data_fetcher import ApiDataFetcher
+from .modis_api_config import ModisConfig
+from .modis_data_result import ModisDataResult
+from .modis_product import ModisProduct, ModisProductEnum, ModisProductFactory
 
 
 class ModisDataFetcher(ApiDataFetcher):
@@ -14,150 +15,97 @@ class ModisDataFetcher(ApiDataFetcher):
     This class handles the data fetching through the Modis API
     """
 
-    _MODIS_URL = "https://modis.ornl.gov/rst/api/v1/"
+    def __init__(self):
+        super().__init__()
+        self._product_factory = ModisProductFactory()
 
-    def __init__(
+    def fetch_surface_reflectance(
         self,
-        band: str = "",
-        product: str = "",
-        kmAB: int = 1,
-        kmLR: int = 1,
-        prod_data: list = [],
+        latitude: float,
+        longitude: float,
+        start_date: datetime,
+        end_date: datetime,
+        band_name: str = None,
     ):
-        """
-        :param band: put description and explanation here!
-        :param product:
-        :param kmAB:
-        :param kmLR:
-        :param prod_data:
-        """
-
-        super().__init__(self._MODIS_URL)
-
-        self._product = product
-        self._band = band  # Why do you need to save the band?
-        self._kmAB = kmAB
-        self._kmLR = kmLR
-        self._prod_data = prod_data if prod_data is not None else []
-
-    # What does this function do? do you really need this one-line function? if yes, rename it so that it is clear what it does! does it need to be public?
-    def cal_to_modis(self, cal_date: str) -> str:
-        return "A" + datetime.datetime.strptime(cal_date, "%Y-%m-%d").strftime("%Y%j")
-
-    # same here, what does this function do? why is it public?
-    def request_URL(self, latitude: float, longitude: float, dates: List[str]) -> str:
-        return str(
-            self._base_url
-            + self._product
-            + "/subset?"
-            + "latitude="
-            + str(latitude)
-            + "&longitude="
-            + str(longitude)
-            + "&band="
-            + self._band
-            + "&startDate="
-            + dates[0]
-            + "&endDate="
-            + dates[-1]
-            + "&kmAboveBelow="
-            + str(self._kmAB)
-            + "&kmLeftRight="
-            + str(self._kmLR)
+        return self.fetch_product_result(
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE,
+            latitude,
+            longitude,
+            start_date,
+            end_date,
+            band_name,
         )
 
-    # rename to get_surface_reflectance. date inputs should be List[datetime.datetime] not str. why does it need to have inputs band and product? the user will generally not know what these are. Avoid using strings. make instaed Enums out of them
-    def surface_reflectance(
+    def fetch_product_result(
         self,
+        product_enum: ModisProductEnum,
         latitude: float,
         longitude: float,
-        dates: List[str],
-        band: str = "sur_refl_b01",
-        product: str = "MOD09A1",
-    ) -> np.ndarray:
-        self._band = band  # why do you save all this?
-        self._product = product
-        start = datetime.datetime.strptime(dates[0], "%Y-%m-%d")
-        while start <= datetime.datetime.strptime(dates[-1], "%Y-%m-%d"):
-            subset = requests.get(
-                self.request_URL(
-                    latitude,
-                    longitude,
-                    dates=[self.cal_to_modis(start.strftime("%Y-%m-%d"))],
-                )
-            )
-            if subset.status_code == 400:  # avoid magic numbers, use enums instead!
-                start += timedelta(days=1)
-                print(
-                    "Skipping date"
-                )  # dont print messages, use logging.warning("...") or logging.info("..." ) where needed
-                continue
-            else:
-                data = json.loads(subset.text)
-                self._prod_data.append(data["subset"][0]["data"])
-                scale = float(data["scale"])
-                scaled_data = scale * np.array(self._prod_data)
-                start += timedelta(days=1)
-        return scaled_data
+        start_date: datetime,
+        end_date: datetime,
+        band_name: str = None,
+    ):
+        product = self._product_factory.get_product_by_enum(product_enum)
+        band_name = self._validate_band_for_product(product, band_name)
+        request_url = ModisConfig.get_product_request_url(
+            product_name=product.name,
+            latitude=latitude,
+            longitude=longitude,
+            band_name=band_name,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-    def vegetation_index(
-        self,
-        latitude: float,
-        longitude: float,
-        dates: list,
-        band: str = "500_m_16_days_NDVI",
-        product: str = "VNP13A1",
-    ) -> np.ndarray:
-        self._band = band
-        self._product = product
-        start = datetime.datetime.strptime(dates[0], "%Y-%m-%d")
-        while start <= datetime.datetime.strptime(dates[-1], "%Y-%m-%d"):
-            subset = requests.get(
-                self.request_URL(
-                    latitude,
-                    longitude,
-                    dates=[self.cal_to_modis(start.strftime("%Y-%m-%d"))],
-                )
+        response = requests.get(request_url)
+        if response.status_code == 200:
+            product_data = response.json()
+            return ModisDataResult.from_request_response(product_data)
+        else:
+            raise requests.exceptions.HTTPError(
+                f"Failed to fetch data for product {product.name}, coordinates {latitude}, {longitude} between dates: {start_date} and {end_date}: \n{response.text}"
             )
-            if subset.status_code == 400:
-                start += timedelta(days=1)
-                print("Skipping date")
-                continue
-            else:
-                data = json.loads(subset.text)
-                self._prod_data.append(data["subset"][0]["data"])
-                scale = float(data["scale"])
-                scaled_data = scale * np.array(self._prod_data)
-                start += timedelta(days=1)
-        return scaled_data
 
-    def surface_temperature(
-        self,
-        latitude: float,
-        longitude: float,
-        dates: list,
-        band: str = "LST_Day_1KM",
-        product: str = "MOD21A2",
-    ) -> np.ndarray:
-        self._band = band
-        self._product = product
-        start = datetime.datetime.strptime(dates[0], "%Y-%m-%d")
-        while start <= datetime.datetime.strptime(dates[-1], "%Y-%m-%d"):
-            subset = requests.get(
-                self.request_URL(
-                    latitude,
-                    longitude,
-                    dates=[self.cal_to_modis(start.strftime("%Y-%m-%d"))],
-                )
-            )
-            if subset.status_code == 400:
-                start += timedelta(days=1)
-                print("Skipping date")
-                continue
+    def _validate_band_for_product(
+        self, product: ModisProduct, band_name: str = None
+    ) -> str:
+        if band_name is None:
+            if product.default_band is not None:
+                return product.default_band.name
             else:
-                data = json.loads(subset.text)
-                self._prod_data.append(data["subset"][0]["data"])
-                scale = float(data["scale"])
-                scaled_data = scale * np.array(self._prod_data)
-                start += timedelta(days=1)
-        return scaled_data
+                raise ValueError(
+                    f"No band provided for  product {product.name}, and no default band available. "
+                    f"Available bands: {product.get_band_names()}"
+                )
+        else:
+            if not product.has_band(band_name):
+                if product.default_band is not None:
+                    logging.warning(
+                        f"Band {band_name} not found in product {product.name}, using default band {product.default_band.name} instead"
+                    )
+                    return product.default_band.name
+                else:
+                    raise ValueError(
+                        f"Band {band_name} not found in product {product.name}, and no default band available. "
+                        f"Available bands: {product.get_band_names()}"
+                    )
+        return band_name
+
+    def get_available_dates_for_product_and_location(
+        self, product: ModisProduct, latitude: float, longitude: float
+    ) -> List[datetime]:
+        available_dates_url = ModisConfig.get_available_date_url(
+            product.name, latitude, longitude
+        )
+        response = requests.get(available_dates_url)
+
+        if response.status_code == 200:
+            available_dates_json = response.json()
+            available_dates = [
+                datetime.strptime(date_dict["calendar_date"], "%Y-%m-%d")
+                for date_dict in available_dates_json["dates"]
+            ]
+            return available_dates
+        else:
+            raise requests.exceptions.HTTPError(
+                f"Failed to fetch available dates for product {product.name} and coordinates {latitude}, {longitude}: \n{response.text}"
+            )

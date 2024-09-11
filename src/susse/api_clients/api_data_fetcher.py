@@ -7,5 +7,5 @@ class ApiDataFetcher(ABC):
     all classes accessing the NASA satellite data
     """
 
-    def __init__(self, base_url: str):
-        self._base_url = base_url
+    def __init__(self):
+        pass
