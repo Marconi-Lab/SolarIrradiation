@@ -2,18 +2,26 @@ from datetime import datetime
 
 from geopy.geocoders import Nominatim
 
+from susse import ModisProductEnum
 from susse.api_clients import ModisDataFetcher
+from susse.api_clients import ModisProductFactory
 
 
 def test_modis_data_fetcher():
 
     geolocator = Nominatim(user_agent="SuSSe")
     location = geolocator.geocode("Kampala")
-    target_date = datetime(2020, 1, 10)
+    start_date = datetime(2010, 1, 1)
+    end_date = datetime(2010, 1, 30)
 
-    reference_temperature = 25
     data_fetcher = ModisDataFetcher()
-    # surf_temp = data_fetcher.surface_temperature(
-    #     location.latitude, location.longitude, [str(target_date)]
-    # )
-    # assert surf_temp == reference_temperature
+
+    factory = ModisProductFactory()
+    product = factory.get_product_by_enum(ModisProductEnum.LAND_SURFACE_TEMPERATURE)
+    available_dates = data_fetcher.get_available_dates_for_product_and_location(product, longitude=location.longitude, latitude=location.latitude)
+
+    reflectance = data_fetcher.fetch_surface_reflectance(latitude=location.latitude, longitude=location.longitude, start_date=start_date, end_date=end_date)
+    reflectance_value = reflectance.get_time_average()
+
+    expected_reflectance = 238.69444444444446
+    assert expected_reflectance == reflectance_value
