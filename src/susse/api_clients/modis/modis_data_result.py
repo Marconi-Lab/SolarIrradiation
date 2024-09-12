@@ -31,7 +31,9 @@ class ModisDataPoint:
         band_name = subset_dict.get(cls._BAND_TAG)
         data = subset_dict.get(cls._DATA_TAG, [])
         if not isinstance(data, list):
-            raise ValueError(f"Expected '{cls._DATA_TAG}' to be a list but got {type(data)}")
+            raise ValueError(
+                f"Expected '{cls._DATA_TAG}' to be a list but got {type(data)}"
+            )
         data = [data_point * scale for data_point in data]
         return ModisDataPoint(date, band_name, data)
 
@@ -95,7 +97,9 @@ class ModisDataResult:
         scale = float(scale_str) if scale_str else 1.0
 
         if not isinstance(subset, list):
-            raise ValueError(f"Expected '{cls._SUBSET_TAG}' to be a list but got {type(subset)}")
+            raise ValueError(
+                f"Expected '{cls._SUBSET_TAG}' to be a list but got {type(subset)}"
+            )
 
         data_points = []
         for data_dict in subset:
