@@ -183,7 +183,7 @@ class ModisProduct:
             default_band_name=default_band_name,
         )
 
-    def _fetch_bands(self) -> Optional[List[ModisBand]]:
+    def _fetch_bands(self) -> List[ModisBand]:
         request_url = ModisConfig.get_band_url(self._product_name)
         req_bands = requests.get(request_url)
         if req_bands.status_code == 200:
@@ -193,7 +193,7 @@ class ModisProduct:
             logging.warning(
                 f"Failed to fetch bands for product {self._product_name}: {req_bands.text}"
             )
-            return None
+            return []
 
     def __repr__(self):
         return f"{self._product_name}: {self._frequency} ({self._resolution_meters}m)\nDescription: {self._description}\nBands: {self._bands}"

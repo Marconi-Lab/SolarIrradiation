@@ -27,8 +27,8 @@ class ModisDataPoint:
 
     @classmethod
     def from_subset_dict(cls, subset_dict: dict, scale: float = 1.0):
-        date = datetime.strptime(subset_dict.get(cls._DATE_TAG), cls._DATE_FORMAT)
-        band_name = subset_dict.get(cls._BAND_TAG)
+        date = datetime.strptime(subset_dict[cls._DATE_TAG], cls._DATE_FORMAT)
+        band_name = subset_dict[cls._BAND_TAG]
         data = subset_dict.get(cls._DATA_TAG, [])
         if not isinstance(data, list):
             raise ValueError(
@@ -130,4 +130,4 @@ class ModisDataResult:
 
     def get_time_average(self) -> float:
         values = [v.data_avg for v in self.data_points]
-        return np.mean(np.asarray(values))
+        return float(np.mean(np.asarray(values)))
