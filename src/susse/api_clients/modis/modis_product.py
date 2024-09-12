@@ -144,7 +144,7 @@ class ModisProduct:
         )
 
     @staticmethod
-    def product_tag():
+    def product_tag() -> str:
         return ModisProduct._PRODUCT_TAG
 
     @property
@@ -183,7 +183,7 @@ class ModisProduct:
             default_band_name=default_band_name,
         )
 
-    def _fetch_bands(self):
+    def _fetch_bands(self) -> List[ModisBand]:
         request_url = ModisConfig.get_band_url(self._product_name)
         req_bands = requests.get(request_url)
         if req_bands.status_code == 200:
@@ -193,7 +193,7 @@ class ModisProduct:
             logging.warning(
                 f"Failed to fetch bands for product {self._product_name}: {req_bands.text}"
             )
-            return None
+            return []
 
     def __repr__(self):
         return f"{self._product_name}: {self._frequency} ({self._resolution_meters}m)\nDescription: {self._description}\nBands: {self._bands}"
@@ -212,7 +212,7 @@ class ModisProductFactory:
     def products_fetched(self) -> bool:
         return self._products is not None
 
-    def _fetch_products(self):
+    def _fetch_products(self) -> None:
         url = ModisConfig.get_product_url()
         header = ModisConfig.HEADERS
         response = requests.get(url, headers=header)
@@ -224,7 +224,7 @@ class ModisProductFactory:
                 f"Failed to fetch MODIS products: {response.text}"
             )
 
-    def get_product_by_enum(self, product_enum: ModisProductEnum):
+    def get_product_by_enum(self, product_enum: ModisProductEnum) -> ModisProduct:
         if not self.products_fetched():
             self._fetch_products()
 

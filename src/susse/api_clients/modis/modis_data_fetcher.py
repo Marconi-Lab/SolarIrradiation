@@ -19,6 +19,38 @@ class ModisDataFetcher(ApiDataFetcher):
         super().__init__()
         self._product_factory = ModisProductFactory()
 
+    def fetch_temp_day(
+        self,
+        latitude: float,
+        longitude: float,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> ModisDataResult:
+        return self.fetch_product_result(
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE,
+            latitude,
+            longitude,
+            start_date,
+            end_date,
+            "LST_Day_1KM",
+        )
+
+    def fetch_temp_night(
+        self,
+        latitude: float,
+        longitude: float,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> ModisDataResult:
+        return self.fetch_product_result(
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE,
+            latitude,
+            longitude,
+            start_date,
+            end_date,
+            "LST_Night_1KM",
+        )
+
     def fetch_surface_reflectance(
         self,
         latitude: float,
@@ -26,9 +58,9 @@ class ModisDataFetcher(ApiDataFetcher):
         start_date: datetime,
         end_date: datetime,
         band_name: str = None,
-    ):
+    ) -> ModisDataResult:
         return self.fetch_product_result(
-            ModisProductEnum.LAND_SURFACE_TEMPERATURE,
+            ModisProductEnum.SURFACE_REFLACTANCE,
             latitude,
             longitude,
             start_date,
@@ -44,7 +76,7 @@ class ModisDataFetcher(ApiDataFetcher):
         start_date: datetime,
         end_date: datetime,
         band_name: str = None,
-    ):
+    ) -> ModisDataResult:
         product = self._product_factory.get_product_by_enum(product_enum)
         band_name = self._validate_band_for_product(product, band_name)
         request_url = ModisConfig.get_product_request_url(

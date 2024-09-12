@@ -17,6 +17,11 @@ def test_modis_data_fetcher():
 
     factory = ModisProductFactory()
     product = factory.get_product_by_enum(ModisProductEnum.LAND_SURFACE_TEMPERATURE)
+    result = data_fetcher.fetch_temp_day(
+        location.latitude, location.longitude, start_date, end_date
+    )
+    average_day_temperature = result.get_time_average()
+
     available_dates = data_fetcher.get_available_dates_for_product_and_location(
         product, longitude=location.longitude, latitude=location.latitude
     )
@@ -29,5 +34,5 @@ def test_modis_data_fetcher():
     )
     reflectance_value = reflectance.get_time_average()
 
-    expected_reflectance = 238.69444444444446
+    expected_reflectance = 0.15466800000000003
     assert expected_reflectance == reflectance_value
