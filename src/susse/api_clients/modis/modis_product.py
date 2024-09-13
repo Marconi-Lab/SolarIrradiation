@@ -194,10 +194,11 @@ class ModisProduct:
             bands_data = json.loads(req_bands.text)[self._RESPONSE_BANDS_TAG]
             return [ModisBand.from_json_dict(band_data) for band_data in bands_data]
         else:
-            logging.warning(
-                f"Failed to fetch bands for product {
-                    self._product_name}: {req_bands.text}"
+            message = ("Failed to fetch bands for product {}: {}").format(
+                self._product_name, req_bands.text
             )
+            logging.warning(message)
+
             return []
 
     def __repr__(self):

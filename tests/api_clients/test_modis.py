@@ -16,8 +16,7 @@ def test_modis_data_fetcher():
     data_fetcher = ModisDataFetcher()
 
     factory = ModisProductFactory()
-    product = factory.get_product_by_enum(
-        ModisProductEnum.LAND_SURFACE_TEMPERATURE)
+    product = factory.get_product_by_enum(ModisProductEnum.LAND_SURFACE_TEMPERATURE)
     result = data_fetcher.fetch_temp_day(
         location.latitude, location.longitude, start_date, end_date)
     average_day_temperature = result.get_time_average()

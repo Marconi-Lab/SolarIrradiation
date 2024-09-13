@@ -9,8 +9,7 @@ def test_modis_products():
         ModisProductEnum.SURFACE_REFLACTANCE
     )
     emissivity = factory.get_product_by_enum(ModisProductEnum.EMISSIVITY)
-    leaf_area_index = factory.get_product_by_enum(
-        ModisProductEnum.LEAF_AREA_INDEX)
+    leaf_area_index = factory.get_product_by_enum(ModisProductEnum.LEAF_AREA_INDEX)
 
     num_bands_reflectance = 13
     num_bands_emissivity = 11

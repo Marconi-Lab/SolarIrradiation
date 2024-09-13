@@ -9,3 +9,4 @@
 /dist/
 /prof/
 /.susse_venv/
+src/susse/version.py

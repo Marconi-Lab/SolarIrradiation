@@ -97,10 +97,10 @@ class ModisDataResult:
         scale = float(scale_str) if scale_str else 1.0
 
         if not isinstance(subset, list):
-            raise ValueError(
-                f"Expected '{cls._SUBSET_TAG}' to be a list but got {
-                    type(subset)}"
+            message = ("Expected '{}' to be a list but got {}").format(
+                cls._SUBSET_TAG, type(subset)
             )
+            raise ValueError(message)
 
         data_points = []
         for data_dict in subset:
