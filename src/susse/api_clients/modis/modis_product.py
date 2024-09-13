@@ -10,7 +10,8 @@ from .modis_api_config import ModisConfig
 
 class ModisProdFrequency(Enum):
     """
-    This enum represents the possible Modis result frequencies
+    This enum represents the possible MODIS result frequencies
+
     """
 
     DAILY = "Daily"
@@ -23,11 +24,11 @@ class ModisProdFrequency(Enum):
 
     @classmethod
     def from_str(cls, frequency_str: str):
-        for freq in ModisProdFrequency:
-            if freq.value == frequency_str:
-                return freq
-        logging.warning(f"Could not find frequency for {frequency_str}")
-        return None
+        try:
+            return cls(frequency_str)
+        except ValueError:
+            logging.warning(f"Could not find frequency for {frequency_str}")
+            return None
 
 
 class ModisProductEnum(Enum):
@@ -36,17 +37,18 @@ class ModisProductEnum(Enum):
     band of interest
     """
 
-    LAND_SURFACE_TEMPERATURE = "MYD21A2"
+    EMISSIVITY = "MOD21A2"
     SURFACE_REFLACTANCE = "MOD09A1"
-    DAYMET = "Daymet"
+    LEAF_AREA_INDEX = "MCD15A3H"
+    LAND_SURFACE_TEMPERATURE = "MOD21A2"
 
     # Add relevant products here
 
     def default_band_name(self) -> Optional[str]:
         return {
-            ModisProductEnum.LAND_SURFACE_TEMPERATURE: "Emis_29",
-            ModisProductEnum.DAYMET: "tmax",
+            ModisProductEnum.EMISSIVITY: "Emis_29",
             ModisProductEnum.SURFACE_REFLACTANCE: "sur_refl_b01",
+            ModisProductEnum.LEAF_AREA_INDEX: "Lai_500m",
         }.get(self)
 
 
@@ -64,10 +66,10 @@ class ModisBand:
     def __init__(
         self,
         band_name: str,
-        description: str = None,
-        valid_range: Tuple[float, float] = None,
-        add_offset: float = None,
-        scale_factor: float = None,
+        description: Optional[str] = None,
+        valid_range: Optional[Tuple[float, float]] = None,
+        add_offset: Optional[float] = None,
+        scale_factor: Optional[float] = None,
     ):
         self._band_name = band_name
         self._description = description
@@ -92,11 +94,14 @@ class ModisBand:
         scale_factor_str = json_dict.get(cls._SCALE_FACTOR_TAG)
         valid_range_str = json_dict.get(cls._VALID_RANGE_TAG)
 
-        add_offset = float(add_offset_str) if add_offset_str is not None else None
-        scale_factor = float(scale_factor_str) if scale_factor_str is not None else None
+        add_offset = float(
+            add_offset_str) if add_offset_str is not None else None
+        scale_factor = float(
+            scale_factor_str) if scale_factor_str is not None else None
 
         range_split = (
-            valid_range_str.split(" to ") if valid_range_str is not None else None
+            valid_range_str.split(
+                " to ") if valid_range_str is not None else None
         )
         valid_range = (
             (float(range_split[0]), float(range_split[1]))
@@ -127,9 +132,9 @@ class ModisProduct:
     def __init__(
         self,
         product_name: str,
-        frequency: ModisProdFrequency,
         resolution_meters: float,
         description: str,
+        frequency: Optional[ModisProdFrequency] = None,
         default_band_name: Optional[str] = None,
     ):
         self._product_name = product_name
@@ -174,10 +179,13 @@ class ModisProduct:
         return False
 
     @classmethod
-    def from_json_dict(cls, json_dict: Dict[str, str], default_band_name: str = None):
+    def from_json_dict(
+        cls, json_dict: Dict[str, str], default_band_name: Optional[str] = None
+    ):
         return cls(
             product_name=json_dict[cls._PRODUCT_TAG],
-            frequency=ModisProdFrequency.from_str(json_dict[cls._FREQUENCY_TAG]),
+            frequency=ModisProdFrequency.from_str(
+                json_dict[cls._FREQUENCY_TAG]),
             resolution_meters=float(json_dict[cls._RESOLUTION_METERS_TAG]),
             description=json_dict[cls._DESCRIPTION_TAG],
             default_band_name=default_band_name,
@@ -191,7 +199,8 @@ class ModisProduct:
             return [ModisBand.from_json_dict(band_data) for band_data in bands_data]
         else:
             logging.warning(
-                f"Failed to fetch bands for product {self._product_name}: {req_bands.text}"
+                f"Failed to fetch bands for product {
+                    self._product_name}: {req_bands.text}"
             )
             return []
 
@@ -201,7 +210,7 @@ class ModisProduct:
 
 class ModisProductFactory:
     """
-    A Factory class that creates individual Modis products form the respective enums
+    A Factory class that creates individual Modis products from the respective enums
     """
 
     _RESPONSE_PRODUCT_TAG = "products"
