@@ -104,7 +104,7 @@ class ModisDataFetcher(ApiDataFetcher):
             start_date=start_date,
             end_date=end_date,
         )
-
+        # fmt: off
         response = requests.get(request_url)
         if response.status_code == 200:
             product_data = response.json()
