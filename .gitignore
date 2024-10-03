@@ -9,5 +9,9 @@
 /dist/
 /prof/
 /.susse_venv/
+
+# file for storing environment variables
 .env
+
+# cache files
 __pycache__/
