@@ -9,3 +9,5 @@
 /dist/
 /prof/
 /.susse_venv/
+.env
+__pycache__/
