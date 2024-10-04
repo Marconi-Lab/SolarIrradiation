@@ -11,10 +11,34 @@ class IrradianceEstimator:
         self.location = location
 
     def generate_time_range(
-        self, start_date: str, end_date: str, freq: str = "1h"
+        self, start_date: str, end_date: str, freq: str = "1h", **kwargs
     ) -> pd.DatetimeIndex:
+        """
+        Uses the pandas `date_range` function to generate a range of time points
+
+        Returns the range of equally spaced time points (where the difference between any
+        two adjacent points is specified by the given frequency) such that they all
+        satisfy `start <[=] x <[=] end`, where the first one and the last one are, resp.,
+        the first and last time points in that range that fall on the boundary of ``freq``
+        (if given as a frequency string)
+
+        Parameters
+        ----------
+        start_date : str
+            The start date of the range
+        end_date : str
+            The end date of the range
+        freq : str, default '1h'
+            The frequency string for the time points
+        **kwargs
+            Additional keyword arguments to be passed to the `date_range` function
+
+        Returns
+        -------
+        pd.DatetimeIndex
+        """
         return pd.date_range(
-            start=start_date, end=end_date, freq=freq, tz=self.location.tz
+            start=start_date, end=end_date, freq=freq, tz=self.location.tz, **kwargs
         )
 
     # TODO Add more clearsky models as needed after model is implemented
@@ -48,7 +72,7 @@ class IrradianceEstimator:
             data = pvlib.irradiance.erbs(
                 ghi=ghi, zenith=solar_zenith, datetime_or_doy=times
             )
-        
+
         return data
         # TODO Add more decomposition models here as needed
 
