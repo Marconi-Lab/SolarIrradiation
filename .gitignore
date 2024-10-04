@@ -8,3 +8,12 @@
 /build/lib/
 /dist/
 /prof/
+
+# python virtual environment
+/.susse_venv/
+
+# file for storing environment variables
+.env
+
+# cache files
+__pycache__/
