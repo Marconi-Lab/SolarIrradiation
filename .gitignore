@@ -8,6 +8,8 @@
 /build/lib/
 /dist/
 /prof/
+
+# python virtual environment
 /.susse_venv/
 
 # file for storing environment variables

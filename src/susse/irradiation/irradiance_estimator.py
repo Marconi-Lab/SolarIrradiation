@@ -11,17 +11,19 @@ class IrradianceEstimator:
         self.location = location
 
     def generate_time_range(
-        self, start_date: str, end_date: str, freq: str = "1H"
+        self, start_date: str, end_date: str, freq: str = "1h"
     ) -> pd.DatetimeIndex:
         return pd.date_range(
-            start=start_date, end=end_date, freq=freq, tz=self.location.timezone
+            start=start_date, end=end_date, freq=freq, tz=self.location.tz
         )
 
+    # TODO Add more clearsky models as needed after model is implemented
     def estimate_clearsky(
         self, times: pd.DatetimeIndex, model: str = "simplified_solis"
     ) -> pd.DataFrame:
         return self.location.get_clearsky(times, model=model)
 
+    # TODO implement cloud model or use cloud index from satellite data
     def adjust_for_cloud_cover(
         self, clear_sky: pd.DataFrame, cloud_cover_fraction: float
     ) -> pd.Series:
@@ -43,10 +45,12 @@ class IrradianceEstimator:
         model: str = "erbs",
     ) -> pd.DataFrame:
         if model == "erbs":
-            return pvlib.irradiance.erbs(
+            data = pvlib.irradiance.erbs(
                 ghi=ghi, zenith=solar_zenith, datetime_or_doy=times
             )
-        # Add more decomposition models here as needed
+        
+        return data
+        # TODO Add more decomposition models here as needed
 
     def calculate_poa_irradiance(
         self,
