@@ -7,6 +7,9 @@ from .irradiance_estimator import IrradianceEstimator
 
 
 class IrradiancePipeline:
+    """
+    A class to run the pipeline for estimating solar irradiance
+    """
     def __init__(self, estimator: IrradianceEstimator):
         self.estimator = estimator
         self.dni_name = "dni"
