@@ -44,6 +44,17 @@ class IrradiancePipeline:
         self._solar_position = self.estimator.get_solar_position(self._times)
 
     def decompose_irradiance(self) -> None:
+        if self._adjusted_ghi is None:
+            raise ValueError(
+                "Adjusted GHI is empty. Run adjust_irradiance_for_cloud_cover first."
+            )
+        if self._solar_position is None:
+            raise ValueError(
+                "Solar position is empty. Run calculate_solar_position first."
+            )
+        if self._times is None:
+            raise ValueError("Times are empty. Run generate_time_range first.")
+
         self._dni = self.estimator.decompose_irradiance(
             self._adjusted_ghi,
             self._solar_position[self.zenith_name].values,
@@ -63,6 +74,11 @@ class IrradiancePipeline:
     def calculate_poa_irradiance(
         self, surface_tilts: List[float], surface_azimuth: float
     ) -> None:
+        if self._solar_position is None:
+            raise ValueError(
+                "Solar position is empty. Run calculate_solar_position first."
+            )
+
         self._poa_irradiance = self.estimator.calculate_poa_irradiance(
             surface_tilts,
             surface_azimuth,
@@ -99,7 +115,12 @@ class IrradiancePipeline:
 
     @property
     def adjusted_ghi(self) -> np.ndarray:
-        return self._adjusted_ghi
+        if self._adjusted_ghi is not None:
+            return self._adjusted_ghi
+        else:
+            raise ValueError(
+                "Adjusted GHI is empty. Run adjust_irradiance_for_cloud_cover first."
+            )
 
     @property
     def solar_position(self) -> pd.DataFrame:
@@ -107,16 +128,32 @@ class IrradiancePipeline:
 
     @property
     def dni(self) -> np.ndarray:
-        return self._dni
+        if self._dni is not None:
+            return self._dni
+        else:
+            raise ValueError("DNI is empty. Run decompose_irradiance first.")
 
     @property
     def dhi(self) -> np.ndarray:
-        return self._dhi
+        if self._dhi is not None:
+            return self._dhi
+        else:
+            raise ValueError("DHI is empty. Run decompose_irradiance first.")
 
     @property
     def clearness_index(self) -> np.ndarray:
-        return self._clearness_index
+        if self._clearness_index is not None:
+            return self._clearness_index
+        else:
+            raise ValueError(
+                "Clearness index is empty. Run decompose_irradiance first."
+            )
 
     @property
     def poa_irradiance(self) -> Dict[float, np.ndarray]:
-        return self._poa_irradiance
+        if self._poa_irradiance:
+            return self._poa_irradiance
+        else:
+            raise ValueError(
+                "POA irradiance is empty. Run calculate_poa_irradiance first."
+            )

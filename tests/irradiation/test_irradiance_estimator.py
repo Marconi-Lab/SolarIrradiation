@@ -37,7 +37,7 @@ def test_estimate_clearsky(estimator):
 
 
 def test_adjust_for_cloud_cover(estimator):
-    times = pd.date_range("2023-01-01", "2023-01-02", freq="1H", tz="Africa/Kampala")
+    times = pd.date_range("2023-01-01", "2023-01-02", freq="1h", tz="Africa/Kampala")
     clearsky = estimator.estimate_clearsky(times)
     cloud_cover = 0.2
 
@@ -49,7 +49,7 @@ def test_adjust_for_cloud_cover(estimator):
 
 
 def test_get_solar_position(estimator):
-    times = pd.date_range("2023-01-01", "2023-01-02", freq="1H", tz="Africa/Kampala")
+    times = pd.date_range("2023-01-01", "2023-01-02", freq="1h", tz="Africa/Kampala")
     solar_position = estimator.get_solar_position(times)
 
     assert isinstance(solar_position, pd.DataFrame)
@@ -59,7 +59,7 @@ def test_get_solar_position(estimator):
 
 
 def test_decompose_irradiance(estimator):
-    times = pd.date_range("2023-01-01", "2023-01-02", freq="1H", tz="Africa/Kampala")
+    times = pd.date_range("2023-01-01", "2023-01-02", freq="1h", tz="Africa/Kampala")
     clearsky = estimator.estimate_clearsky(times)
     solar_position = estimator.get_solar_position(times)
 
@@ -74,7 +74,7 @@ def test_decompose_irradiance(estimator):
 
 
 def test_calculate_poa_irradiance(estimator):
-    times = pd.date_range("2023-01-01", "2023-01-02", freq="1H", tz="Africa/Kampala")
+    times = pd.date_range("2023-01-01", "2023-01-02", freq="1h", tz="Africa/Kampala")
     clearsky = estimator.estimate_clearsky(times)
     solar_position = estimator.get_solar_position(times)
     decomposed = estimator.decompose_irradiance(
