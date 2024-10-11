@@ -54,7 +54,10 @@ class ClearSkyEstimatorPVlib(ClearSkyEstimator):
         location: Glocation,
         start_date: datetime.datetime,
         end_date: datetime.datetime,
-    ):
+    ) -> ClearSkyEstimate:
+        if start_date > end_date:
+            raise ValueError("Start date must be before end date")
+
         location_altitude = pvlib.location.lookup_altitude(
             location.latitude, location.longitude
         )

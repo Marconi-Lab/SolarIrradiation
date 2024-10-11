@@ -8,6 +8,10 @@ from ..estimation_result_pd import EstimationResultDF
 
 
 class ClearSkyEstimate(EstimationResultDF):
+    """
+    This class represents the results obtained from any ClearSkyEstimation. It contains the GHI, DHI and DNI
+    """
+
     _GHI_COL = "ghi"
     _DHI_COL = "dhi"
     _DNI_COL = "dni"
@@ -32,15 +36,15 @@ class ClearSkyEstimate(EstimationResultDF):
 
     @property
     def ghi(self) -> np.ndarray:
-        return self._df[self._GHI_COL].values.to_numpy()
+        return self._df[self._GHI_COL].to_numpy()
 
     @property
     def dhi(self) -> np.ndarray:
-        return self._df[self._DHI_COL].values.to_numpy()
+        return self._df[self._DHI_COL].to_numpy()
 
     @property
     def dni(self) -> np.ndarray:
-        return self._df[self._DNI_COL].values.to_numpy()
+        return self._df[self._DNI_COL].to_numpy()
 
     @property
     def timestamp(self) -> List[datetime]:
