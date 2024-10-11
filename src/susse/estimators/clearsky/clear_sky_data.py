@@ -1,10 +1,8 @@
 from datetime import datetime
-
-import pandas as pd
-
 from typing import List
 
 import numpy as np
+import pandas as pd
 
 from ..estimation_result_pd import EstimationResultDF
 
@@ -15,11 +13,17 @@ class ClearSkyEstimate(EstimationResultDF):
     _DNI_COL = "dni"
 
     @staticmethod
-    def from_np(ghi: np.ndarray, dhi: np.ndarray, dni: np.ndarray, timestamps: List[datetime]) -> 'ClearSkyEstimate':
-        df = pd.DataFrame({ClearSkyEstimate._GHI_COL: ghi,
-                           ClearSkyEstimate._DHI_COL: dhi,
-                           ClearSkyEstimate._DNI_COL: dni,
-                           "timestamps": timestamps})
+    def from_np(
+        ghi: np.ndarray, dhi: np.ndarray, dni: np.ndarray, timestamps: List[datetime]
+    ) -> "ClearSkyEstimate":
+        df = pd.DataFrame(
+            {
+                ClearSkyEstimate._GHI_COL: ghi,
+                ClearSkyEstimate._DHI_COL: dhi,
+                ClearSkyEstimate._DNI_COL: dni,
+                "timestamps": timestamps,
+            }
+        )
         df.set_index("timestamps", inplace=True)
         return ClearSkyEstimate(df)
 

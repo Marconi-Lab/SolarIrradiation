@@ -1,10 +1,8 @@
-import pandas as pd
-
+import logging
 from typing import List
 
 import numpy as np
-
-import logging
+import pandas as pd
 
 
 class EstimationResultDF:

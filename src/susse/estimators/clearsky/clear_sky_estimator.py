@@ -1,17 +1,13 @@
-
-from abc import ABC, abstractmethod
-from geopy import location as Glocation
 import datetime
-
-from .clear_sky_data import ClearSkyEstimate
+from abc import ABC, abstractmethod
+from enum import Enum
 
 import pandas as pd
-
+import pvlib
+from geopy import location as Glocation
 from overrides import override
 
-import pvlib
-
-from enum import Enum
+from .clear_sky_data import ClearSkyEstimate
 
 
 class ClearSkyEstimator(ABC):
@@ -26,7 +22,12 @@ class ClearSkyEstimator(ABC):
         self._tz = datetime.timezone.utc
 
     @abstractmethod
-    def estimate_clear_sky(self, location: Glocation, start_date: datetime.datetime, end_date: datetime.datetime) -> ClearSkyEstimate:
+    def estimate_clear_sky(
+        self,
+        location: Glocation,
+        start_date: datetime.datetime,
+        end_date: datetime.datetime,
+    ) -> ClearSkyEstimate:
         pass
 
     def set_timedelta(self, timedelta: datetime.timedelta):
@@ -47,13 +48,23 @@ class ClearSkyEstimatorPVlib(ClearSkyEstimator):
         super().__init__("clear_sky_pvlib")
 
     @override
-    def estimate_clear_sky(self, location: Glocation, start_date: datetime.datetime, end_date: datetime.datetime):
-        location_altitude = pvlib.location.lookup_altitude(location.latitude, location.longitude)
-        pv_location = pvlib.location.Location(location.latitude, location.longitude, altitude=location_altitude)
+    def estimate_clear_sky(
+        self,
+        location: Glocation,
+        start_date: datetime.datetime,
+        end_date: datetime.datetime,
+    ):
+        location_altitude = pvlib.location.lookup_altitude(
+            location.latitude, location.longitude
+        )
+        pv_location = pvlib.location.Location(
+            location.latitude, location.longitude, altitude=location_altitude
+        )
 
         times = pd.date_range(
             start=start_date, end=end_date, freq=self._timedelta, tz=self._tz
         )
-        clear_sky_df = pv_location.get_clearsky(times=times, model=self.Models.SOLIS.value)
+        clear_sky_df = pv_location.get_clearsky(
+            times=times, model=self.Models.SOLIS.value
+        )
         return ClearSkyEstimate(clear_sky_df)
-
