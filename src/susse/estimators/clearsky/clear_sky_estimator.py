@@ -13,7 +13,8 @@ from .clear_sky_data import ClearSkyEstimate
 class ClearSkyEstimator(ABC):
     """
     This class is the baseclass for all estimators of Clear-Sky irradiance. it takes as inputs the location of interest
-    as well as the start and end date. The return value is of type ClearSkyEstimate, which itself is a wrapper for a pandas dataframe
+    as well as the start and end date. The return value is of type ClearSkyEstimate, which itself is a wrapper for a
+    pandas dataframe
     """
 
     def __init__(self, name: str):
