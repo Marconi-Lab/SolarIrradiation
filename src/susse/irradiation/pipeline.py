@@ -11,7 +11,7 @@ class IrradiancePipeline:
     A class to run the pipeline for estimating solar irradiance
     """
 
-    def __init__(self, estimator: IrradianceEstimator):
+    def __init__(self, estimator: IrradianceEstimator, cloud_cover_model, irradiation_decomposition_model):
         self.estimator = estimator
         self.dni_name = "dni"
         self.dhi_name = "dhi"
@@ -31,23 +31,23 @@ class IrradiancePipeline:
         self._clearness_index: Optional[np.ndarray] = np.array([])
         self._poa_irradiance: Optional[Dict[float, np.ndarray]] = {}
 
-    def generate_time_range(
+    def _generate_time_range(
         self, start_date: str, end_date: str, freq: str = "1h"
     ) -> None:
         self._times = self.estimator.generate_time_range(start_date, end_date, freq)
 
-    def estimate_clear_sky_irradiance(self) -> None:
+    def _estimate_clear_sky_irradiance(self) -> None:
         self._clear_sky = self.estimator.estimate_clearsky(self._times)
 
-    def adjust_irradiance_for_cloud_cover(self, cloud_cover_fraction: float) -> None:
+    def _adjust_irradiance_for_cloud_cover(self, cloud_cover_fraction: float) -> None:
         self._adjusted_ghi = self.estimator.adjust_for_cloud_cover(
             self._clear_sky, cloud_cover_fraction
         ).values
 
-    def calculate_solar_position(self) -> None:
+    def _calculate_solar_position(self) -> None:
         self._solar_position = self.estimator.get_solar_position(self._times)
 
-    def decompose_irradiance(self) -> None:
+    def _decompose_irradiance(self) -> None:
         if self._adjusted_ghi is None:
             raise ValueError(
                 "Adjusted GHI is empty. Run adjust_irradiance_for_cloud_cover first."
@@ -75,7 +75,7 @@ class IrradiancePipeline:
             self.times,
         )[self.clearness_index_name].values
 
-    def calculate_poa_irradiance(
+    def _calculate_poa_irradiance(
         self, surface_tilts: List[float], surface_azimuth: float
     ) -> None:
         if self._solar_position is None:
@@ -101,30 +101,41 @@ class IrradiancePipeline:
         surface_tilts: List[float],
         surface_azimuth: float,
     ) -> None:
-        self.generate_time_range(start_date, end_date)
-        self.estimate_clear_sky_irradiance()
-        self.adjust_irradiance_for_cloud_cover(cloud_cover_fraction)
-        self.calculate_solar_position()
-        self.decompose_irradiance()
-        self.calculate_poa_irradiance(surface_tilts, surface_azimuth)
+        self._generate_time_range(start_date, end_date)
+        self._estimate_clear_sky_irradiance()
+        self._adjust_irradiance_for_cloud_cover(cloud_cover_fraction)
+        self._calculate_solar_position()
+        self._decompose_irradiance()
+        self._calculate_poa_irradiance(surface_tilts, surface_azimuth)
+
+    def analysis_performed(self) -> bool:
+        return self._clear_sky is not None
 
     # Property accessors
     @property
     def times(self) -> pd.DatetimeIndex:
+        if not self.analysis_performed():
+            raise ValueError(
+                "Tried to access times before analysis has been performed. Please run the pipeline first."
+            )
         return self._times
 
     @property
     def clear_sky(self) -> pd.DataFrame:
+        if not self.analysis_performed():
+            raise ValueError(
+                "Tried to access clear sky irradiance before analysis has been performed. Please run the pipeline first."
+            )
         return self._clear_sky
 
     @property
     def adjusted_ghi(self) -> np.ndarray:
-        if self._adjusted_ghi is not None:
-            return self._adjusted_ghi
-        else:
+        if not self.analysis_performed():
             raise ValueError(
-                "Adjusted GHI is empty. Run adjust_irradiance_for_cloud_cover first."
+                "Tried to access adjusted ghi irradiance before analysis has been performed. Please run the pipeline first."
             )
+        assert self._adjusted_ghi is not None
+        return self._adjusted_ghi
 
     @property
     def solar_position(self) -> pd.DataFrame:

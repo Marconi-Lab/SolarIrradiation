@@ -2,12 +2,13 @@ from typing import Dict, List
 
 import pandas as pd
 import pvlib
-
-from .location import Location
+from pvlib.location import Location
 
 
 class IrradianceEstimator:
     def __init__(self, location: Location):
+        if location.altitude is None:
+            location.altitude = pvlib.location.lookup_altitude(location.latitude, location.longitude)
         self.location = location
 
     def generate_time_range(

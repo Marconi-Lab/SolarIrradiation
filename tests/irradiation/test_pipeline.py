@@ -83,23 +83,23 @@ def test_pipeline_individual_steps(pipeline):
     surface_tilts = [0]
     surface_azimuth = 180
 
-    pipeline.generate_time_range(start_date, end_date)
+    pipeline._generate_time_range(start_date, end_date)
     assert isinstance(pipeline.times, pd.DatetimeIndex)
 
-    pipeline.estimate_clear_sky_irradiance()
+    pipeline._estimate_clear_sky_irradiance()
     assert isinstance(pipeline.clear_sky, pd.DataFrame)
 
-    pipeline.adjust_irradiance_for_cloud_cover(cloud_cover_fraction)
+    pipeline._adjust_irradiance_for_cloud_cover(cloud_cover_fraction)
     assert isinstance(pipeline.adjusted_ghi, np.ndarray)
 
-    pipeline.calculate_solar_position()
+    pipeline._calculate_solar_position()
     assert isinstance(pipeline.solar_position, pd.DataFrame)
 
-    pipeline.decompose_irradiance()
+    pipeline._decompose_irradiance()
     assert isinstance(pipeline.dni, np.ndarray)
     assert isinstance(pipeline.dhi, np.ndarray)
 
-    pipeline.calculate_poa_irradiance(surface_tilts, surface_azimuth)
+    pipeline._calculate_poa_irradiance(surface_tilts, surface_azimuth)
     assert isinstance(pipeline.poa_irradiance, dict)
 
 
