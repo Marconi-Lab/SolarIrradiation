@@ -10,3 +10,4 @@
 /prof/
 /.susse_venv/
 src/susse/version.py
+/src/susse/api_clients/merra_2/Credentials.yml
