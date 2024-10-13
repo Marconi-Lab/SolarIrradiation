@@ -73,7 +73,7 @@ def test_estimate_clear_sky_valid_input():
             index=pd.date_range(
                 start=datetime(2021, 1, 1, 12, 0, tzinfo=timezone.utc),
                 periods=2,
-                freq="H",
+                freq="h",
             ),
         )
         mock_pv_location.get_clearsky.return_value = mock_clear_sky_df
