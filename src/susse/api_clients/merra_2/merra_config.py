@@ -1,5 +1,5 @@
 from datetime import datetime
-from merra_tools import Merra2Tools
+from .merra_tools import Merra2Tools
 
 
 class Merra2Config:

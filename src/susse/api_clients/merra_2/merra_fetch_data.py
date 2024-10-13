@@ -3,10 +3,10 @@
 
 import numpy as np
 import logging
-from merra_download_manager import DownloadManager
-from merra_config import Merra2Config
-from merra_tools import Merra2Tools
-from merra_product import Dictionarys, Keys, Products
+from .merra_download_manager import DownloadManager
+from .merra_config import Merra2Config
+from .merra_tools import Merra2Tools
+from .merra_product import Dictionarys, Keys, Products
 from datetime import datetime
 
 
