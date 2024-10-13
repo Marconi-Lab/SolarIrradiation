@@ -170,7 +170,7 @@ class MerraDownloadManager:
             # Changes:
             # Authenticate with the first url in the links.
             # Request the website and initialiaze the BasicAuth. This will populate the auth_cookie_jar
-            result = opener.open(url)
+            _ = opener.open(url)
             log.debug(list(auth_cookie_jar))
             log.debug(list(auth_cookie_jar)[0])
             log.debug(list(auth_cookie_jar)[1])

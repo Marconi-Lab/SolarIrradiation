@@ -53,43 +53,15 @@ class MerraDataFetcher:
                         file_path, preprocess=MerraDataFetcher._extract_date
                     ) as df:
                         dfs.append(df.to_dataframe())
-                except:
-                    logging.error("Issue with file " + file_name)
+                except Exception as e:
+                    logging.error(f"Issue with file {file_name}: {e}")
             else:
                 logging.warning(
                     f"File '{file_name}' not found in '{product_folder}'. Skipping."
                 )
 
         df_hourly = pd.concat(dfs)
-        df_hourly["time"] = df_hourly.index.get_level_values(level=2)
-        df_hourly.columns = [product.product_name, "date", "time"]
-        df_hourly[product.product_name] = df_hourly[product.product_name].apply(
-            conversion_function
-        )
-        df_hourly["date"] = pd.to_datetime(df_hourly["date"])
-        df_hourly.to_csv(
-            product.product_name + "/" + loc + "_hourly.csv",
-            header=[product.product_name, "date", "time"],
-            index=False,
-        )
-        df_hourly = pd.read_csv(product.product_name + "/" + loc + "_hourly.csv")
-        df_daily = df_hourly.groupby("date").agg(aggregator)
-        df_daily = df_daily.drop("time", axis=1)
-        df_daily["date"] = df_daily.index
-        df_daily.to_csv(
-            product.product_name + "/" + loc + "_daily.csv",
-            header=[product.product_name, "date"],
-            index=False,
-        )
-        df_weekly = df_daily
-        df_weekly["Week"] = pd.to_datetime(df_weekly["date"]).apply(
-            lambda x: x.isocalendar()[1]
-        )
-        df_weekly["Year"] = pd.to_datetime(df_weekly["date"]).apply(lambda x: x.year)
-        df_weekly = df_weekly.groupby(["Year", "Week"]).agg(aggregator)
-        df_weekly["Year"] = df_weekly.index.get_level_values(0)
-        df_weekly["Week"] = df_weekly.index.get_level_values(1)
-        df_weekly.to_csv(product.product_name + "/" + loc + "_weekly.csv", index=False)
+        return df_hourly
 
     def _download_data_if_necessary(self, dates, location, product) -> None:
         urls: List[str] = []
