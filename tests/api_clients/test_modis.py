@@ -25,15 +25,14 @@ def test_modis_data_fetcher():
     assert average_day_temperature is not None
 
     available_dates = data_fetcher.get_available_dates_for_product_and_location(
-        product, longitude=location.longitude, latitude=location.latitude
+        product, location=location
     )
 
     assert available_dates
 
     # test Reflectance
     reflectance = data_fetcher.fetch_surface_reflectance(
-        latitude=location.latitude,
-        longitude=location.longitude,
+        location=location,
         start_date=start_date,
         end_date=end_date,
     )
@@ -45,8 +44,7 @@ def test_modis_data_fetcher():
 
     # test Emissivity
     emissivity = data_fetcher.fetch_emissivity(
-        latitude=location.latitude,
-        longitude=location.longitude,
+        location=location,
         start_date=start_date,
         end_date=end_date,
     )
