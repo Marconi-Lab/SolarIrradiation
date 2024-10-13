@@ -37,7 +37,5 @@ class ModisConfig:
         return f"{ModisConfig.BASE_URL}/{product_name}/subset?latitude={location.latitude}&longitude={location.longitude}&band={band_name}&startDate=A{start_date.strftime(ModisConfig.MODIS_DATE_FORMAT)}&endDate=A{end_date.strftime(ModisConfig.MODIS_DATE_FORMAT)}&kmAboveBelow={kmAB}&kmLeftRight={kmLR}"
 
     @staticmethod
-    def get_available_date_url(
-        product_name: str, location: Glocation
-    ) -> str:
+    def get_available_date_url(product_name: str, location: Glocation) -> str:
         return f"{ModisConfig.BASE_URL}/{product_name}/dates?latitude={location.latitude}&longitude={location.longitude}"

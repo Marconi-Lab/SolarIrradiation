@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from .merra_product import MerraProducts, MerraProductData
-
 import numpy as np
+
+from .merra_product import MerraProductData, MerraProducts
 
 
 class Merra2Config:
@@ -10,7 +10,7 @@ class Merra2Config:
     This class contains the URLs used and the functions for generating download URLs for MERRA-2 data.
     """
 
-    BASE_URL = 'https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2'
+    BASE_URL = "https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2"
     MERRA_LAT_COORDS = np.arange(0, 361, dtype=int)
     MERRA_LON_COORDS = np.arange(0, 576, dtype=int)
 
@@ -19,15 +19,21 @@ class Merra2Config:
         return f"{Merra2Config.BASE_URL}/{product_data.database_name}"
 
     @staticmethod
-    def generate_download_link(date: datetime, product_data: MerraProductData, lat: float, lon: float) -> str:
+    def generate_download_link(
+        date: datetime, product_data: MerraProductData, lat: float, lon: float
+    ) -> str:
 
         file_name = Merra2Config.create_file_name(date, product_data)
         m_str = str(date.month).zfill(2)
         y_str = str(date.year)
         lat_geos5 = Merra2Config._translate_lat_to_geos5_native(lat)
         lon_geos5 = Merra2Config._translate_lat_to_geos5_native(lon)
-        merra_lat = Merra2Config._find_closest_merra_coordinate(lat_geos5, Merra2Config.MERRA_LAT_COORDS)
-        merra_lon = Merra2Config._find_closest_merra_coordinate(lon_geos5, Merra2Config.MERRA_LON_COORDS)
+        merra_lat = Merra2Config._find_closest_merra_coordinate(
+            lat_geos5, Merra2Config.MERRA_LAT_COORDS
+        )
+        merra_lon = Merra2Config._find_closest_merra_coordinate(
+            lon_geos5, Merra2Config.MERRA_LON_COORDS
+        )
         suffix = f"{product_data.product_name}[0:1:23][{merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
         url = f"{Merra2Config.generate_database_url(product_data)}/{y_str}/{m_str}/{file_name}.nc4?{suffix}"
         return url
@@ -48,18 +54,18 @@ class Merra2Config:
         1992 until 2000 it is 200, 2001 until 2010 it is  300
         and from 2011 until now it is 400.
         """
-        file_number = ''
+        file_number = ""
 
         if year >= 1980 and year < 1992:
-            file_number = '100'
+            file_number = "100"
         elif year >= 1992 and year < 2001:
-            file_number = '200'
+            file_number = "200"
         elif year >= 2001 and year < 2011:
-            file_number = '300'
+            file_number = "300"
         elif year >= 2011:
-            file_number = '400'
+            file_number = "400"
         else:
-            raise Exception('The specified year is out of range.')
+            raise Exception("The specified year is out of range.")
         return file_number
 
     @staticmethod
@@ -71,12 +77,12 @@ class Merra2Config:
         The MERRA-2 Portal uses 0 to 360 and 0 to 575.
         latitude: float Needs +/- instead of N/S
         """
-        return ((latitude + 90) / 0.5)
+        return (latitude + 90) / 0.5
 
     @staticmethod
     def _translate_lon_to_geos5_native(longitude: float) -> float:
         """See function above"""
-        return ((longitude + 180) / 0.625)
+        return (longitude + 180) / 0.625
 
     @staticmethod
     def _find_closest_merra_coordinate(calc_coord, coord_array):
@@ -87,6 +93,7 @@ class Merra2Config:
         """
         index = np.abs(coord_array - calc_coord).argmin()
         return coord_array[index]
+
     # @staticmethod
     # def generate_download_link(date, database_name: str, database_id: str, url_parameters):
     #     #       print(date)
@@ -112,6 +119,7 @@ class Merra2Config:
     #     query_url = '{base}/{database_name}/{y}/{m}/{file_name}?{params}'.format(
     #         base=Merra2Config.BASE_URL, database_name=database_name, y=y_str, m=m_str, file_name=file_name, params=url_parameters)
     #     return query_url
+
 
 # Parse the date string (dd-mm-yy) into a datetime object
 #     @staticmethod

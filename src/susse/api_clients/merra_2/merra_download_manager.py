@@ -1,28 +1,28 @@
-import keyring
 import getpass
-import keyring.errors
-from pathlib import Path
-from multiprocessing.dummy import Pool as Threadpool
-import re
-import os
-import requests
 import logging
-import urllib.response
-from http import cookiejar
+import os
+import re
 import urllib.error
 import urllib.request
+import urllib.response
+from http import cookiejar
+from multiprocessing.dummy import Pool as Threadpool
+from pathlib import Path
+from typing import List, Tuple, Union
 from urllib.parse import urlparse
 
-from typing import Union, List, Tuple
+import keyring
+import keyring.errors
+import requests
 
 from susse.api_clients.merra_2.merra_product import MerraProductData
 
-log = logging.getLogger('opendap_download')
+log = logging.getLogger("opendap_download")
 
 
 class MerraDownloadManager:
     _TOP_LEVEL_URL = "https://urs.earthdata.nasa.gov"
-    _SERVICE_NAME = 'nasa_merra2'
+    _SERVICE_NAME = "nasa_merra2"
     base_folder = Path(__file__).resolve().parents[4]
     _DOWNLOAD_FOLDER = str(base_folder / "merra_files_downloaded")
 
@@ -32,26 +32,34 @@ class MerraDownloadManager:
     def get_credentials(self):
         try:
             # Attempt to retrieve credentials from the keyring
-            username = keyring.get_password(MerraDownloadManager._SERVICE_NAME, 'username')
-            password = keyring.get_password(MerraDownloadManager._SERVICE_NAME, 'password')
+            username = keyring.get_password(
+                MerraDownloadManager._SERVICE_NAME, "username"
+            )
+            password = keyring.get_password(
+                MerraDownloadManager._SERVICE_NAME, "password"
+            )
 
             # If credentials are not found, prompt the user and store them
             if username is None or password is None:
                 print("NASA MERRA-2 credentials not found in keyring.")
-                username = input('Enter your NASA-MERRA2 username: ')
-                password = getpass.getpass('Enter your NASA-MERRA2 password: ')
+                username = input("Enter your NASA-MERRA2 username: ")
+                password = getpass.getpass("Enter your NASA-MERRA2 password: ")
 
                 # Store credentials securely in the keyring
-                keyring.set_password(MerraDownloadManager._SERVICE_NAME, 'username', username)
-                keyring.set_password(MerraDownloadManager._SERVICE_NAME, 'password', password)
+                keyring.set_password(
+                    MerraDownloadManager._SERVICE_NAME, "username", username
+                )
+                keyring.set_password(
+                    MerraDownloadManager._SERVICE_NAME, "password", password
+                )
                 print("Credentials stored securely in the keyring.")
 
             return username, password
 
         except keyring.errors.KeyringError as e:
             print(f"Keyring error: {e}")
-            username = input('Enter your NASA username: ')
-            password = getpass.getpass('Enter your NASA password: ')
+            username = input("Enter your NASA username: ")
+            password = getpass.getpass("Enter your NASA password: ")
             return username, password
 
     def download_from_urls(self, urls: Union[str, List[str]], nr_of_threads=4):
@@ -72,12 +80,12 @@ class MerraDownloadManager:
         # Extract everything between a leading / and .nc4? . The problem with using this without any
         # other classification is, that the URLs have multiple / in their structure. The expressions [^/]* matches
         # everything but /. Combined with the outer expressions, this only matches the part between the last / and .nc4?
-        reg_exp = r'(?<=/)[^/]*(?=.nc4?)'
+        reg_exp = r"(?<=/)[^/]*(?=.nc4?)"
         matched_entries = re.search(reg_exp, url)
         file_name = matched_entries.group(0) if matched_entries else ""
         return file_name
 
-    def get_folder_for_product(self, product: MerraProductData)-> str:
+    def get_folder_for_product(self, product: MerraProductData) -> str:
         return os.path.join(self._DOWNLOAD_FOLDER, product.product_name)
 
     def _mp_download_wrapper(self, url: str):
@@ -88,10 +96,10 @@ class MerraDownloadManager:
         query = parsed_url.query
         if query:
             # Get the substring before the first '['
-            product_name = query.split('[')[0]
+            product_name = query.split("[")[0]
         else:
             logging.warning("Product name seems to be empty, url seems to be invalid!")
-            product_name = ''
+            product_name = ""
 
         product_folder = os.path.join(self._DOWNLOAD_FOLDER, product_name)
         if not os.path.exists(product_folder):
@@ -100,7 +108,9 @@ class MerraDownloadManager:
         file_path = os.path.join(product_folder, file_name)
 
         if os.path.exists(file_path):
-            print(f"File '{file_name}' already exists in '{product_folder}'. Skipping download.")
+            print(
+                f"File '{file_name}' already exists in '{product_folder}'. Skipping download."
+            )
         else:
             self.__download_and_save_file(url, file_path)
 
@@ -108,7 +118,7 @@ class MerraDownloadManager:
         authenticated_session = self.__create_authenticated_session(url)
         r = authenticated_session.get(url, stream=True)
         if r.status_code == 200:
-            with open(file_path, 'wb') as f:
+            with open(file_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:
                         f.write(chunk)
@@ -121,19 +131,20 @@ class MerraDownloadManager:
     def __create_authenticated_session(self, url: str):
         s = requests.Session()
         s.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.85 Safari/537.36'}
+            "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.85 Safari/537.36"
+        }
         user_name, pw = self.get_credentials()
         s.auth = (user_name, pw)
         s.cookies = self.__authorize_cookies_with_urllib(user_name, pw, url)
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             r = s.get(url)
-            log.debug('Authentication Status')
+            log.debug("Authentication Status")
             log.debug(r.status_code)
             log.debug(r.headers)
             log.debug(r.cookies)
 
-            log.debug('Sessions Data')
+            log.debug("Sessions Data")
             log.debug(s.cookies)
             log.debug(s.headers)
         return s

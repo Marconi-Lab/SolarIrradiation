@@ -2,9 +2,8 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
-from geopy import location as Glocation
-
 import requests
+from geopy import location as Glocation
 
 from ..api_data_fetcher import ApiDataFetcher
 from .modis_api_config import ModisConfig
@@ -105,7 +104,12 @@ class ModisDataFetcher(ApiDataFetcher):
                 "Failed to fetch data for product {}, coordinates {} {} "
                 "between dates: {} and {}: \n{}"
             ).format(
-                product.name, location.latitude, location.longitude, start_date, end_date, response.text
+                product.name,
+                location.latitude,
+                location.longitude,
+                start_date,
+                end_date,
+                response.text,
             )
             raise requests.exceptions.HTTPError(message)
 
@@ -140,11 +144,11 @@ class ModisDataFetcher(ApiDataFetcher):
         return band_name
 
     def get_available_dates_for_product_and_location(
-        self, product: ModisProduct,
-        location: Glocation
+        self, product: ModisProduct, location: Glocation
     ) -> List[datetime]:
         available_dates_url = ModisConfig.get_available_date_url(
-            product.name, location,
+            product.name,
+            location,
         )
         response = requests.get(available_dates_url)
 
