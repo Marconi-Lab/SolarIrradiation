@@ -1,178 +1,131 @@
 from enum import Enum
+from dataclasses import dataclass
+from typing import List
 
 
-class Dictionarys():
-    RAD = {
-        "database_name": "M2T1NXRAD.5.12.4",
-        "database_id": "tavg1_2d_rad_Nx",
-        "product_name": ["ALBEDO", "CLDTOT", "SWGDN", "SWGDNCLR", "TAUTOT"],
-        "standard_name": "radiation",
-    }
-    SLV = {
-        "database_name": "M2T1NXSLV.5.12.4",
-        "database_id": "tavg1_2d_slv_Nx",
-        "product_name": ["TQV", "TO3", "PS"],
-        "standard_name": "surface",
-    }
-    AER = {
-        "database_name": "M2T1NXAER.5.12.4",
-        "database_id": "tavg1_2d_aer_Nx",
-        "product_name": ["TOTSCATAU", "TOTEXTTAU", "TOTANGSTR"],
-        "standard_name": "aerosols",
-    }
-    ASM = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["PHIS"],
-        "standard_name": "parameters",
-    }
-    DEWPT = {
-        "database_name": "M2T1NXSLV.5.12.4",
-        "database_id": "tavg1_2d_slv_Nx",
-        "product_name": ["T2MDEW"],
-        "standard_name": "dew_point_temperature",
-    }
-    EVSPSBL = {
-        "database_name": "M2T1NXFLX.5.12.4",
-        "database_id": "tavg1_2d_flx_Nx",
-        "product_name": ["EVAP"],
-        "standard_name": "water_evaporation_flux",
-    }
-    HUR = {
-        "database_name": "M2T3NPCLD.5.12.4",
-        "database_id": "tavg3_3d_cld_Np",
-        "product_name": ["RH"],
-        "standard_name": "relative_humidity",
-    }
-    HUSS = {
-        "database_name": "M2T1NXSLV.5.12.4",
-        "database_id": "tavg1_2d_slv_Nx",
-        "product_name": ["QV2M"],
-        "standard_name": "specific_humidity",
-    }
-    PHIS = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["PHIS"],
-        "standard_name": "surface_geopotential",
-    }
-    PR = {
-        "database_name": "M2T1NXFLX.5.12.4",
-        "database_id": "tavg1_2d_flx_Nx",
-        "product_name": ["PRECTOT"],
-        "standard_name": "precipitation_flux",
-    }
-    PRC = {
-        "database_name": "M2T1NXFLX.5.12.4",
-        "database_id": "tavg1_2d_flx_Nx",
-        "product_name": ["PRECCON"],
-        "standard_name": "convective_precipitation_flux",
-    }
-    PRBC = {
-        "database_name": "M2T1NXFLX.5.12.4",
-        "database_id": "tavg1_2d_flx_Nx",
-        "product_name": ["PRECTOTCORR"],
-        "standard_name": "precipitation_flux_bias_corr",
-    }
-    PRMAX = {
-        "database_name": "M2SDNXSLV.5.12.4",
-        "database_id": "statD_2d_slv_Nx",
-        "product_name": ["TPRECMAX"],
-        "standard_name": "precipitation_flux",
-    }
-    PRSN = {
-        "database_name": "M2T1NXFLX.5.12.4",
-        "database_id": "tavg1_2d_flx_Nx",
-        "product_name": ["PRECSNO"],
-        "standard_name": "snowfall_flux",
-    }
-    RLS = {
-        "database_name": "M2T1NXRAD.5.12.4",
-        "database_id": "tavg1_2d_rad_Nx",
-        "product_name": ["LWGNT"],
-        "standard_name": "surface_net_downward_longwave_flux",
-    }
-    SFTGIF = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["FRLANDICE"],
-        "standard_name": "land_ice_area_fraction",
-    }
-    SFTKF = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["FRLAKE"],
-        "standard_name": "lake_area_fraction",
-    }
-    SFTLF = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["FRLAND"],
-        "standard_name": "land_area_fraction",
-    }
-    SFTOF = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["FROCEAN"],
-        "standard_name": "sea_area_fraction",
-    }
-    SHG = {
-        "database_name": "M2C0NXASM.5.12.4",
-        "database_id": "const_2d_asm_Nx",
-        "product_name": ["SHG"],
-        "standard_name": "isotropic_stdv_of_gravity_wave_drag_topography",
-    }
-    SIC = {
-        "database_name": "M2T1NXOCN.5.12.4",
-        "database_id": "tavg1_2d_ocn_Nx",
-        "product_name": ["FRSEAICE"],
-        "standard_name": "sea_ice_area_fraction",
-    }
-    TAS = {
-        "database_name": "M2T1NXSLV.5.12.4",
-        "database_id": "tavg1_2d_slv_Nx",
-        "product_name": ["T2M"],
-        "standard_name": "air_temperature",
-    }
-    TASMAS = {
-        "database_name": "M2SDNXSLV.5.12.4",
-        "database_id": "statD_2d_slv_Nx",
-        "product_name": ["T2MMAX"],
-        "standard_name": "air_temperature",
-    }
-    TASMIN = {
-        "database_name": "M2SDNXSLV.5.12.4",
-        "database_id": "statD_2d_slv_Nx",
-        "product_name": ["T2MMIN"],
-        "standard_name": "air_temperature",
-    }
-    UAS = {
-        "database_name": "M2I1NXASM.5.12.4",
-        "database_id": "inst1_2d_asm_Nx",
-        "product_name": ["U10M"],
-        "standard_name": "eastward_wind",
-    }
-    VAS = {
-        "database_name": "M2I1NXASM.5.12.4",
-        "database_id": "inst1_2d_asm_Nx",
-        "product_name": ["V10M"],
-        "standard_name": "northward_wind",
-    }
+@dataclass
+class MerraProductData:
+    name: str
+    database_id: str
+    database_name: str
+    product_name: str
 
 
-class Products(Enum):
-    AEROSOL_OPTICAL_DEPTH = Dictionarys.RAD['product_name'][-1]
-    TOTAL_COLUMN_OZONE = Dictionarys.SLV['product_name'][0]
-    ANGSTROM_EXPONENT = Dictionarys.AER['product_name'][2]
-    SURFACE_PRESSURE = Dictionarys.SLV['product_name'][2]
-    PRECIPITATBLE_WATER = Dictionarys.SLV['product_name'][0]
-    TEMPERATURE = Dictionarys.TAS['product_name']
-    SURFACE_ALBEDO = Dictionarys.RAD['product_name'][0]
-    TOTAL_COLUD_COVER = Dictionarys.RAD['product_name'][1]
-
-
-class Keys(Enum):
-    DATABASE_NAME = 'database_name'
-    DATABASE_ID = 'database_id'
-    PRODUCT_NAMES = 'product_name'
-    STANDARD_NAME = 'standard_name'
+class MerraProducts(Enum):
+    """
+    These products represent the different merra products that can be checked here https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
+    """
+    AER = MerraProductData(
+        name='Total Aerosol Angstrom parameter 470-870 nm ',
+        database_id='tavg1_2d_aer_Nx',
+        database_name='M2T1NXAER.5.12.4',
+        product_name="TOTANGSTR",
+    )
+    AERTOTEXT = MerraProductData(
+        name='Total Aerosol Extinction AOT 550 nm ',
+        database_id='tavg1_2d_aer_Nx',
+        database_name='M2T1NXAER.5.12.4',
+        product_name="TOTEXTTAU",
+    )
+    AERTOTSCAT = MerraProductData(
+        name='Total Aerosol Scattering AOT 550 nm',
+        database_id='tavg1_2d_aer_Nx',
+        database_name='M2T1NXAER.5.12.4',
+        product_name="TOTSCATAU",
+    )
+    DEWPT = MerraProductData(
+        name='Dew Point Temperature',
+        database_id='tavg1_2d_slv_Nx',
+        database_name='M2T1NXSLV.5.12.4',
+        product_name="T2MDEW",
+    )
+    EVSPSBL = MerraProductData(
+        name='Evaporation Flux',
+        database_id='tavg1_2d_flx_Nx',
+        database_name='M2T1NXFLX.5.12.4',
+        product_name="EVAP",
+    )
+    HUR = MerraProductData(
+        name='Relative Humidity',
+        database_id='tavg3_3d_cld_Np',
+        database_name='M2T3NPCLD.5.12.4',
+        product_name="RH",
+    )
+    HUSS = MerraProductData(
+        name='Specific Humidity',
+        database_id='tavg1_2d_slv_Nx',
+        database_name='M2T1NXSLV.5.12.4',
+        product_name="QV2M",
+    )
+    PR = MerraProductData(
+        name='Total Precipitation',
+        database_id='tavg1_2d_flx_Nx',
+        database_name='M2T1NXFLX.5.12.4',
+        product_name="PRECTOT",
+    )
+    PRBC = MerraProductData(
+        name='Bias Corrected Precipitation',
+        database_id='tavg1_2d_flx_Nx',
+        database_name='M2T1NXFLX.5.12.4',
+        product_name="PRECTOTCORR",
+    )
+    PRMAX = MerraProductData(
+        name='Maximum Precipitation',
+        database_id='statD_2d_slv_Nx',
+        database_name='M2SDNXSLV.5.12.4',
+        product_name="TPRECMAX",
+    )
+    SFTKF = MerraProductData(
+        name='Lake Area Fraction',
+        database_id='const_2d_asm_Nx',
+        database_name='M2C0NXASM.5.12.4',
+        product_name="FRLAKE",
+    )
+    SFTLF = MerraProductData(
+        name='Land Area Fraction',
+        database_id='const_2d_asm_Nx',
+        database_name='M2C0NXASM.5.12.4',
+        product_name="FRLAND",
+    )
+    SFTOF = MerraProductData(
+        name='Sea Area Fraction',
+        database_id='const_2d_asm_Nx',
+        database_name='M2C0NXASM.5.12.4',
+        product_name="FROCEAN",
+    )
+    SIC = MerraProductData(
+        name='Sea Ice Area Fraction',
+        database_id='tavg1_2d_ocn_Nx',
+        database_name='M2T1NXOCN.5.12.4',
+        product_name="FRSEAICE",
+    )
+    TAS = MerraProductData(
+        name='Air Temperature at 2m',
+        database_id='tavg1_2d_slv_Nx',
+        database_name='M2T1NXSLV.5.12.4',
+        product_name="T2M",
+    )
+    TASMAX = MerraProductData(
+        name='Maximum Air Temperature at 2m',
+        database_id='statD_2d_slv_Nx',
+        database_name='M2SDNXSLV.5.12.4',
+        product_name="T2MMAX",
+    )
+    TASMIN = MerraProductData(
+        name='Minimum Air Temperature at 2m',
+        database_id='statD_2d_slv_Nx',
+        database_name='M2SDNXSLV.5.12.4',
+        product_name="T2MMIN",
+    )
+    UAS = MerraProductData(
+        name='Eastward Wind at 10m',
+        database_id='inst1_2d_asm_Nx',
+        database_name='M2I1NXASM.5.12.4',
+        product_name="U10M",
+    )
+    VAS = MerraProductData(
+        name='Northward Wind at 10m',
+        database_id='inst1_2d_asm_Nx',
+        database_name='M2I1NXASM.5.12.4',
+        product_name="V10M",
+    )
