@@ -13,9 +13,9 @@ from typing import List, Optional, Tuple, Union
 import keyring
 import keyring.errors
 import requests
+from cryptography.fernet import Fernet
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from cryptography.fernet import Fernet
 
 
 class MerraDownloadManager:
@@ -33,14 +33,22 @@ class MerraDownloadManager:
         """
         Fetch or generate an encryption key for Fernet and store it in the keyring.
         """
-        key_str = keyring.get_password(MerraDownloadManager._SERVICE_NAME, self._KEYRING_ENCRYPTION_KEY)
+        key_str = keyring.get_password(
+            MerraDownloadManager._SERVICE_NAME, self._KEYRING_ENCRYPTION_KEY
+        )
         if key_str is None:
             # Generate a new key and store it in the keyring
             key = Fernet.generate_key()
-            keyring.set_password(MerraDownloadManager._SERVICE_NAME, self._KEYRING_ENCRYPTION_KEY, key.decode())
+            keyring.set_password(
+                MerraDownloadManager._SERVICE_NAME,
+                self._KEYRING_ENCRYPTION_KEY,
+                key.decode(),
+            )
             logging.info("Generated and stored encryption key securely.")
         else:
-            key = key_str.encode()  # The keyring returns it as a string, convert back to bytes
+            key = (
+                key_str.encode()
+            )  # The keyring returns it as a string, convert back to bytes
 
         return Fernet(key)
 
@@ -52,9 +60,16 @@ class MerraDownloadManager:
         self._encrypted_password = self.cipher_suite.encrypt(password.encode())
 
     def get_credentials(self) -> Tuple[str, str]:
-        if self._encrypted_username is not None and self._encrypted_password is not None:
-            decrypted_username = self.cipher_suite.decrypt(self._encrypted_username).decode()
-            decrypted_password = self.cipher_suite.decrypt(self._encrypted_password).decode()
+        if (
+            self._encrypted_username is not None
+            and self._encrypted_password is not None
+        ):
+            decrypted_username = self.cipher_suite.decrypt(
+                self._encrypted_username
+            ).decode()
+            decrypted_password = self.cipher_suite.decrypt(
+                self._encrypted_password
+            ).decode()
             return decrypted_username, decrypted_password
 
         try:
@@ -87,7 +102,9 @@ class MerraDownloadManager:
         except keyring.errors.KeyringError as e:
             logging.error(f"Keyring error: {e}")
             username = input("Enter your NASA GES-DISC username for MERRA-2: ")
-            password = getpass.getpass("Enter your NASA GES-DISC password for MERRA-2: ")
+            password = getpass.getpass(
+                "Enter your NASA GES-DISC password for MERRA-2: "
+            )
             self.set_username_pw(username, password)
             return username, password
 
@@ -102,7 +119,7 @@ class MerraDownloadManager:
             logging.error("Failed to authenticate session.")
 
     def download_from_urls(
-            self, urls: Union[str, List[str]], download_folder: str, nr_of_threads=4
+        self, urls: Union[str, List[str]], download_folder: str, nr_of_threads=4
     ):
 
         if type(urls) is str:
@@ -177,7 +194,7 @@ class MerraDownloadManager:
             return
 
     def __create_authenticated_session(
-            self, download_url: str
+        self, download_url: str
     ) -> Optional[requests.Session]:
         """
         The merra portal seems to behave rather difficult when it comes to authentication. It seems that you need to
@@ -219,7 +236,9 @@ class MerraDownloadManager:
             logging.error(f"Failed to create authenticated session: {e}")
             return None
 
-    def __get_authentication_cookies(self, url: str) -> requests.cookies.RequestsCookieJar:
+    def __get_authentication_cookies(
+        self, url: str
+    ) -> requests.cookies.RequestsCookieJar:
         try:
             user_name, pw = self.get_credentials()
 
@@ -245,7 +264,10 @@ class MerraDownloadManager:
             for cookie in auth_cookie_jar:
                 if cookie.value is not None:
                     requests_cookie_jar.set(
-                        cookie.name, cookie.value, domain=cookie.domain, path=cookie.path
+                        cookie.name,
+                        cookie.value,
+                        domain=cookie.domain,
+                        path=cookie.path,
                     )
 
             return requests_cookie_jar

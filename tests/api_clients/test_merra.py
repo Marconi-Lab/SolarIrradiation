@@ -1,35 +1,46 @@
-from susse.api_clients import Merra2Config, MerraProducts, MerraDownloadManager, MerraDataFetcher
-from geopy.geocoders import Nominatim
+import os
+import shutil
 from datetime import datetime
 from typing import Tuple
-import shutil
 
-import os
+from geopy.geocoders import Nominatim
+
+from susse.api_clients import (
+    Merra2Config,
+    MerraDataFetcher,
+    MerraDownloadManager,
+    MerraProducts,
+)
+
 
 def get_test_credentials() -> Tuple[str, str]:
-    username = os.getenv('NASA_USERNAME')
-    password = os.getenv('NASA_PASSWORD')
+    username = os.getenv("NASA_USERNAME")
+    password = os.getenv("NASA_PASSWORD")
     if not username or not password:
         raise ValueError("NASA credentials not set in environment variables.")
     return username, password
+
 
 def test_merra_config():
 
     geolocator = Nominatim(user_agent="SuSSe")
     location = geolocator.geocode("Kampala")
     start_date = datetime(2010, 1, 1)
-    download_url = Merra2Config.generate_download_link(start_date, MerraProducts.HUSS.value, location.latitude,
-                                                       location.longitude)
-    expected_url = 'https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/2010/01/MERRA2_300.tavg1_2d_slv_Nx.20100101.nc4.nc4?QV2M[0:1:23][181:1:181][340:1:340]'
+    download_url = Merra2Config.generate_download_link(
+        start_date, MerraProducts.HUSS.value, location.latitude, location.longitude
+    )
+    expected_url = "https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/2010/01/MERRA2_300.tavg1_2d_slv_Nx.20100101.nc4.nc4?QV2M[0:1:23][181:1:181][340:1:340]"
     assert expected_url == download_url
+
 
 def test_merra_downloader():
 
     geolocator = Nominatim(user_agent="SuSSe")
     location = geolocator.geocode("Kampala")
     start_date = datetime(2010, 1, 1)
-    download_url = Merra2Config.generate_download_link(start_date, MerraProducts.HUSS.value, location.latitude,
-                                                       location.longitude)
+    download_url = Merra2Config.generate_download_link(
+        start_date, MerraProducts.HUSS.value, location.latitude, location.longitude
+    )
 
     download_manager = MerraDownloadManager()
     try:
@@ -57,7 +68,9 @@ def test_download_fetcher():
         data_fetcher.set_username_pw(username, password)
     except ValueError as e:
         pass
-    data = data_fetcher.fetch_product_result(merra_product, location, start_date, end_date)
+    data = data_fetcher.fetch_product_result(
+        merra_product, location, start_date, end_date
+    )
     shutil.rmtree(download_folder)
 
     var_names = data.get_variable_names()
