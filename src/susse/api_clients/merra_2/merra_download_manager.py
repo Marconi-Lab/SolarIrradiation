@@ -15,17 +15,48 @@ import keyring.errors
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from cryptography.fernet import Fernet
 
 
 class MerraDownloadManager:
     _TOP_LEVEL_URL = "https://urs.earthdata.nasa.gov"
     _SERVICE_NAME = "nasa_merra2"
+    _KEYRING_ENCRYPTION_KEY = "fernet_key"
 
     def __init__(self) -> None:
         self._auth_session: Optional[requests.Session] = None
+        self._encrypted_username: Optional[bytes] = None
+        self._encrypted_password: Optional[bytes] = None
+        self.cipher_suite = self._get_or_create_cipher_key()
 
-    @staticmethod
-    def get_credentials() -> Tuple[str, str]:
+    def _get_or_create_cipher_key(self) -> Fernet:
+        """
+        Fetch or generate an encryption key for Fernet and store it in the keyring.
+        """
+        key_str = keyring.get_password(MerraDownloadManager._SERVICE_NAME, self._KEYRING_ENCRYPTION_KEY)
+        if key_str is None:
+            # Generate a new key and store it in the keyring
+            key = Fernet.generate_key()
+            keyring.set_password(MerraDownloadManager._SERVICE_NAME, self._KEYRING_ENCRYPTION_KEY, key.decode())
+            logging.info("Generated and stored encryption key securely.")
+        else:
+            key = key_str.encode()  # The keyring returns it as a string, convert back to bytes
+
+        return Fernet(key)
+
+    def set_username_pw(self, username: str, password: str) -> None:
+        """
+        Encrypts and stores the username and password.
+        """
+        self._encrypted_username = self.cipher_suite.encrypt(username.encode())
+        self._encrypted_password = self.cipher_suite.encrypt(password.encode())
+
+    def get_credentials(self) -> Tuple[str, str]:
+        if self._encrypted_username is not None and self._encrypted_password is not None:
+            decrypted_username = self.cipher_suite.decrypt(self._encrypted_username).decode()
+            decrypted_password = self.cipher_suite.decrypt(self._encrypted_password).decode()
+            return decrypted_username, decrypted_password
+
         try:
             username = keyring.get_password(
                 MerraDownloadManager._SERVICE_NAME, "username"
@@ -43,7 +74,6 @@ class MerraDownloadManager:
                     "Enter your NASA GES-DISC for MERRA-2 password: "
                 )
 
-                # Store credentials securely in the keyring
                 keyring.set_password(
                     MerraDownloadManager._SERVICE_NAME, "username", username
                 )
@@ -57,9 +87,8 @@ class MerraDownloadManager:
         except keyring.errors.KeyringError as e:
             logging.error(f"Keyring error: {e}")
             username = input("Enter your NASA GES-DISC username for MERRA-2: ")
-            password = getpass.getpass(
-                "Enter your NASA GES-DISC password for MERRA-2: "
-            )
+            password = getpass.getpass("Enter your NASA GES-DISC password for MERRA-2: ")
+            self.set_username_pw(username, password)
             return username, password
 
     def session_authenticated(self) -> bool:
@@ -73,7 +102,7 @@ class MerraDownloadManager:
             logging.error("Failed to authenticate session.")
 
     def download_from_urls(
-        self, urls: Union[str, List[str]], download_folder: str, nr_of_threads=4
+            self, urls: Union[str, List[str]], download_folder: str, nr_of_threads=4
     ):
 
         if type(urls) is str:
@@ -148,28 +177,37 @@ class MerraDownloadManager:
             return
 
     def __create_authenticated_session(
-        self, download_url: str
+            self, download_url: str
     ) -> Optional[requests.Session]:
+        """
+        The merra portal seems to behave rather difficult when it comes to authentication. It seems that you need to
+        set the cookies manually to make sure that the authentication is saved. I do not fully understand why, but
+        I did not manage to find a more simple way
+        :param download_url: a url to a downloadable file
+        :return: requests.Session that corresponds to an authenticated session
+        """
+
         try:
-            s = requests.Session()
+            session = requests.Session()
 
             retry = Retry(connect=3, backoff_factor=0.5)
             adapter = HTTPAdapter(max_retries=retry)
-            s.mount("https://", adapter)
+            session.mount("https://", adapter)
 
-            s.headers = {
+            # The session headers simulate a web-browser
+            session.headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/40.0.2214.85 Safari/537.36"
             }
 
-            user_name, pw = MerraDownloadManager.get_credentials()
-            s.auth = (user_name, pw)
-            s.cookies = self.__get_right_cookies(download_url)
+            user_name, pw = self.get_credentials()
+            session.auth = (user_name, pw)
+            session.cookies = self.__get_authentication_cookies(download_url)
 
-            r = s.get(download_url)
+            r = session.get(download_url)
 
             if r.status_code == 200:
                 logging.info("Authenticated successfully.")
-                return s
+                return session
             else:
                 logging.error(
                     f"Authentication failed with status code: {r.status_code}"
@@ -181,9 +219,9 @@ class MerraDownloadManager:
             logging.error(f"Failed to create authenticated session: {e}")
             return None
 
-    def __get_right_cookies(self, url: str) -> requests.cookies.RequestsCookieJar:
+    def __get_authentication_cookies(self, url: str) -> requests.cookies.RequestsCookieJar:
         try:
-            user_name, pw = MerraDownloadManager.get_credentials()
+            user_name, pw = self.get_credentials()
 
             # Create an authorization handler for basic HTTP authentication
             p = urllib.request.HTTPPasswordMgrWithDefaultRealm()
@@ -197,10 +235,7 @@ class MerraDownloadManager:
             urllib.request.install_opener(opener)
 
             # Open the URL to authenticate and get the cookies
-            # The merra portal moved the authentication to the download level. Before this change you had to
-            # provide username and password on the overview page. For example:
-            # goldsmr4.sci.gsfc.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/
-            # authentication_url = 'https://goldsmr4.sci.gsfc.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/1980/01/MERRA2_100.tavg1_2d_slv_Nx.19800101.nc4.ascii?U2M[0:1:1][0:1:1][0:1:1]'
+            # The merra portal moved the authentication to the download level.
             opener.open(url)
 
             logging.info("Cookies successfully retrieved.")
@@ -208,9 +243,10 @@ class MerraDownloadManager:
             # Convert cookies from cookiejar.CookieJar to requests.cookies.RequestsCookieJar
             requests_cookie_jar = requests.cookies.RequestsCookieJar()
             for cookie in auth_cookie_jar:
-                requests_cookie_jar.set(
-                    cookie.name, cookie.value, domain=cookie.domain, path=cookie.path
-                )
+                if cookie.value is not None:
+                    requests_cookie_jar.set(
+                        cookie.name, cookie.value, domain=cookie.domain, path=cookie.path
+                    )
 
             return requests_cookie_jar
 

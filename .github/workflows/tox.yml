@@ -35,10 +35,16 @@ jobs:
 
       # Step 4: Run Tox
       - name: Run Tox
+        env:
+          NASA_USERNAME: ${{ secrets.NASA_USERNAME }}
+          NASA_PASSWORD: ${{ secrets.NASA_PASSWORD }}
         run: tox
 
       # Add this to your tox job in tox.yml
       - name: Run Tests with Coverage
+        env:
+          NASA_USERNAME: ${{ secrets.NASA_USERNAME }}
+          NASA_PASSWORD: ${{ secrets.NASA_PASSWORD }}
         run: tox -e py311
 
   format-check:
