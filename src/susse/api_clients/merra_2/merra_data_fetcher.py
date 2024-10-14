@@ -2,6 +2,7 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
@@ -9,6 +10,7 @@ import xarray as xr
 from geopy import location as Glocation
 
 from .merra_config import Merra2Config
+from .merra_data_result import MerraDataMetadata, MerraDataResult
 from .merra_download_manager import MerraDownloadManager
 from .merra_product import MerraProductData, MerraProducts
 
@@ -18,8 +20,13 @@ class MerraDataFetcher:
     This class handles the data fetching through the Merra 2
     """
 
-    def __init__(self):
+    _DOWNLOAD_FOLDER = str(
+        Path(__file__).resolve().parents[4] / "merra_files_downloaded"
+    )
+
+    def __init__(self, base_download_folder: str = None):
         self._download_manager = MerraDownloadManager()
+        self._base_download_folder = base_download_folder or self._DOWNLOAD_FOLDER
 
     def fetch_product_result(
         self,
@@ -27,7 +34,7 @@ class MerraDataFetcher:
         location: Glocation,
         start_date: datetime,
         end_date: datetime,
-    ) -> Optional[pd.DataFrame]:
+    ) -> Optional[MerraDataResult]:
         dates = [
             start_date + timedelta(days=x)
             for x in range((end_date - start_date).days + 1)
@@ -35,35 +42,54 @@ class MerraDataFetcher:
 
         self._download_data_if_necessary(dates, location, product)
 
-        product_folder = self._download_manager.get_folder_for_product(product)
+        merra_result = self._read_downloaded_files(dates, location, product)
+
+        if not merra_result:
+            logging.warning(
+                f"Product '{product.name}' for location '{str(location)}' between {start_date} and {end_date} is empty."
+            )
+            return None
+        else:
+            return merra_result
+
+    def _read_downloaded_files(
+        self, dates: List[datetime], location: Glocation, product: MerraProductData
+    ) -> Optional[MerraDataResult]:
+
+        product_folder = self.get_product_folder(product, location)
 
         if not os.path.exists(product_folder):
-            logging.warning(f"Product folder '{product_folder}' does not exist.")
-            return None
+            raise RuntimeError(f"Product folder '{product_folder}' does not exist.")
 
-        dfs = []
+        data_frames = []
+        file_names = []
 
         for date in dates:
             file_name = Merra2Config.create_file_name(date, product)
             file_path = os.path.join(product_folder, file_name)
 
-            if os.path.exists(file_path):
-                try:
-                    with xr.open_mfdataset(
-                        file_path, preprocess=MerraDataFetcher._extract_date
-                    ) as df:
-                        dfs.append(df.to_dataframe())
-                except Exception as e:
-                    logging.error(f"Issue with file {file_name}: {e}")
-            else:
+            if not os.path.exists(file_path):
                 logging.warning(
                     f"File '{file_name}' not found in '{product_folder}'. Skipping."
                 )
+                continue
 
-        df_hourly = pd.concat(dfs)
-        return df_hourly
+            ds = xr.open_dataset(file_path)
+            data_result = MerraDataResult.from_xarray(ds, location, product.name)
+            ds.close()
+            data_frames.append(data_result.to_df())
+            file_names.append(file_name)
 
-    def _download_data_if_necessary(self, dates, location, product) -> None:
+        if len(data_frames) > 0:
+            concatenated = pd.concat(data_frames)
+            metadata = MerraDataMetadata(file_names, location, product.name)
+            return MerraDataResult(metadata, concatenated)
+        else:
+            return None
+
+    def _download_data_if_necessary(
+        self, dates: List[datetime], location: Glocation, product: MerraProductData
+    ) -> None:
         urls: List[str] = []
         for date in dates:
             urls.append(
@@ -71,24 +97,12 @@ class MerraDataFetcher:
                     date, product, location.latitude, location.longitude
                 )
             )
-        self._download_manager.download_from_urls(urls)
+        self._download_manager.download_from_urls(
+            urls, self.get_product_folder(product, location)
+        )
 
-    @staticmethod
-    def _extract_date(data_set):
-        """
-        Extracts the date from the filename before merging the datasets.
-        """
-        if "HDF5_GLOBAL.Filename" in data_set.attrs:
-            f_name = data_set.attrs["HDF5_GLOBAL.Filename"]
-        elif "Filename" in data_set.attrs:
-            f_name = data_set.attrs["Filename"]
-        else:
-            raise AttributeError("The attribute name has changed again!")
-        # find a match between "." and ".nc4" that does not have "." .
-        exp = r"(?<=\.)[^\.]*(?=\.nc4)"
-        res = re.search(exp, f_name).group(0)
-        # Extract the date.
-        y, m, d = res[0:4], res[4:6], res[6:8]
-        date_str = "%s-%s-%s" % (y, m, d)
-        data_set = data_set.assign(date=date_str)
-        return data_set
+    def get_product_folder(self, product: MerraProductData, location: Glocation) -> str:
+        siimple_loc = re.split(", |_|-|!", str(location))[0]
+        return str(
+            Path(self._base_download_folder) / product.product_name / siimple_loc
+        )

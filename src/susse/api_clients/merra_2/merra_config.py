@@ -27,7 +27,7 @@ class Merra2Config:
         m_str = str(date.month).zfill(2)
         y_str = str(date.year)
         lat_geos5 = Merra2Config._translate_lat_to_geos5_native(lat)
-        lon_geos5 = Merra2Config._translate_lat_to_geos5_native(lon)
+        lon_geos5 = Merra2Config._translate_lon_to_geos5_native(lon)
         merra_lat = Merra2Config._find_closest_merra_coordinate(
             lat_geos5, Merra2Config.MERRA_LAT_COORDS
         )

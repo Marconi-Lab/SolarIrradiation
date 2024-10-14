@@ -17,9 +17,7 @@ def test_modis_data_fetcher():
 
     factory = ModisProductFactory()
     product = factory.get_product_by_enum(ModisProductEnum.LAND_SURFACE_TEMPERATURE)
-    result = data_fetcher.fetch_temp_day(
-        location, start_date, end_date
-    )
+    result = data_fetcher.fetch_temp_day(location, start_date, end_date)
     average_day_temperature = result.get_time_average()
 
     assert average_day_temperature is not None
