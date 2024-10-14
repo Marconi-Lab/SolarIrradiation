@@ -118,7 +118,7 @@ class MerraDownloadManager:
             p.map(download_wrapper_with_folder, urls)
 
     @staticmethod
-    def _extract_filename(url: str) -> str:
+    def extract_filename_from_url(url: str) -> str:
         """
         Extracts the filename from the url. This method can also be used to check
         if the links have the correct structure
@@ -140,7 +140,7 @@ class MerraDownloadManager:
         """
         Wrapper for parallel download. The function name cannot start with __ due to visibility issues.
         """
-        file_name = MerraDownloadManager._extract_filename(url)
+        file_name = MerraDownloadManager.extract_filename_from_url(url)
         file_path = os.path.join(download_folder, file_name)
 
         if os.path.exists(file_path):

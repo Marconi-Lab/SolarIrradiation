@@ -28,6 +28,12 @@ class MerraDataFetcher:
         self._download_manager = MerraDownloadManager()
         self._base_download_folder = base_download_folder or self._DOWNLOAD_FOLDER
 
+    def set_username_pw(self, username: str, password: str) -> None:
+        """
+        Encrypts and stores the username and password.
+        """
+        self._download_manager.set_username_pw(username, password)
+
     def fetch_product_result(
         self,
         product: MerraProductData,

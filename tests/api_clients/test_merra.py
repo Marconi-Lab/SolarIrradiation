@@ -2,6 +2,7 @@ from susse.api_clients import Merra2Config, MerraProducts, MerraDownloadManager,
 from geopy.geocoders import Nominatim
 from datetime import datetime
 from typing import Tuple
+import shutil
 
 import os
 
@@ -19,7 +20,7 @@ def test_merra_config():
     start_date = datetime(2010, 1, 1)
     download_url = Merra2Config.generate_download_link(start_date, MerraProducts.HUSS.value, location.latitude,
                                                        location.longitude)
-    expected_url = ""
+    expected_url = 'https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/2010/01/MERRA2_300.tavg1_2d_slv_Nx.20100101.nc4.nc4?QV2M[0:1:23][181:1:181][340:1:340]'
     assert expected_url == download_url
 
 def test_merra_downloader():
@@ -31,9 +32,15 @@ def test_merra_downloader():
                                                        location.longitude)
 
     download_manager = MerraDownloadManager()
-    username, password = get_test_credentials()
-    download_manager.set_username_pw(username, password)
-    download_manager.download_from_urls(download_url, ".")
+    try:
+        username, password = get_test_credentials()
+        download_manager.set_username_pw(username, password)
+    except ValueError as e:
+        pass
+    download_folder = "./tmp"
+    download_manager.download_from_urls(download_url, download_folder)
+    filename = download_manager.extract_filename_from_url(download_url)
+    os.remove(os.path.join(download_folder, filename))
 
 
 def test_download_fetcher():
@@ -41,5 +48,21 @@ def test_download_fetcher():
     location = geolocator.geocode("Zurich")
     start_date = datetime(2010, 1, 1)
     end_date = datetime(2010, 1, 3)
-    data_fetcher = MerraDataFetcher()
-    data = data_fetcher.fetch_product_result(MerraProducts.PR.value, location, start_date, end_date)
+
+    merra_product = MerraProducts.PR.value
+    download_folder = "./tmp"
+    data_fetcher = MerraDataFetcher(base_download_folder=download_folder)
+    try:
+        username, password = get_test_credentials()
+        data_fetcher.set_username_pw(username, password)
+    except ValueError as e:
+        pass
+    data = data_fetcher.fetch_product_result(merra_product, location, start_date, end_date)
+    shutil.rmtree(download_folder)
+
+    var_names = data.get_variable_names()
+    expected_var_names = [merra_product.product_name]
+    assert var_names == expected_var_names
+
+    var_np = data.to_np()
+    assert len(var_np) == 72

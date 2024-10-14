@@ -93,7 +93,7 @@ class MerraDataResult:
         """
         Returns a list of variable names in the dataset.
         """
-        return self._data.columns
+        return self._data.columns.tolist()
 
     def to_np(self) -> np.ndarray:
         return self._data[self.get_variable_names()].values
