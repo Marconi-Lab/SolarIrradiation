@@ -5,13 +5,12 @@ from typing import List, Optional
 import requests
 from geopy import location as Glocation
 
-from ..api_data_fetcher import ApiDataFetcher
 from .modis_api_config import ModisConfig
 from .modis_data_result import ModisDataResult
 from .modis_product import ModisProduct, ModisProductEnum, ModisProductFactory
 
 
-class ModisDataFetcher(ApiDataFetcher):
+class ModisDataFetcher:
     """
     This class handles the data fetching through the Modis API
     """
