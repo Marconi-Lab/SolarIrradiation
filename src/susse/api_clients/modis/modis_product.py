@@ -11,7 +11,6 @@ from .modis_api_config import ModisConfig
 class ModisProdFrequency(Enum):
     """
     This enum represents the possible MODIS result frequencies
-
     """
 
     DAILY = "Daily"
