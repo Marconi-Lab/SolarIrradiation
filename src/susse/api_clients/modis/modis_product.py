@@ -11,7 +11,6 @@ from .modis_api_config import ModisConfig
 class ModisProdFrequency(Enum):
     """
     This enum represents the possible MODIS result frequencies
-
     """
 
     DAILY = "Daily"
@@ -34,7 +33,8 @@ class ModisProdFrequency(Enum):
 class ModisProductEnum(Enum):
     """
     This class represents the different Modis products of interest. It also contains a function to provide a default
-    band of interest
+    band of interest. For a list of all possible products with their bands and documentation see
+    https://modis.ornl.gov/documentation.html
     """
 
     EMISSIVITY = "MOD21A2"

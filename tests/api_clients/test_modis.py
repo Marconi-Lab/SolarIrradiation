@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 from geopy.geocoders import Nominatim
 
 from susse import ModisProductEnum
@@ -39,6 +40,13 @@ def test_modis_data_fetcher():
     assert (
         expected_reflectance == reflectance_value
     ), f"Reflectance mismatch: {reflectance_value} != {expected_reflectance}"
+
+    reflectance_array = reflectance.to_np()
+    reflectance_times = reflectance.time
+    expected_reflectance_np = np.asarray([0.22294, 0.140864, 0.162352, 0.092516])
+    assert type(reflectance_times[0]) is datetime
+    assert len(reflectance_times) == len(reflectance_array)
+    assert np.allclose(reflectance_array, expected_reflectance_np)
 
     # test Emissivity
     emissivity = data_fetcher.fetch_emissivity(

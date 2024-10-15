@@ -19,6 +19,17 @@ from urllib3.util.retry import Retry
 
 
 class MerraDownloadManager:
+    """
+    This class handles the download of MERRA2 files. It also takes care of the authentification and storage of username
+    and passwords. The basic logic of authentification is based on the code available here;
+    https://github.com/emilylaiken/merradownload
+
+    The user credentials are stored in a local keyring, but can also be set from outside through set_username_pw.
+    Inside the class the credentials are stored only in encrypted form
+
+    To obtain a username and password one has to register https://urs.earthdata.nasa.gov/
+    """
+
     _TOP_LEVEL_URL = "https://urs.earthdata.nasa.gov"
     _SERVICE_NAME = "nasa_merra2"
     _KEYRING_ENCRYPTION_KEY = "fernet_key"

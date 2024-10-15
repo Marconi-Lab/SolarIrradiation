@@ -13,7 +13,9 @@ class MerraProductData:
 
 class MerraProducts(Enum):
     """
-    These products represent the different merra products that can be checked here https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
+    These products represent the different merra products that can be checked here
+    https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
+    This class should be extended whenever new products are required
     """
 
     AER = MerraProductData(

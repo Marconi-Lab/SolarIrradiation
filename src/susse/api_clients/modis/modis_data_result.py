@@ -58,11 +58,11 @@ class ModisDataResult:
         latitude: float,
         longitude: float,
         data_points: List[ModisDataPoint],
-        cellsize: Optional[float] = None,
-        nrows: Optional[int] = None,
-        ncols: Optional[int] = None,
-        units: Optional[str] = None,
-        scale: Optional[float] = None,
+        cellsize: float = None,
+        nrows: int = None,
+        ncols: int = None,
+        units: str = None,
+        scale: float = None,
     ):
         self._latitude = latitude
         self._longitude = longitude
@@ -128,6 +128,15 @@ class ModisDataResult:
     @property
     def data_points(self) -> List[ModisDataPoint]:
         return self._data_points
+
+    def to_np(self) -> np.ndarray:
+        values = [v.data_avg for v in self.data_points]
+        return np.asarray(values)
+
+    @property
+    def time(self) -> List[datetime]:
+        time_pts = [v.date for v in self.data_points]
+        return time_pts
 
     def get_time_average(self) -> float:
         values = [v.data_avg for v in self.data_points]

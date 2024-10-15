@@ -17,7 +17,10 @@ from .merra_product import MerraProductData, MerraProducts
 
 class MerraDataFetcher:
     """
-    This class handles the data fetching through the Merra 2
+    This class handles the data fetching through the MERRA2 and is meant as the primary interface for data fetching from
+    MERRA2. It utilizes the MerraDownloadManager and Merra2Config to translate a request for a product at a specific
+    location and time to a dowloadable link and downloads the file of interest. It also extracts the relevant data from
+    the obtained file.
     """
 
     _DOWNLOAD_FOLDER = str(

@@ -17,6 +17,11 @@ class MerraDataMetadata:
 
 
 class MerraDataResult:
+    """
+    This class represents the result from a Merra request. It can store various variables and provides convenience
+    functions to access the data as np.ndarray or pd dataframe.
+    """
+
     _TIME_KEY = "time"
     _FILENAME_KEY = "Filename"
 
