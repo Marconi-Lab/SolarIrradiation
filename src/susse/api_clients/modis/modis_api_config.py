@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from mypyc.primitives.misc_ops import stop_async_iteration_op
+from geopy import location as Glocation
 
 
 class ModisConfig:
@@ -14,7 +14,7 @@ class ModisConfig:
     PRODUCTS = "/products"
     BANDS = "/bands"
 
-    DATE_FORMAT = "%Y%j"
+    MODIS_DATE_FORMAT = "%Y%j"
 
     @staticmethod
     def get_product_url() -> str:
@@ -27,18 +27,15 @@ class ModisConfig:
     @staticmethod
     def get_product_request_url(
         product_name: str,
-        latitude: float,
-        longitude: float,
+        location: Glocation,
         band_name: str,
         start_date: datetime,
         end_date: datetime,
         kmAB: int = 1,
         kmLR: int = 1,
     ) -> str:
-        return f"{ModisConfig.BASE_URL}/{product_name}/subset?latitude={latitude}&longitude={longitude}&band={band_name}&startDate=A{start_date.strftime(ModisConfig.DATE_FORMAT)}&endDate=A{end_date.strftime(ModisConfig.DATE_FORMAT)}&kmAboveBelow={kmAB}&kmLeftRight={kmLR}"
+        return f"{ModisConfig.BASE_URL}/{product_name}/subset?latitude={location.latitude}&longitude={location.longitude}&band={band_name}&startDate=A{start_date.strftime(ModisConfig.MODIS_DATE_FORMAT)}&endDate=A{end_date.strftime(ModisConfig.MODIS_DATE_FORMAT)}&kmAboveBelow={kmAB}&kmLeftRight={kmLR}"
 
     @staticmethod
-    def get_available_date_url(
-        product_name: str, latitude: float, longitude: float
-    ) -> str:
-        return f"{ModisConfig.BASE_URL}/{product_name}/dates?latitude={latitude}&longitude={longitude}"
+    def get_available_date_url(product_name: str, location: Glocation) -> str:
+        return f"{ModisConfig.BASE_URL}/{product_name}/dates?latitude={location.latitude}&longitude={location.longitude}"

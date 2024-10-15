@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import requests
+from geopy import location as Glocation
 
 from ..api_data_fetcher import ApiDataFetcher
 from .modis_api_config import ModisConfig
@@ -21,15 +22,13 @@ class ModisDataFetcher(ApiDataFetcher):
 
     def fetch_temp_day(
         self,
-        latitude: float,
-        longitude: float,
+        location: Glocation,
         start_date: datetime,
         end_date: datetime,
     ) -> ModisDataResult:
         return self.fetch_product_result(
             ModisProductEnum.LAND_SURFACE_TEMPERATURE,
-            latitude,
-            longitude,
+            location,
             start_date,
             end_date,
             "LST_Day_1KM",
@@ -37,15 +36,13 @@ class ModisDataFetcher(ApiDataFetcher):
 
     def fetch_temp_night(
         self,
-        latitude: float,
-        longitude: float,
+        location: Glocation,
         start_date: datetime,
         end_date: datetime,
     ) -> ModisDataResult:
         return self.fetch_product_result(
             ModisProductEnum.LAND_SURFACE_TEMPERATURE,
-            latitude,
-            longitude,
+            location,
             start_date,
             end_date,
             "LST_Night_1KM",
@@ -53,16 +50,29 @@ class ModisDataFetcher(ApiDataFetcher):
 
     def fetch_surface_reflectance(
         self,
-        latitude: float,
-        longitude: float,
+        location: Glocation,
         start_date: datetime,
         end_date: datetime,
         band_name: str = None,
     ) -> ModisDataResult:
         return self.fetch_product_result(
             ModisProductEnum.SURFACE_REFLACTANCE,
-            latitude,
-            longitude,
+            location,
+            start_date,
+            end_date,
+            band_name,
+        )
+
+    def fetch_emissivity(
+        self,
+        location: Glocation,
+        start_date: datetime,
+        end_date: datetime,
+        band_name: str = None,
+    ) -> ModisDataResult:
+        return self.fetch_product_result(
+            ModisProductEnum.EMISSIVITY,
+            location,
             start_date,
             end_date,
             band_name,
@@ -71,8 +81,7 @@ class ModisDataFetcher(ApiDataFetcher):
     def fetch_product_result(
         self,
         product_enum: ModisProductEnum,
-        latitude: float,
-        longitude: float,
+        location: Glocation,
         start_date: datetime,
         end_date: datetime,
         band_name: str = None,
@@ -81,52 +90,65 @@ class ModisDataFetcher(ApiDataFetcher):
         band_name = self._validate_band_for_product(product, band_name)
         request_url = ModisConfig.get_product_request_url(
             product_name=product.name,
-            latitude=latitude,
-            longitude=longitude,
+            location=location,
             band_name=band_name,
             start_date=start_date,
             end_date=end_date,
         )
-
         response = requests.get(request_url)
         if response.status_code == 200:
             product_data = response.json()
             return ModisDataResult.from_request_response(product_data)
         else:
-            raise requests.exceptions.HTTPError(
-                f"Failed to fetch data for product {product.name}, coordinates {latitude}, {longitude} between dates: {start_date} and {end_date}: \n{response.text}"
+            message = (
+                "Failed to fetch data for product {}, coordinates {} {} "
+                "between dates: {} and {}: \n{}"
+            ).format(
+                product.name,
+                location.latitude,
+                location.longitude,
+                start_date,
+                end_date,
+                response.text,
             )
+            raise requests.exceptions.HTTPError(message)
 
     def _validate_band_for_product(
-        self, product: ModisProduct, band_name: str = None
+        self, product: ModisProduct, band_name: Optional[str] = None
     ) -> str:
         if band_name is None:
             if product.default_band is not None:
                 return product.default_band.name
             else:
-                raise ValueError(
-                    f"No band provided for  product {product.name}, and no default band available. "
-                    f"Available bands: {product.get_band_names()}"
-                )
+                message = (
+                    "No band provided for product {}, and no default band available."
+                    "Available bands {}"
+                ).format(product.name, product.get_band_names())
+                raise ValueError(message)
         else:
             if not product.has_band(band_name):
                 if product.default_band is not None:
-                    logging.warning(
-                        f"Band {band_name} not found in product {product.name}, using default band {product.default_band.name} instead"
-                    )
+                    message = (
+                        "Band {} not found in product {}, using default band {} instead"
+                    ).format(band_name, product.name, product.default_band.name)
+                    logging.warning(message)
+
                     return product.default_band.name
                 else:
-                    raise ValueError(
-                        f"Band {band_name} not found in product {product.name}, and no default band available. "
-                        f"Available bands: {product.get_band_names()}"
-                    )
+                    message = (
+                        "Band {} not found in product {}, and no default band available. "
+                        "Available bands: {}"
+                    ).format(band_name, product.name, product.get_band_names())
+                    raise ValueError(message)
+
         return band_name
 
     def get_available_dates_for_product_and_location(
-        self, product: ModisProduct, latitude: float, longitude: float
+        self, product: ModisProduct, location: Glocation
     ) -> List[datetime]:
         available_dates_url = ModisConfig.get_available_date_url(
-            product.name, latitude, longitude
+            product.name,
+            location,
         )
         response = requests.get(available_dates_url)
 
@@ -138,6 +160,8 @@ class ModisDataFetcher(ApiDataFetcher):
             ]
             return available_dates
         else:
-            raise requests.exceptions.HTTPError(
-                f"Failed to fetch available dates for product {product.name} and coordinates {latitude}, {longitude}: \n{response.text}"
-            )
+            message = (
+                "Failed to fetch available dates for product {}, "
+                "and coordinates {}, {}: \n{}"
+            ).format(product.name, location.latitude, location.longitude, response.text)
+            raise requests.exceptions.HTTPError(message)

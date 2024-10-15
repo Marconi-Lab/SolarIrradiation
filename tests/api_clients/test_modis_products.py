@@ -8,18 +8,16 @@ def test_modis_products():
     surface_reflectance = factory.get_product_by_enum(
         ModisProductEnum.SURFACE_REFLACTANCE
     )
-    land_surface_temperature = factory.get_product_by_enum(
-        ModisProductEnum.LAND_SURFACE_TEMPERATURE
-    )
-    daymet = factory.get_product_by_enum(ModisProductEnum.DAYMET)
+    emissivity = factory.get_product_by_enum(ModisProductEnum.EMISSIVITY)
+    leaf_area_index = factory.get_product_by_enum(ModisProductEnum.LEAF_AREA_INDEX)
 
     num_bands_reflectance = 13
-    num_bands_temperature = 11
-    num_bands_daymet = 7
+    num_bands_emissivity = 11
+    num_bands_leaf = 6
 
     assert num_bands_reflectance == len(surface_reflectance.get_band_names())
-    assert num_bands_temperature == len(land_surface_temperature.get_band_names())
-    assert num_bands_daymet == len(daymet.get_band_names())
+    assert num_bands_emissivity == len(emissivity.get_band_names())
+    assert num_bands_leaf == len(leaf_area_index.get_band_names())
 
     for product_enum in ModisProductEnum:
         factory.get_product_by_enum(product_enum)

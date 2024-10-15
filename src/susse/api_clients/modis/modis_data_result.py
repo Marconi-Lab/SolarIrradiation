@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from numpy import number
@@ -58,11 +58,11 @@ class ModisDataResult:
         latitude: float,
         longitude: float,
         data_points: List[ModisDataPoint],
-        cellsize: float = None,
-        nrows: int = None,
-        ncols: int = None,
-        units: str = None,
-        scale: float = None,
+        cellsize: Optional[float] = None,
+        nrows: Optional[int] = None,
+        ncols: Optional[int] = None,
+        units: Optional[str] = None,
+        scale: Optional[float] = None,
     ):
         self._latitude = latitude
         self._longitude = longitude
@@ -97,9 +97,10 @@ class ModisDataResult:
         scale = float(scale_str) if scale_str else 1.0
 
         if not isinstance(subset, list):
-            raise ValueError(
-                f"Expected '{cls._SUBSET_TAG}' to be a list but got {type(subset)}"
+            message = ("Expected '{}' to be a list but got {}").format(
+                cls._SUBSET_TAG, type(subset)
             )
+            raise ValueError(message)
 
         data_points = []
         for data_dict in subset:

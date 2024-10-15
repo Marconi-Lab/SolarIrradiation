@@ -17,22 +17,37 @@ def test_modis_data_fetcher():
 
     factory = ModisProductFactory()
     product = factory.get_product_by_enum(ModisProductEnum.LAND_SURFACE_TEMPERATURE)
-    result = data_fetcher.fetch_temp_day(
-        location.latitude, location.longitude, start_date, end_date
-    )
+    result = data_fetcher.fetch_temp_day(location, start_date, end_date)
     average_day_temperature = result.get_time_average()
 
+    assert average_day_temperature is not None
+
     available_dates = data_fetcher.get_available_dates_for_product_and_location(
-        product, longitude=location.longitude, latitude=location.latitude
+        product, location=location
     )
 
+    assert available_dates
+
+    # test Reflectance
     reflectance = data_fetcher.fetch_surface_reflectance(
-        latitude=location.latitude,
-        longitude=location.longitude,
+        location=location,
         start_date=start_date,
         end_date=end_date,
     )
     reflectance_value = reflectance.get_time_average()
-
     expected_reflectance = 0.15466800000000003
-    assert expected_reflectance == reflectance_value
+    assert (
+        expected_reflectance == reflectance_value
+    ), f"Reflectance mismatch: {reflectance_value} != {expected_reflectance}"
+
+    # test Emissivity
+    emissivity = data_fetcher.fetch_emissivity(
+        location=location,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    emissivity_value = emissivity.get_time_average()
+    expected_emissivity = 0.4783888888888889
+    assert (
+        expected_emissivity == emissivity_value
+    ), f"Emissivity mismatch: {emissivity_value} != {expected_emissivity}"
