@@ -23,7 +23,7 @@ class Merra2Config:
 
     @staticmethod
     def generate_download_link(
-            date: datetime, product_data: MerraProductData, lat: float, lon: float
+        date: datetime, product_data: MerraProductData, lat: float, lon: float
     ) -> str:
 
         file_name = Merra2Config.create_file_name(date, product_data)
