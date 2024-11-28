@@ -18,14 +18,13 @@ class Merra2Config:
     MERRA_LON_COORDS = np.arange(0, 576, dtype=int)
 
     @staticmethod
-    def generate_database_url(product_data: MerraProductData):
+    def generate_database_url(product_data: MerraProductData) -> str:
         return f"{Merra2Config.BASE_URL}/{product_data.database_name}"
 
     @staticmethod
     def generate_download_link(
         date: datetime, product_data: MerraProductData, lat: float, lon: float
     ) -> str:
-
         file_name = Merra2Config.create_file_name(date, product_data)
         m_str = str(date.month).zfill(2)
         y_str = str(date.year)
@@ -37,8 +36,10 @@ class Merra2Config:
         merra_lon = Merra2Config._find_closest_merra_coordinate(
             lon_geos5, Merra2Config.MERRA_LON_COORDS
         )
-        suffix = f"{product_data.product_name}[0:1:23][{merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
-        url = f"{Merra2Config.generate_database_url(product_data)}/{y_str}/{m_str}/{file_name}.nc4?{suffix}"
+        suffix = f"{product_data.product_name}[0:1:23][{
+            merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
+        url = f"{Merra2Config.generate_database_url(
+            product_data)}/{y_str}/{m_str}/{file_name}.nc4?{suffix}"
         return url
 
     @staticmethod
