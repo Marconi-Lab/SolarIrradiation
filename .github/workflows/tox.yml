@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.11]  # Specify the Python versions to test against, as per your tox envlist
+        python-version: [3.12]  # Specify the Python versions to test against, as per your tox envlist
 
     steps:
       # Step 1: Check out the repository
@@ -54,10 +54,10 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Install dependencies for formatting and linting
         run: |
@@ -76,10 +76,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Install dependencies for static analysis
         run: |
