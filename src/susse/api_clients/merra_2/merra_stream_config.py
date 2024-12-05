@@ -50,11 +50,9 @@ class MerraStreamConfig:
             lon_geos5, self._merra_config.MERRA_LON_COORDS
         )
 
-        suffix = f"dap4.ce=/{product_data.product_name}[0:1:23][{
-            merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
+        suffix = f"dap4.ce=/{product_data.product_name}[0:1:23][{merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
 
-        url = f"{self._merra_config.generate_database_url(
-            product_data)}/{y_str}/{m_str}/{file_name}?{suffix}"
+        url = f"{self._merra_config.generate_database_url(product_data)}/{y_str}/{m_str}/{file_name}?{suffix}"
 
         return url
 

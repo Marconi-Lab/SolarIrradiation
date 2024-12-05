@@ -172,8 +172,7 @@ class MerraDownloadManager:
 
         if os.path.exists(file_path):
             logging.info(
-                f"File '{file_name}' already exists in '{
-                    download_folder}'. Skipping download."
+                f"File '{file_name}' already exists in '{download_folder}'. Skipping download."
             )
         else:
             self.__download_and_save_file(url, file_path)
@@ -238,8 +237,7 @@ class MerraDownloadManager:
                 return session
             else:
                 logging.error(
-                    f"Authentication failed with status code: {
-                        r.status_code}"
+                    f"Authentication failed with status code: {r.status_code}"
                 )
                 logging.error(f"Response content: {r.text}")
                 return None

@@ -4,6 +4,7 @@ mypy>=1.13
 netCDF4>=1.7.1.post2
 numpy>=2.1.2
 overrides>=7.7.0
+pydap>=3.5
 pandas>=2.2.3
 pvlib>=0.11.0
 Requests>=2.32.3

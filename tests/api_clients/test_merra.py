@@ -27,7 +27,7 @@ def test_merra_config():
     location = geolocator.geocode("Kampala")
     start_date = datetime(2010, 1, 1)
     download_url = Merra2Config.generate_download_link(
-        start_date, MerraProducts.HUSS.value, location.latitude, location.longitude
+        start_date, MerraProducts.SPECIFIC_HUMIDITY.value, location.latitude, location.longitude
     )
     expected_url = "https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/2010/01/MERRA2_300.tavg1_2d_slv_Nx.20100101.nc4.nc4?QV2M[0:1:23][181:1:181][340:1:340]"
     assert expected_url == download_url
@@ -39,7 +39,7 @@ def test_merra_downloader():
     location = geolocator.geocode("Kampala")
     start_date = datetime(2010, 1, 1)
     download_url = Merra2Config.generate_download_link(
-        start_date, MerraProducts.HUSS.value, location.latitude, location.longitude
+        start_date, MerraProducts.SPECIFIC_HUMIDITY.value, location.latitude, location.longitude
     )
 
     download_manager = MerraDownloadManager()
@@ -60,7 +60,7 @@ def test_download_fetcher():
     start_date = datetime(2010, 1, 1)
     end_date = datetime(2010, 1, 3)
 
-    merra_product = MerraProducts.PR.value
+    merra_product = MerraProducts.SURFACE_ALBEDO.value
     download_folder = "./tmp"
     data_fetcher = MerraDataFetcher(base_download_folder=download_folder)
     try:
