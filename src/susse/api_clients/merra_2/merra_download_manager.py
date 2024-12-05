@@ -95,7 +95,8 @@ class MerraDownloadManager:
                 logging.info(
                     "NASA GES-DISC for MERRA-2 credentials not found in keyring."
                 )
-                username = input("Enter your NASA GES-DISC for MERRA-2 username: ")
+                username = input(
+                    "Enter your NASA GES-DISC for MERRA-2 username: ")
                 password = getpass.getpass(
                     "Enter your NASA GES-DISC for MERRA-2 password: "
                 )
@@ -123,7 +124,8 @@ class MerraDownloadManager:
         return self._auth_session is not None
 
     def authenticate_session(self, authentication_url: str) -> None:
-        self._auth_session = self.__create_authenticated_session(authentication_url)
+        self._auth_session = self.__create_authenticated_session(
+            authentication_url)
         if self._auth_session:
             logging.info("Session authenticated successfully.")
         else:
@@ -172,7 +174,8 @@ class MerraDownloadManager:
 
         if os.path.exists(file_path):
             logging.info(
-                f"File '{file_name}' already exists in '{download_folder}'. Skipping download."
+                f"File '{file_name}' already exists in '{
+                    download_folder}'. Skipping download."
             )
         else:
             self.__download_and_save_file(url, file_path)

@@ -143,10 +143,10 @@ class ModisDataFetcher:
         return band_name
 
     def get_available_dates_for_product_and_location(
-        self, product: ModisProduct, location: Glocation
+        self, product_enum: ModisProductEnum, location: Glocation
     ) -> List[datetime]:
         available_dates_url = ModisConfig.get_available_date_url(
-            product.value,
+            product_enum.value,
             location,
         )
         response = requests.get(available_dates_url)
@@ -162,5 +162,7 @@ class ModisDataFetcher:
             message = (
                 "Failed to fetch available dates for product {}, "
                 "and coordinates {}, {}: \n{}"
-            ).format(product.name, location.latitude, location.longitude, response.text)
+            ).format(
+                product_enum.name, location.latitude, location.longitude, response.text
+            )
             raise requests.exceptions.HTTPError(message)
