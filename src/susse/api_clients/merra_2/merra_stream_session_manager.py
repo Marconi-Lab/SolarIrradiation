@@ -15,7 +15,7 @@ class StreamSessionManager:
     def __init__(self):
         self._authenticate_session = MerraDownloadManager()
 
-    def _set_username_pw(self, username:str, password:str)-> None:
+    def _set_username_pw(self, username: str, password: str) -> None:
         """
         Passes username and password to the underlying MerraDownloadManager.
         """
