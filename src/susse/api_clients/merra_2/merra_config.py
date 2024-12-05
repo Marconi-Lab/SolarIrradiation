@@ -36,10 +36,8 @@ class Merra2Config:
         merra_lon = Merra2Config._find_closest_merra_coordinate(
             lon_geos5, Merra2Config.MERRA_LON_COORDS
         )
-        suffix = f"{product_data.product_name}[0:1:23][{
-            merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
-        url = f"{Merra2Config.generate_database_url(
-            product_data)}/{y_str}/{m_str}/{file_name}.nc4?{suffix}"
+        suffix = f"{product_data.product_name}[0:1:23][{merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
+        url = f"{Merra2Config.generate_database_url(product_data)}/{y_str}/{m_str}/{file_name}.nc4?{suffix}"
         return url
 
     @staticmethod
