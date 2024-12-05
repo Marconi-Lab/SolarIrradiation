@@ -90,6 +90,12 @@ def test_merra_stream():
 
     get_temperature_data = MerraDataStreamFetcher()
 
+    try:
+        username, password = get_test_credentials()
+        get_temperature_data._authenticate._set_username_pw(username, password)
+    except ValueError as e:
+        pass
+
     data = get_temperature_data.fetch_data(
         start_date, end_date, MerraProducts.AIR_TEMPERATURE.value, location
     )
