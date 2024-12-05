@@ -49,6 +49,7 @@ class ModisProductEnum(Enum):
             ModisProductEnum.EMISSIVITY: "Emis_29",
             ModisProductEnum.SURFACE_REFLACTANCE: "sur_refl_b01",
             ModisProductEnum.LEAF_AREA_INDEX: "Lai_500m",
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE: "LST_Day_1KM",
         }.get(self)
 
 
