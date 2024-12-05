@@ -95,14 +95,11 @@ class ModisBand:
         scale_factor_str = json_dict.get(cls._SCALE_FACTOR_TAG)
         valid_range_str = json_dict.get(cls._VALID_RANGE_TAG)
 
-        add_offset = float(
-            add_offset_str) if add_offset_str is not None else None
-        scale_factor = float(
-            scale_factor_str) if scale_factor_str is not None else None
+        add_offset = float(add_offset_str) if add_offset_str is not None else None
+        scale_factor = float(scale_factor_str) if scale_factor_str is not None else None
 
         range_split = (
-            valid_range_str.split(
-                " to ") if valid_range_str is not None else None
+            valid_range_str.split(" to ") if valid_range_str is not None else None
         )
         valid_range = (
             (float(range_split[0]), float(range_split[1]))
@@ -185,8 +182,7 @@ class ModisProduct:
     ):
         return cls(
             product_name=json_dict[cls._PRODUCT_TAG],
-            frequency=ModisProdFrequency.from_str(
-                json_dict[cls._FREQUENCY_TAG]),
+            frequency=ModisProdFrequency.from_str(json_dict[cls._FREQUENCY_TAG]),
             resolution_meters=float(json_dict[cls._RESOLUTION_METERS_TAG]),
             description=json_dict[cls._DESCRIPTION_TAG],
             default_band_name=default_band_name,
