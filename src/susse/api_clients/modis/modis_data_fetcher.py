@@ -146,7 +146,7 @@ class ModisDataFetcher:
         self, product: ModisProduct, location: Glocation
     ) -> List[datetime]:
         available_dates_url = ModisConfig.get_available_date_url(
-            product.name,
+            product.value,
             location,
         )
         response = requests.get(available_dates_url)
