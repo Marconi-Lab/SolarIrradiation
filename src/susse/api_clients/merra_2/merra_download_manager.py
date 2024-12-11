@@ -132,7 +132,6 @@ class MerraDownloadManager:
     def download_from_urls(
         self, urls: Union[str, List[str]], download_folder: str, nr_of_threads=4
     ):
-
         if type(urls) is str:
             urls = [urls]
 
@@ -205,7 +204,8 @@ class MerraDownloadManager:
             return
 
     def __create_authenticated_session(
-        self, download_url: str
+        self,
+        download_url: str,
     ) -> Optional[requests.Session]:
         """
         The merra portal seems to behave rather difficult when it comes to authentication. It seems that you need to
@@ -214,7 +214,6 @@ class MerraDownloadManager:
         :param download_url: a url to a downloadable file
         :return: requests.Session that corresponds to an authenticated session
         """
-
         try:
             session = requests.Session()
 
