@@ -1,9 +1,12 @@
-from susse import ModisProductEnum
 import pytest
+
+from susse import ModisProductEnum
 from susse.api_clients import ModisProductFactory
 
 
-@pytest.mark.skip(reason="Modis service seems to be temporarily unavailable. This needs to be re-evaluated")
+@pytest.mark.skip(
+    reason="Modis service seems to be temporarily unavailable. This needs to be re-evaluated"
+)
 def test_modis_products():
     factory = ModisProductFactory()
     surface_reflectance = factory.get_product_by_enum(

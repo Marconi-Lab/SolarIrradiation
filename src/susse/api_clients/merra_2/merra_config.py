@@ -18,14 +18,13 @@ class Merra2Config:
     MERRA_LON_COORDS = np.arange(0, 576, dtype=int)
 
     @staticmethod
-    def generate_database_url(product_data: MerraProductData):
+    def generate_database_url(product_data: MerraProductData) -> str:
         return f"{Merra2Config.BASE_URL}/{product_data.database_name}"
 
     @staticmethod
     def generate_download_link(
         date: datetime, product_data: MerraProductData, lat: float, lon: float
     ) -> str:
-
         file_name = Merra2Config.create_file_name(date, product_data)
         m_str = str(date.month).zfill(2)
         y_str = str(date.year)
