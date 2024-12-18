@@ -74,6 +74,7 @@ class MerraStreamConfig:
             self._generate_stream_link(date, product_data, location)
             for date in date_range
         ]
+
     @staticmethod
     def _extract_date_from_url(url: str) -> str:
         """
