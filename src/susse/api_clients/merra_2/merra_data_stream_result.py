@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import List, Union
+
 import numpy as np
 from geopy import location as Glocation
 
-from .merra_product import MerraProducts, MerraProductData
+from .merra_product import MerraProductData, MerraProducts
 
 
 class MerraStreamDataResult:
