@@ -10,7 +10,7 @@ class MerraStreamDataResult:
     def __init__(
         self,
         data: dict[str, list[float]],
-        product_name:str,
+        product_name: str,
         location: Glocation,
         start_date: datetime,
         end_date: datetime,
