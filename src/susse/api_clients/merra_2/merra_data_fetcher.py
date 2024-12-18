@@ -68,9 +68,7 @@ class MerraDataFetcher:
         product_folder = self.get_product_folder(product, location)
 
         if not os.path.exists(product_folder):
-            raise RuntimeError(
-                f"Product folder '{product_folder}' does not exist."
-            )
+            raise RuntimeError(f"Product folder '{product_folder}' does not exist.")
 
         data_frames = []
         file_names = []
