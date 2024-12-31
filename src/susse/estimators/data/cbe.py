@@ -64,6 +64,8 @@ class LocationHandler:
 
 class DataHandler:
     def __init__(self, dataframe: pd.DataFrame):
+        
+        #TODO  check if the datatframe is of a given format
         self._dataframe = dataframe
         self._locations = {}
         self._add_location_labels()
