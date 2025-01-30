@@ -1,14 +1,13 @@
 geopy>=2.4.1
 keyring>=25.4.1
-mypy>=1.13
 netCDF4>=1.7.1.post2
-numpy>=2.1.2
+numpy==2.1.2
 overrides>=7.7.0
 pydap>=3.5
 pandas>=2.2.3
 pvlib>=0.11.0
 pydap>=3.5
-jinja2>=3.1.4
+jinja2>=3.1.5
 Requests>=2.32.3
 types-requests>=2.32.0.20240905
 xarray>=2024.9.0

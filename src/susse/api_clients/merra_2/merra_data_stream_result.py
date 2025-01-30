@@ -32,7 +32,7 @@ class MerraStreamDataResult:
     @classmethod
     def from_data(
         cls,
-        data: dict,
+        data: Dict[str, List[float]],
         product_data: MerraProductData,
         location: Glocation,
         start_date: datetime,
