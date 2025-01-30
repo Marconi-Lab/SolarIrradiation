@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 from typing import List
 
@@ -73,3 +74,19 @@ class MerraStreamConfig:
             self._generate_stream_link(date, product_data, location)
             for date in date_range
         ]
+
+    @staticmethod
+    def _extract_date_from_url(url: str) -> str:
+        """
+        Extracts the date from a URL with separate year, month, and day segments.
+
+        :param url: The dataset URL.
+        :return: The date in 'YYYY-MM-DD' format as a string.
+        :raises ValueError: If the date cannot be extracted from the URL.
+        """
+        match = re.search(r"(\d{4})(\d{2})(\d{2})", url)
+        if match:
+            year, month, day = match.groups()
+            return f"{year}-{month}-{day}"
+        else:
+            raise ValueError(f"Date could not be extracted from URL: {url}")

@@ -28,7 +28,10 @@ def test_merra_config():
     location = geolocator.geocode("Kampala")
     start_date = datetime(2010, 1, 1)
     download_url = Merra2Config.generate_download_link(
-        start_date, MerraProducts.SPECIFIC_HUMIDITY.value, location.latitude, location.longitude
+        start_date,
+        MerraProducts.SPECIFIC_HUMIDITY.value,
+        location.latitude,
+        location.longitude,
     )
     expected_url = "https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/2010/01/MERRA2_300.tavg1_2d_slv_Nx.20100101.nc4.nc4?QV2M[0:1:23][181:1:181][340:1:340]"
     assert expected_url == download_url
@@ -40,7 +43,10 @@ def test_merra_downloader():
     location = geolocator.geocode("Kampala")
     start_date = datetime(2010, 1, 1)
     download_url = Merra2Config.generate_download_link(
-        start_date, MerraProducts.SPECIFIC_HUMIDITY.value, location.latitude, location.longitude
+        start_date,
+        MerraProducts.SPECIFIC_HUMIDITY.value,
+        location.latitude,
+        location.longitude,
     )
 
     download_manager = MerraDownloadManager()
@@ -85,18 +91,30 @@ def test_download_fetcher():
 def test_merra_stream():
     geolocator = Nominatim(user_agent="SuSSe")
     location = geolocator.geocode("Kampala")
+
     start_date = datetime(2020, 1, 1)
     end_date = datetime(2020, 1, 1)
 
-    get_temperature_data = MerraDataStreamFetcher()
+    merra_stream = MerraDataStreamFetcher()
 
     try:
         username, password = get_test_credentials()
-        get_temperature_data._authenticate._set_username_pw(username, password)
-    except ValueError as e:
+        merra_stream._authenticate._set_username_pw(username, password)
+    except ValueError:
         pass
 
-    data = get_temperature_data.fetch_data(
-        start_date, end_date, MerraProducts.AIR_TEMPERATURE.value, location
+    result = merra_stream.fetch_data(
+        start_date=start_date,
+        end_date=end_date,
+        product_data=MerraProducts.AIR_TEMPERATURE.value,
+        location=location,
     )
-    assert np.mean(data) == 295.79495
+
+    cleaned_data = result.data
+
+    flattened_data = [value for day_data in cleaned_data.values() for value in day_data]
+    mean_temperature = np.mean(flattened_data)
+
+    assert (
+        mean_temperature == 295.7949358622233
+    ), f"Expected 295.7949358622233 but got {mean_temperature}"
