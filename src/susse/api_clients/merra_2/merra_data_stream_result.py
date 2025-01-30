@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 from geopy import location as Glocation
@@ -8,9 +8,12 @@ from .merra_product import MerraProductData, MerraProducts
 
 
 class MerraStreamDataResult:
+
+    _FILL_VALUE = 999999986991104.0
+
     def __init__(
         self,
-        data: dict[str, list[float]],
+        data: Dict[str, List[float]],
         product_name: str,
         location: Glocation,
         start_date: datetime,
@@ -20,11 +23,11 @@ class MerraStreamDataResult:
         Initialize the result object with data, product name, location, and dates.
         """
         self._raw_data = data
-        self.product_name = product_name
-        self.location = location
-        self.start_date = start_date
-        self.end_date = end_date
-        self.fill_value = 999999986991104.0
+        self._product_name = product_name
+        self._location = location
+        self._start_date = start_date
+        self._end_date = end_date
+        self._fill_value = self._FILL_VALUE
 
     @classmethod
     def from_data(
@@ -41,7 +44,11 @@ class MerraStreamDataResult:
         return cls(data, product_data.product_name, location, start_date, end_date)
 
     @property
-    def data(self) -> dict[str, list[float]]:
+    def product_name(self) -> str:
+        return self._product_name
+
+    @property
+    def data(self) -> Dict[str, List[float]]:
         """
         Return the cleaned data where fill values are replaced with NaN.
         """
@@ -50,10 +57,10 @@ class MerraStreamDataResult:
             for date, day_data in self._raw_data.items()
         }
 
-    def _clean_day_data(self, day_data: list[float]):
+    def _clean_day_data(self, day_data: List[float]) -> List[float]:
         """
         Clean the data for a single day by replacing fill values with NaN.
         """
         day_data_np = np.array(day_data)
-        cleaned_data = np.where(day_data_np == self.fill_value, np.nan, day_data_np)
+        cleaned_data = np.where(day_data_np == self._fill_value, np.nan, day_data_np)
         return cleaned_data.tolist()
