@@ -5,7 +5,7 @@ from susse.estimators.validation.indicators import StatisticalIndicators
 
 
 class TestStatisticalIndicators:
-    
+
     @pytest.fixture
     def sample_data(self):
         """Fixture providing test data"""
