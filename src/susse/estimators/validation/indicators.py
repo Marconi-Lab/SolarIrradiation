@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class StatisticalIndicators:
     def __init__(self, observations, predictions):
         self.observations = np.array(observations)
