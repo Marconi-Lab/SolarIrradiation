@@ -1,22 +1,28 @@
-import numpy as np
-from typing import Tuple
 from functools import wraps
+from typing import Tuple
+
+import numpy as np
+
 
 def validate_inputs(func):
     @wraps(func)
     def wrapper(observations: np.ndarray, predictions: np.ndarray) -> float:
-        if not isinstance(observations, np.ndarray) or not isinstance(predictions, np.ndarray):
+        if not isinstance(observations, np.ndarray) or not isinstance(
+            predictions, np.ndarray
+        ):
             raise TypeError("Inputs must be numpy arrays")
         if observations.shape != predictions.shape:
             raise ValueError("Arrays must have same shape")
         if len(observations) == 0:
             raise ValueError("Arrays cannot be empty")
         return func(observations, predictions)
+
     return wrapper
+
 
 class StatisticalMetrics:
     """Static methods for computing statistical metrics between observations and predictions"""
-    
+
     @staticmethod
     @validate_inputs
     def mean_bias_deviation(observations: np.ndarray, predictions: np.ndarray) -> float:
@@ -25,13 +31,17 @@ class StatisticalMetrics:
 
     @staticmethod
     @validate_inputs
-    def mean_absolute_deviation(observations: np.ndarray, predictions: np.ndarray) -> float:
+    def mean_absolute_deviation(
+        observations: np.ndarray, predictions: np.ndarray
+    ) -> float:
         """Mean Absolute Deviation (MAD)"""
         return float(np.mean(np.abs(predictions - observations)))
 
     @staticmethod
     @validate_inputs
-    def root_mean_square_deviation(observations: np.ndarray, predictions: np.ndarray) -> float:
+    def root_mean_square_deviation(
+        observations: np.ndarray, predictions: np.ndarray
+    ) -> float:
         """Root Mean Square Deviation (RMSD)"""
         return float(np.sqrt(np.mean(np.square(predictions - observations))))
 
@@ -46,11 +56,13 @@ class StatisticalMetrics:
     @validate_inputs
     def pearson_correlation(observations: np.ndarray, predictions: np.ndarray) -> float:
         """Pearson correlation coefficient"""
-        return float(np.corrcoef(observations, predictions)[0,1])
+        return float(np.corrcoef(observations, predictions)[0, 1])
 
     @staticmethod
     @validate_inputs
-    def nash_sutcliffe_efficiency(observations: np.ndarray, predictions: np.ndarray) -> float:
+    def nash_sutcliffe_efficiency(
+        observations: np.ndarray, predictions: np.ndarray
+    ) -> float:
         """Nash-Sutcliffe Efficiency (NSE)"""
         numerator = np.sum(np.square(predictions - observations))
         denominator = np.sum(np.square(observations - np.mean(observations)))
@@ -61,12 +73,18 @@ class StatisticalMetrics:
     def index_of_agreement(observations: np.ndarray, predictions: np.ndarray) -> float:
         """Willmott's Index of Agreement (IoA)"""
         numerator = np.sum(np.square(predictions - observations))
-        denominator = np.sum(np.square(np.abs(predictions - np.mean(observations)) + 
-                                     np.abs(observations - np.mean(observations))))
+        denominator = np.sum(
+            np.square(
+                np.abs(predictions - np.mean(observations))
+                + np.abs(observations - np.mean(observations))
+            )
+        )
         return float(1 - (numerator / denominator))
 
     @staticmethod
     @validate_inputs
-    def mean_absolute_percentage_error(observations: np.ndarray, predictions: np.ndarray) -> float:
+    def mean_absolute_percentage_error(
+        observations: np.ndarray, predictions: np.ndarray
+    ) -> float:
         """Mean Absolute Percentage Error (MAPE)"""
         return float(np.mean(np.abs((observations - predictions) / observations)) * 100)
