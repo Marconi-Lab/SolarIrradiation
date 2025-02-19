@@ -33,9 +33,6 @@ src/susse/version.py
 # Credentials file for MERRA-2 API client 
 /src/susse/api_clients/merra_2/Credentials.yml
 
-# Credentials file for NREL API client
-/src/susse/api_clients/nrel/Credentials.yml
-
 # Compiled Python files and cache directories
 __pycache__/
 
