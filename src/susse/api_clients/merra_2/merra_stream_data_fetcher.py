@@ -4,7 +4,8 @@ import numpy as np
 from geopy import location as Glocation
 from pydap.client import open_url
 
-from .merra_product import MerraProductData
+from .merra_data_stream_result import MerraStreamDataResult
+from .merra_product import MerraProductData, MerraProducts
 from .merra_stream_config import MerraStreamConfig
 from .merra_stream_session_manager import StreamSessionManager
 
@@ -28,6 +29,34 @@ class MerraDataStreamFetcher:
     def __init__(self):
         self._authenticate = StreamSessionManager()
         self._config = MerraStreamConfig()
+
+    def fetch_surface_albedo(
+        self, start_date: datetime, end_date: datetime, location: Glocation
+    ) -> MerraStreamDataResult:
+        return self.fetch_data(
+            start_date, end_date, MerraProducts.SURFACE_ALBEDO.value, location
+        )
+
+    def fetch_air_temperature(
+        self, start_date: datetime, end_date: datetime, location: Glocation
+    ) -> MerraStreamDataResult:
+        return self.fetch_data(
+            start_date, end_date, MerraProducts.AIR_TEMPERATURE.value, location
+        )
+
+    def fetch_surface_pressure(
+        self, start_date: datetime, end_date: datetime, location: Glocation
+    ) -> MerraStreamDataResult:
+        return self.fetch_data(
+            start_date, end_date, MerraProducts.SURFACE_PRESSURE.value, location
+        )
+
+    def fetch_aerosol_extinction(
+        self, start_date: datetime, end_date: datetime, location: Glocation
+    ) -> MerraStreamDataResult:
+        return self.fetch_data(
+            start_date, end_date, MerraProducts.AEROSOL_EXTINCTION_550nm.value, location
+        )
 
     def _fetch_single_day_data_from_url(
         self, dataset_url: str, product_data: MerraProductData
@@ -54,7 +83,7 @@ class MerraDataStreamFetcher:
         end_date: datetime,
         product_data: MerraProductData,
         location: Glocation,
-    ) -> np.ndarray:
+    ) -> MerraStreamDataResult:
         """
         Fetches the data for a range of dates by first generating URLs and then fetching data from each URL.
 
@@ -63,7 +92,7 @@ class MerraDataStreamFetcher:
         product_data: MERRA product metadata
         location: Location of the place
         product_data: Product name; as defined in the MerraProductData dictionary
-        :return: Aggregated data as a NumPy array
+        :return: Python dictionary with date as the key and the corresponding data
         """
 
         # Generate all the URLs for the date range
@@ -74,17 +103,25 @@ class MerraDataStreamFetcher:
             location=location,
         )
 
-        all_data = []
+        data_dict = {}
 
         for url in dataset_urls:
+            current_date = MerraStreamConfig._extract_date_from_url(url)
+
             single_day_data = self._fetch_single_day_data_from_url(
                 dataset_url=url, product_data=product_data
             )
 
             if single_day_data is not None:
-                all_data.append(single_day_data)
+                data_dict[current_date] = single_day_data
 
-        if all_data:
-            return np.concatenate(all_data, axis=0)
+        if data_dict:
+            return MerraStreamDataResult.from_data(
+                data=data_dict,
+                product_data=product_data,
+                location=location,
+                start_date=start_date,
+                end_date=end_date,
+            )
         else:
             raise Exception("No data was fetched for the specified URLs.")
