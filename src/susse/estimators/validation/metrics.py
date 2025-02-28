@@ -7,9 +7,9 @@ import numpy as np
 def validate_inputs(func):
     @wraps(func)
     def wrapper(observations: np.ndarray, predictions: np.ndarray) -> float:
-        if not isinstance(observations, np.ndarray) or not isinstance(
-            predictions, np.ndarray
-        ):
+        observations = np.asarray(observations) if not isinstance(observations, np.ndarray) else observations
+        predictions = np.asarray(predictions) if not isinstance(predictions, np.ndarray) else predictions
+        if not isinstance(observations, np.ndarray) or not isinstance(predictions, np.ndarray):
             raise TypeError("Inputs must be numpy arrays")
         if observations.shape != predictions.shape:
             raise ValueError("Arrays must have same shape")
