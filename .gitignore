@@ -38,3 +38,5 @@ __pycache__/
 
 # Test results
 /test-results/
+
+version.py
