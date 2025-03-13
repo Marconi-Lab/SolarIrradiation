@@ -10,7 +10,7 @@ from susse.estimators.data.wrangling import (
 )
 
 # Define base data path
-DATA_PATH = Path("jupyter_notebooks/Data/irradiation_estimates/CBE_Data/Egypt/raw")
+DATA_PATH = Path("jupyter_notebooks/Data/irradiation_estimates/CBE_Data/Egypt")
 
 
 def test_wrangle_solcast_data():
