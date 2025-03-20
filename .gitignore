@@ -40,3 +40,4 @@ __pycache__/
 /test-results/
 
 version.py
+data/
