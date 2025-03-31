@@ -40,6 +40,7 @@ class REST2Model:
         
         # Generate appropriate timestamps and radius factors
         timestamps = self._generate_timestamps(start_date, end_date, resolution)
+        print(timestamps)
         radius_factors = self._calculate_radius_factors(timestamps)
         
         # Prepare parameters dictionary
@@ -49,7 +50,7 @@ class REST2Model:
             'aod840': data.to_numpy(NASAPowerProducts.AEROSOL_OPTICAL_DEPTH_840nm),
             'pw': data.to_numpy(NASAPowerProducts.PRECIPITABLE_WATER),
             'albedo': data.to_numpy(NASAPowerProducts.ALL_SKY_SURFACE_ALBEDO),
-            'z': self._get_solar_zenith_angle(start_date, end_date, location, resolution),
+            'z': self._get_solar_zenith_angle(timestamps, location),
             'ozone': data.to_numpy(NASAPowerProducts.TOTAL_COLUMN_OZONE) * 0.001,
             'radius': radius_factors
         }
@@ -61,8 +62,8 @@ class REST2Model:
         rest2_args = {
             'p': params['p'] * 10, 
             'albedo': params['albedo'],
-            'ssa': 0.92,
-            'g': 0.7,
+            'ssa':-9.99,
+            'g': -9.99,
             'z': params['z'],
             'radius': params['radius'],
             'alpha': alpha,
@@ -76,13 +77,22 @@ class REST2Model:
 
    
     def _generate_timestamps(self, start_date, end_date, resolution):
-        """Generate resolution-appropriate pandas timestamps."""
+        """Generate timestamps matching NASA API's exclusive end behavior"""
+        if resolution == TemporalResolution.HOURLY:
+            # Add 1 hour to include final hour
+            end_date += timedelta(days=1)
+        elif resolution == TemporalResolution.DAILY:
+            # Add 1 day to include final day
+            end_date += timedelta(days=1)
+        
         freq_map = {
-            TemporalResolution.HOURLY: 'H',
+            TemporalResolution.HOURLY: 'h',
             TemporalResolution.DAILY: 'D',
             TemporalResolution.MONTHLY: 'MS'
         }
-        return pd.date_range(start_date, end_date, freq=freq_map[resolution])
+        return pd.date_range(start_date, end_date, freq=freq_map[resolution], inclusive='left')  
+
+
 
     def _calculate_radius_factors(self, timestamps):
         """Vectorized Earth-Sun distance calculation."""
@@ -107,30 +117,16 @@ class REST2Model:
 
 
 
-    def _get_solar_zenith_angle(self, start, end, location, resolution):
-        """
-        Compute solar zenith angle for the given time range and location using pvlib.
-        The method ensures proper frequency based on resolution and timezone awareness.
-        """
-        freq_map = {
-            TemporalResolution.HOURLY: 'H',
-            TemporalResolution.DAILY: 'D',
-            TemporalResolution.MONTHLY: 'MS'
-        }
-        freq = freq_map.get(resolution, 'H')
-
-        times = pd.date_range(start=start, end=end, freq=freq, tz='UTC')
-        
-        if hasattr(location, 'tzinfo') and location.tzinfo is not None:
-            times = times.tz_convert(location.tzinfo)
-
-        if hasattr(location, 'latitude') and hasattr(location, 'longitude'):
-            lat = location.latitude
-            lon = location.longitude
+    
+    def _get_solar_zenith_angle(self, timestamps, location):
+        if isinstance(timestamps[0], str):
+            dt_index = pd.to_datetime(timestamps, format='%Y%m%d%H')
         else:
-            lat, lon = location  # assume location is a tuple
-
-        solpos = pvlib.solarposition.get_solarposition(times, lat, lon)
-        sza = solpos['zenith'].to_numpy()
-        return sza
-
+            dt_index = pd.DatetimeIndex(timestamps)
+        
+        solpos = pvlib.solarposition.get_solarposition(
+            dt_index,
+            location.latitude,
+            location.longitude
+        )
+        return solpos['zenith'].to_numpy()

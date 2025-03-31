@@ -77,3 +77,5 @@ class NASAPowerMultiDataResult:
         df['timestamp'] = sorted_ts
         df['timestamp'] = pd.to_datetime(df['timestamp'], format='%Y%m%d')
         return df.set_index('timestamp')
+
+
