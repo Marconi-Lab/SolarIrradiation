@@ -40,7 +40,7 @@ class REST2Model:
         
         # Generate appropriate timestamps and radius factors
         timestamps = self._generate_timestamps(start_date, end_date, resolution)
-        print(timestamps)
+        #print(timestamps)
         radius_factors = self._calculate_radius_factors(timestamps)
         
         # Prepare parameters dictionary
