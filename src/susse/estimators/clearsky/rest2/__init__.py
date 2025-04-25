@@ -4,7 +4,7 @@ REST2 package
 """
 from rest2 import *
 import os
-from .version import __version__
+# from .version import __version__
 from .rest2 import rest2 
 __all__ = ['rest2']
 
