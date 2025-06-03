@@ -1,46 +1,93 @@
-from .nasa_power_config import NASAPowerConfig
-from .nasa_products import NASAPowerProducts
+from datetime import datetime
+from typing import List
+
 import requests
+from geopy.location import Location as GeopyLocation
+
+from .nasa_power_config import NASAPowerConfig
 from .nasa_power_result import NASAPowerDataResult, NASAPowerMultiDataResult
+from .nasa_products import NASAPowerProducts, TemporalResolution
 
 
 class NASAPowerFetchData:
+    """
+    Handles fetching data from the NASA POWER API.
+    """
+
     def __init__(self):
         self._config = NASAPowerConfig()
-    
 
+    def fetch_data(
+        self,
+        temporal_resolution: TemporalResolution,
+        start_date: datetime,
+        end_date: datetime,
+        location: GeopyLocation,
+        product: NASAPowerProducts,
+    ) -> NASAPowerDataResult:
+        """
+        Fetches data for a single product from the NASA POWER API.
 
-    def fetch_data(self, temporal_resolution, start_date, end_date, location, product):
+        Args:
+            temporal_resolution: The temporal resolution for the data.
+            start_date: The start date for the data query.
+            end_date: The end date for the data query.
+            location: A location object with latitude and longitude.
+            product: The specific NASA POWER product to fetch.
+
+        Returns:
+            A NASAPowerDataResult object containing the fetched data.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
         url = NASAPowerConfig.generate_download_link(
-            temporal_resolution, start_date, end_date, location, product
+            temporal_resolution=temporal_resolution,
+            start_date=start_date,
+            end_date=end_date,
+            location=location,
+            products=product,
         )
         response = requests.get(url)
-        response.raise_for_status() 
+        response.raise_for_status()
         json_data = response.json()
-        parameter_data = json_data['properties']['parameter'][product.value]
-        data_units = json_data['parameters'][product.value]['units']
+
+        parameter_data = json_data["properties"]["parameter"][product.value]
+
         return NASAPowerDataResult.from_data(
             data=parameter_data,
             product=product,
             location=location,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
         )
 
-    def fetch_multiple_parameters(self, temporal_resolution, start_date, end_date, 
-                                location, products):
-        """Fetch multiple parameters in one request"""
+    def fetch_multiple_parameters(
+        self,
+        temporal_resolution: TemporalResolution,
+        start_date: datetime,
+        end_date: datetime,
+        location: GeopyLocation,
+        products: List[NASAPowerProducts],
+    ) -> NASAPowerMultiDataResult:
+        """Fetch multiple parameters in one request."""
         url = NASAPowerConfig.generate_download_link(
-            temporal_resolution, start_date, end_date, location, products
+            temporal_resolution=temporal_resolution,
+            start_date=start_date,
+            end_date=end_date,
+            location=location,
+            products=products,
         )
         response = requests.get(url)
         response.raise_for_status()
         json_data = response.json()
-        all_parameters = json_data['properties']['parameter']
+
+        all_parameters = json_data["properties"]["parameter"]
+
         return NASAPowerMultiDataResult(
             data=all_parameters,
             products=products,
             location=location,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
         )

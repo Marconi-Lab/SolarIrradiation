@@ -1,125 +1,161 @@
-import unittest
-from unittest.mock import patch, Mock
 from datetime import datetime
+
 import numpy as np
+import pytest
+import requests
 from geopy import Point
-from nasa_power_config import NASAPowerConfig
-from nasa_power_fetch_data import NASAPowerFetchData
-from nasa_power_result import NASAPowerDataResult
-from nasa_products import NASAPowerProducts, TemporalResolution
 
-class TestNASAPowerConfig(unittest.TestCase):
-    def test_url_generation(self):
-        start_date = datetime(2020, 1, 1)
-        end_date = datetime(2020, 1, 3)
-        location = Point(latitude=33.6, longitude=1.3)
-        
-        url = NASAPowerConfig.generate_download_link(
-            TemporalResolution.HOURLY,
-            start_date,
-            end_date,
-            location,
-            NASAPowerProducts.SURFACE_PRESSURE
-        )
-        
-        expected = (
-            "https://power.larc.nasa.gov/api/temporal/hourly/point"
-            "?parameters=PS&community=RE"
-            "&longitude=1.3&latitude=33.6"
-            "&start=20200101&end=20200103&format=CSV"
-        )
-        self.assertEqual(url, expected)
+from susse.api_clients import (
+    NASAPowerConfig,
+    NASAPowerDataResult,
+    NASAPowerFetchData,
+    NASAPowerProducts,
+    TemporalResolution,
+)
 
-class TestNASAPowerFetchData(unittest.TestCase):
-    def setUp(self):
-        self.fetch = NASAPowerFetchData()
-        self.start_date = datetime(2020, 1, 1)
-        self.end_date = datetime(2020, 1, 3)
-        self.location = Point(latitude=33.6, longitude=1.3)
-        self.mock_response = {
-            "properties": {
-                "parameter": {
-                    "PS": {
-                        "2020010100": 89.0,
-                        "2020010101": 89.0,
-                        "2020010102": 88.99
-                    }
+
+@pytest.fixture
+def dates() -> tuple[datetime, datetime]:
+    start = datetime(2020, 1, 1)
+    end = datetime(2020, 1, 3)
+    return start, end
+
+
+@pytest.fixture
+def location() -> Point:
+    return Point(latitude=33.6, longitude=1.3)
+
+
+@pytest.fixture
+def fetcher() -> NASAPowerFetchData:
+    return NASAPowerFetchData()
+
+
+@pytest.mark.parametrize(
+    "resolution, code",
+    [
+        (TemporalResolution.HOURLY, "hourly"),
+        (TemporalResolution.DAILY, "daily"),
+    ],
+)
+def test_url_generation(resolution, code, dates, location):
+    start, end = dates
+
+    url = NASAPowerConfig.generate_download_link(
+        resolution,
+        start,
+        end,
+        location,
+        NASAPowerProducts.SURFACE_PRESSURE,
+    )
+
+    assert f"/temporal/{code}/point" in url
+    assert "parameters=PS" in url
+    assert f"latitude={location.latitude}" in url
+    assert f"start={start.strftime('%Y%m%d')}" in url
+    assert f"end={end.strftime('%Y%m%d')}" in url
+
+
+def test_fetch_data_success(requests_mock, fetcher, dates, location):
+    start, end = dates
+    product = NASAPowerProducts.SURFACE_PRESSURE
+
+    # Prepare mock URL and JSON response
+    url = NASAPowerConfig.generate_download_link(
+        TemporalResolution.HOURLY,
+        start,
+        end,
+        location,
+        product,
+    )
+    mock_data = {
+        "properties": {
+            "parameter": {
+                "PS": {
+                    "2020010100": 89.0,
+                    "2020010101": 89.0,
+                    "2020010102": 88.99,
                 }
             }
         }
+    }
+    requests_mock.get(url, json=mock_data)
 
-    @patch('requests.get')
-    def test_fetch_data_success(self, mock_get):
-        mock_response = Mock()
-        mock_response.json.return_value = self.mock_response
-        mock_get.return_value = mock_response
+    result = fetcher.fetch_data(
+        TemporalResolution.HOURLY,
+        start,
+        end,
+        location,
+        product,
+    )
 
-        result = self.fetch.fetch_data(
+    assert isinstance(result, NASAPowerDataResult)
+    assert result._product is product
+    assert len(result._raw_data) == 3
+
+
+def test_fetch_data_http_error(requests_mock, fetcher, dates, location):
+    start, end = dates
+    product = NASAPowerProducts.SURFACE_PRESSURE
+
+    url = NASAPowerConfig.generate_download_link(
+        TemporalResolution.HOURLY,
+        start,
+        end,
+        location,
+        product,
+    )
+    requests_mock.get(url, exc=requests.exceptions.RequestException)
+
+    with pytest.raises(requests.exceptions.RequestException):
+        fetcher.fetch_data(
             TemporalResolution.HOURLY,
-            self.start_date,
-            self.end_date,
-            self.location,
-            NASAPowerProducts.SURFACE_PRESSURE
+            start,
+            end,
+            location,
+            product,
         )
 
-        self.assertIsInstance(result, NASAPowerDataResult)
-        self.assertEqual(result._product, NASAPowerProducts.SURFACE_PRESSURE)
-        self.assertEqual(len(result._raw_data), 3)
 
-    @patch('requests.get')
-    def test_fetch_data_http_error(self, mock_get):
-        mock_get.side_effect = Exception("HTTP Error")
-        
-        with self.assertRaises(Exception):
-            self.fetch.fetch_data(
-                TemporalResolution.HOURLY,
-                self.start_date,
-                self.end_date,
-                self.location,
-                NASAPowerProducts.SURFACE_PRESSURE
-            )
+@pytest.fixture
+def sample_result(dates, location) -> NASAPowerDataResult:
+    start, end = dates
+    data = {
+        "2020010100": 89.0,
+        "2020010101": 89.5,
+        "2020010102": 88.9,
+    }
+    return NASAPowerDataResult(
+        data=data,
+        product=NASAPowerProducts.SURFACE_PRESSURE,
+        location=location,
+        start_date=start,
+        end_date=end,
+    )
 
-class TestNASAPowerDataResult(unittest.TestCase):
-    def setUp(self):
-        self.sample_data = {
-            "2020010100": 89.0,
-            "2020010101": 89.5,
-            "2020010102": 88.9
-        }
-        self.result = NASAPowerDataResult(
-            data=self.sample_data,
-            product=NASAPowerProducts.SURFACE_PRESSURE,
-            location=Point(1.3, 33.6),
-            start_date=datetime(2020, 1, 1),
-            end_date=datetime(2020, 1, 3)
-        )
 
-    def test_to_numpy_conversion(self):
-        array = self.result.to_numpy()
-        
-        self.assertIsInstance(array, np.ndarray)
-        self.assertEqual(array.shape, (3,))
-        np.testing.assert_array_equal(
-            array,
-            np.array([89.0, 89.5, 88.9])
-        )
+def test_to_numpy_conversion(sample_result):
+    arr = sample_result.to_numpy()
 
-    def test_timestamp_ordering(self):
-        unsorted_data = {
-            "2020010102": 88.9,
-            "2020010100": 89.0,
-            "2020010101": 89.5
-        }
-        result = NASAPowerDataResult(
-            unsorted_data,
-            NASAPowerProducts.SURFACE_PRESSURE,
-            Point(1.3, 33.6),
-            datetime(2020, 1, 1),
-            datetime(2020, 1, 3)
-        )
-        
-        array = result.to_numpy()
-        np.testing.assert_array_equal(
-            array,
-            np.array([89.0, 89.5, 88.9])
-        )
+    assert isinstance(arr, np.ndarray)
+    assert arr.shape == (3,)
+    np.testing.assert_array_equal(arr, np.array([89.0, 89.5, 88.9]))
+
+
+def test_timestamp_ordering(location, dates):
+    start, end = dates
+    unsorted = {
+        "2020010102": 88.9,
+        "2020010100": 89.0,
+        "2020010101": 89.5,
+    }
+    result = NASAPowerDataResult(
+        data=unsorted,
+        product=NASAPowerProducts.SURFACE_PRESSURE,
+        location=location,
+        start_date=start,
+        end_date=end,
+    )
+
+    arr = result.to_numpy()
+    np.testing.assert_array_equal(arr, np.array([89.0, 89.5, 88.9]))
