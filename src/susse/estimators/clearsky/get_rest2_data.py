@@ -46,7 +46,6 @@ class REST2Model:
             Array of clear-sky irradiance values.
         """
         params_df = self.fetcher.fetch_multiple_parameters(
-            resolution,
             start_date,
             end_date,
             location,
@@ -58,6 +57,7 @@ class REST2Model:
                 NASAPowerProduct.ALL_SKY_SURFACE_ALBEDO,
                 NASAPowerProduct.TOTAL_COLUMN_OZONE,
             ],
+            temporal_resolution=resolution,
         )
 
         timestamps = self._generate_timestamps(start_date, end_date, resolution)
