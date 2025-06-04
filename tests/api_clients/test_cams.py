@@ -10,7 +10,8 @@ from dotenv import set_key as dotenv_set_key
 from susse.api_clients import EMAIL_ENV_KEY, ENV_PATH, CAMSClient
 
 
-def test_get_email_from_env(monkeypatch, client):
+def test_get_email_from_env(monkeypatch):
+    client = CAMSClient()
     test_email = "user@example.com"
     monkeypatch.setenv(EMAIL_ENV_KEY, test_email)
     monkeypatch.setattr(
