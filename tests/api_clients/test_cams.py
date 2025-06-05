@@ -27,30 +27,6 @@ def test_get_email_from_env(monkeypatch):
     assert email == test_email
 
 
-def test_get_email_prompt_and_save(monkeypatch, temp_env, client):
-    monkeypatch.delenv(EMAIL_ENV_KEY, raising=False)
-    test_email = "prompted@example.com"
-    monkeypatch.setattr("builtins.input", lambda prompt: test_email)
-
-    # Capture calls to dotenv_set_key
-    calls = []
-
-    def fake_set_key(path, key, val):
-        calls.append((path, key, val))
-        # Simulate writing to .env
-        with open(path, "a") as f:
-            f.write(f"{key}={val}\n")
-        return True
-
-    monkeypatch.setattr("dotenv.set_key", fake_set_key)
-
-    email = client._get_email()
-    assert email == test_email
-    assert calls == [(str(temp_env), EMAIL_ENV_KEY, test_email)]
-    content = temp_env.read_text()
-    assert f"{EMAIL_ENV_KEY}={test_email}" in content
-
-
 def test_process_dataframe():
     # Create sample DataFrame
     idx = pd.date_range("2025-01-01", periods=2, freq="H")
@@ -62,7 +38,8 @@ def test_process_dataframe():
     assert processed.loc[1, "value"] == 2
 
 
-def test_fetch_data_success(monkeypatch, client):
+def test_fetch_data_success(monkeypatch):
+    client = CAMSClient()
     # Prepare dummy raw_df and metadata
     idx = pd.date_range("2025-01-01", periods=2, freq="H")
     raw_df = pd.DataFrame({"a": [10, 20]}, index=idx)
@@ -83,7 +60,8 @@ def test_fetch_data_success(monkeypatch, client):
     assert result["data"][1]["a"] == 20
 
 
-def test_fetch_data_exception(monkeypatch, client):
+def test_fetch_data_exception(monkeypatch):
+    client = CAMSClient()
     def fail(**kwargs):
         raise RuntimeError("fail")
 

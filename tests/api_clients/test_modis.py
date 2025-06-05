@@ -8,9 +8,9 @@ from susse import ModisProductEnum
 from susse.api_clients import ModisDataFetcher, ModisProductFactory
 
 
-@pytest.mark.skip(
-    reason="Modis service seems to be temporarily unavailable. This needs to be re-evaluated"
-)
+# @pytest.mark.skip(
+#     reason="Modis service seems to be temporarily unavailable. This needs to be re-evaluated"
+# )
 def test_modis_data_fetcher():
 
     geolocator = Nominatim(user_agent="SuSSe")
