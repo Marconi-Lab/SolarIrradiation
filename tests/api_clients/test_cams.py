@@ -62,6 +62,7 @@ def test_fetch_data_success(monkeypatch):
 
 def test_fetch_data_exception(monkeypatch):
     client = CAMSClient()
+
     def fail(**kwargs):
         raise RuntimeError("fail")
 

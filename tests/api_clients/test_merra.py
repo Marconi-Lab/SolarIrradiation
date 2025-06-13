@@ -58,7 +58,9 @@ def test_merra_downloader():
     download_folder = "./tmp"
     download_manager.download_from_urls(download_url, download_folder)
     filename = download_manager.extract_filename_from_url(download_url)
-    os.remove(os.path.join(download_folder, filename))
+    file_path = os.path.join(download_folder, filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
 
 def test_download_fetcher():

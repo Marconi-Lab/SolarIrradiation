@@ -51,7 +51,7 @@ To test your changes locally, you can use the following Tox commands:
 - **Running Tests**: 
   Runs the tests located in the tests folder and generates a coverage report.
   ```bash
-  tox -e py311
+  tox -e py313
   ```
 
 Each of these steps is configured in the `tox.ini` file located at the root of the project.
@@ -85,7 +85,7 @@ When making changes, **do not push directly to the `main` branch**. Follow these
     tox -e format-imports
     tox -e check-format
     tox -e static-analysis
-    tox -e py311  # to run the tests
+    tox -e py313  # to run the tests
    ```
 
 3. **Push Your Branch**: Push the branch to GitHub.
