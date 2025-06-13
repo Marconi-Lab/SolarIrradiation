@@ -6,7 +6,7 @@ import requests
 from geopy import location as Glocation
 
 from .modis_api_config import ModisConfig
-from .modis_data_result import ModisDataResult
+from .modis_data_result import ModisDataPoint, ModisDataResult
 from .modis_product import (
     ModisBand,
     ModisProduct,
@@ -188,11 +188,9 @@ class ModisDataFetcher:
             raw_value = float(dp["value"])
             scaled_value = raw_value
 
-            # Apply scale factor if available
             if band.scale_factor is not None:
                 scaled_value = scaled_value * band.scale_factor
 
-            # Apply add offset if available
             if band.add_offset is not None:
                 scaled_value = scaled_value + band.add_offset
 
@@ -203,14 +201,18 @@ class ModisDataFetcher:
     def _get_data_for_product_and_band(
         self, product: ModisProduct, band_name: str, location: Glocation
     ) -> ModisDataResult:
-        band = product.get_band(band_name)
+        band = product.get_band_by_name(band_name)
+        if band is None:
+            raise ValueError(
+                f"Band {band_name} not found in product {product.name} and is required for data extraction."
+            )
+
         available_dates = self.get_available_dates_for_product_and_location(
             product, location
         )
 
-        # Fetch data for each date
-        all_time_points = []
-        all_data_values = []
+        modis_data_points: List[ModisDataPoint] = []
+
         for date in available_dates:
             try:
                 request_url = ModisConfig.get_product_request_url(
@@ -223,11 +225,16 @@ class ModisDataFetcher:
                 response = requests.get(request_url)
                 if response.status_code == 200:
                     response_json = response.json()
+
                     time_points, data_values = self._extract_data_from_response(
                         response_json, band
                     )
-                    all_time_points.extend(time_points)
-                    all_data_values.extend(data_values)
+                    for i, tp in enumerate(time_points):
+                        modis_data_points.append(
+                            ModisDataPoint(
+                                date=tp, band_name=band.name, data=[data_values[i]]
+                            )
+                        )
                 else:
                     logging.warning(
                         "Failed to fetch data for {} on {}: {}".format(
@@ -242,8 +249,7 @@ class ModisDataFetcher:
                 )
 
         return ModisDataResult(
-            product=product,
-            location=location,
-            time_points=all_time_points,
-            data_values=all_data_values,
+            latitude=location.latitude,
+            longitude=location.longitude,
+            data_points=modis_data_points,
         )
