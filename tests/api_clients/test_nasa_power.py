@@ -109,11 +109,11 @@ def test_fetch_data_http_error(requests_mock, fetcher, dates, location):
 
     with pytest.raises(requests.exceptions.RequestException):
         fetcher.fetch_data(
-            TemporalResolution.HOURLY,
             start,
             end,
             location,
             product,
+            TemporalResolution.HOURLY,
         )
 
 
