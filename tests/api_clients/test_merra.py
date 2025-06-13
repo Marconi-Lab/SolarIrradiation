@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Tuple
 
 import numpy as np
+import pytest
 from geopy.geocoders import Nominatim
 
 from susse.api_clients import (
@@ -89,8 +90,9 @@ def test_download_fetcher():
     var_np = data.to_np()
     assert len(var_np) == 72
 
+
 # Skip the test for now as it requires a valid MERRA-2 account
-# @pytest.mark.skip("Requires valid MERRA-2 account")
+@pytest.mark.skip("Requires valid MERRA-2 account")
 def test_merra_stream():
     geolocator = Nominatim(user_agent="SuSSe")
     location = geolocator.geocode("Kampala")
