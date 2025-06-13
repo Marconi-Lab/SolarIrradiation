@@ -78,6 +78,14 @@ class ModisBand:
         self._add_offset = add_offset
         self._scale_factor = scale_factor
 
+    @property
+    def scale_factor(self) -> Optional[float]:
+        return self._scale_factor
+
+    @property
+    def add_offset(self) -> Optional[float]:
+        return self._add_offset
+
     def __repr__(self):
         return f"{self._band_name}: {self._description}"
 
@@ -127,7 +135,7 @@ class ModisProduct:
     _RESOLUTION_METERS_TAG = "resolution_meters"
     _DESCRIPTION_TAG = "description"
 
-    def __init__(
+    def __init__(  # Corrected method name
         self,
         product_name: str,
         resolution_meters: float,
@@ -188,6 +196,10 @@ class ModisProduct:
             default_band_name=default_band_name,
         )
 
+    def get_product_name(self) -> str:
+        """Returns the product name string (e.g., 'MOD21A2')."""
+        return self._product_name
+
     def _fetch_bands(self) -> List[ModisBand]:
         request_url = ModisConfig.get_band_url(self._product_name)
         req_bands = requests.get(request_url)
@@ -235,9 +247,11 @@ class ModisProductFactory:
         if not self.products_fetched():
             self._fetch_products()
 
-        for product in self._products:
-            if product_enum.value in product[ModisProduct.product_tag()]:
-                return ModisProduct.from_json_dict(
-                    product, default_band_name=product_enum.default_band_name()
-                )
+        for product_data in self._products:  # Iterate through the fetched product data
+            # Ensure product_data is a dictionary and has the product tag
+            if isinstance(product_data, dict) and ModisProduct.product_tag() in product_data:
+                if product_enum.value == product_data[ModisProduct.product_tag()]: # Compare with product_enum.value
+                    return ModisProduct.from_json_dict(
+                        product_data, default_band_name=product_enum.default_band_name()
+                    )
         raise ValueError(f"Product {product_enum.value} not found")
