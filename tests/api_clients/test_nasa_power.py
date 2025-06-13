@@ -82,11 +82,11 @@ def test_fetch_data_success(requests_mock, fetcher, dates, location):
     requests_mock.get(url, json=mock_data)
 
     result = fetcher.fetch_data(
-        TemporalResolution.HOURLY,
         start,
         end,
         location,
         product,
+        TemporalResolution.HOURLY,
     )
 
     assert isinstance(result, NASAPowerDataResult)
