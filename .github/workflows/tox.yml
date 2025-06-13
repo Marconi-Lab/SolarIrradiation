@@ -45,7 +45,7 @@ jobs:
         env:
           NASA_USERNAME: ${{ secrets.NASA_USERNAME }}
           NASA_PASSWORD: ${{ secrets.NASA_PASSWORD }}
-        run: tox -e py311
+        run: tox -e py312
 
   format-check:
     runs-on: ubuntu-latest
