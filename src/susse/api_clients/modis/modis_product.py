@@ -249,8 +249,13 @@ class ModisProductFactory:
 
         for product_data in self._products:  # Iterate through the fetched product data
             # Ensure product_data is a dictionary and has the product tag
-            if isinstance(product_data, dict) and ModisProduct.product_tag() in product_data:
-                if product_enum.value == product_data[ModisProduct.product_tag()]: # Compare with product_enum.value
+            if (
+                isinstance(product_data, dict)
+                and ModisProduct.product_tag() in product_data
+            ):
+                if (
+                    product_enum.value == product_data[ModisProduct.product_tag()]
+                ):  # Compare with product_enum.value
                     return ModisProduct.from_json_dict(
                         product_data, default_band_name=product_enum.default_band_name()
                     )

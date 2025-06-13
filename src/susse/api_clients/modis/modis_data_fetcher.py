@@ -7,7 +7,12 @@ from geopy import location as Glocation
 
 from .modis_api_config import ModisConfig
 from .modis_data_result import ModisDataResult
-from .modis_product import ModisBand, ModisProduct, ModisProductEnum, ModisProductFactory
+from .modis_product import (
+    ModisBand,
+    ModisProduct,
+    ModisProductEnum,
+    ModisProductFactory,
+)
 
 
 class ModisDataFetcher:
@@ -163,7 +168,10 @@ class ModisDataFetcher:
                 "Failed to fetch available dates for product {}, "
                 "and coordinates {}, {}: \n{}"
             ).format(
-                product.get_product_name(), location.latitude, location.longitude, response.text
+                product.get_product_name(),
+                location.latitude,
+                location.longitude,
+                response.text,
             )
             raise requests.exceptions.HTTPError(message)
 
@@ -183,11 +191,11 @@ class ModisDataFetcher:
             # Apply scale factor if available
             if band.scale_factor is not None:
                 scaled_value = scaled_value * band.scale_factor
-            
+
             # Apply add offset if available
             if band.add_offset is not None:
                 scaled_value = scaled_value + band.add_offset
-            
+
             data_values.append(scaled_value)
 
         return time_points, data_values
@@ -196,7 +204,9 @@ class ModisDataFetcher:
         self, product: ModisProduct, band_name: str, location: Glocation
     ) -> ModisDataResult:
         band = product.get_band(band_name)
-        available_dates = self.get_available_dates_for_product_and_location(product, location)
+        available_dates = self.get_available_dates_for_product_and_location(
+            product, location
+        )
 
         # Fetch data for each date
         all_time_points = []
@@ -213,7 +223,9 @@ class ModisDataFetcher:
                 response = requests.get(request_url)
                 if response.status_code == 200:
                     response_json = response.json()
-                    time_points, data_values = self._extract_data_from_response(response_json, band)
+                    time_points, data_values = self._extract_data_from_response(
+                        response_json, band
+                    )
                     all_time_points.extend(time_points)
                     all_data_values.extend(data_values)
                 else:
