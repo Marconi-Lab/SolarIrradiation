@@ -15,3 +15,5 @@ xarray>=2025.3.0
 NREL-farms>=1.0.6
 types-requests>=2.32.0
 requests-mock>=1.11.0
+netcdf4>=1.7.2
+h5py>=3.10.0
