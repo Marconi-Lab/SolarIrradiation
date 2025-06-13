@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "SuSSE"
 description = "SubSahara Solar Estimation"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dynamic = ["version", "dependencies"]
 
 [tool.setuptools]
