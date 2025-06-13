@@ -1,13 +1,18 @@
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import requests
 from geopy import location as Glocation
 
 from .modis_api_config import ModisConfig
-from .modis_data_result import ModisDataResult
-from .modis_product import ModisProduct, ModisProductEnum, ModisProductFactory
+from .modis_data_result import ModisDataPoint, ModisDataResult
+from .modis_product import (
+    ModisBand,
+    ModisProduct,
+    ModisProductEnum,
+    ModisProductFactory,
+)
 
 
 class ModisDataFetcher:
@@ -143,10 +148,10 @@ class ModisDataFetcher:
         return band_name
 
     def get_available_dates_for_product_and_location(
-        self, product_enum: ModisProductEnum, location: Glocation
+        self, product: ModisProduct, location: Glocation
     ) -> List[datetime]:
         available_dates_url = ModisConfig.get_available_date_url(
-            product_enum.value,
+            product.get_product_name(),
             location,
         )
         response = requests.get(available_dates_url)
@@ -163,6 +168,88 @@ class ModisDataFetcher:
                 "Failed to fetch available dates for product {}, "
                 "and coordinates {}, {}: \n{}"
             ).format(
-                product_enum.name, location.latitude, location.longitude, response.text
+                product.get_product_name(),
+                location.latitude,
+                location.longitude,
+                response.text,
             )
             raise requests.exceptions.HTTPError(message)
+
+    def _extract_data_from_response(
+        self, response_json: dict, band: ModisBand
+    ) -> Tuple[List[datetime], List[float]]:
+        data_points = response_json.get("subset", [])
+        time_points = [
+            datetime.strptime(dp["calendar_date"], "%Y-%m-%d") for dp in data_points
+        ]
+
+        data_values = []
+        for dp in data_points:
+            raw_value = float(dp["value"])
+            scaled_value = raw_value
+
+            if band.scale_factor is not None:
+                scaled_value = scaled_value * band.scale_factor
+
+            if band.add_offset is not None:
+                scaled_value = scaled_value + band.add_offset
+
+            data_values.append(scaled_value)
+
+        return time_points, data_values
+
+    def _get_data_for_product_and_band(
+        self, product: ModisProduct, band_name: str, location: Glocation
+    ) -> ModisDataResult:
+        band = product.get_band_by_name(band_name)
+        if band is None:
+            raise ValueError(
+                f"Band {band_name} not found in product {product.name} and is required for data extraction."
+            )
+
+        available_dates = self.get_available_dates_for_product_and_location(
+            product, location
+        )
+
+        modis_data_points: List[ModisDataPoint] = []
+
+        for date in available_dates:
+            try:
+                request_url = ModisConfig.get_product_request_url(
+                    product_name=product.name,
+                    location=location,
+                    band_name=band_name,
+                    start_date=date,
+                    end_date=date,
+                )
+                response = requests.get(request_url)
+                if response.status_code == 200:
+                    response_json = response.json()
+
+                    time_points, data_values = self._extract_data_from_response(
+                        response_json, band
+                    )
+                    for i, tp in enumerate(time_points):
+                        modis_data_points.append(
+                            ModisDataPoint(
+                                date=tp, band_name=band.name, data=[data_values[i]]
+                            )
+                        )
+                else:
+                    logging.warning(
+                        "Failed to fetch data for {} on {}: {}".format(
+                            product.name, date, response.text
+                        )
+                    )
+            except Exception as e:
+                logging.warning(
+                    "Exception occurred while fetching data for {} on {}: {}".format(
+                        product.name, date, str(e)
+                    )
+                )
+
+        return ModisDataResult(
+            latitude=location.latitude,
+            longitude=location.longitude,
+            data_points=modis_data_points,
+        )
