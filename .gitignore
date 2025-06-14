@@ -41,3 +41,6 @@ __pycache__/
 
 version.py
 data/
+
+# Python bytecode files
+.mypy_cache/
