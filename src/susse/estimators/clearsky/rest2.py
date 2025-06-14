@@ -1,4 +1,4 @@
-'''
+"""
 @author: Anthony Lopez
 January 27, 2015
 
@@ -27,14 +27,15 @@ c NOTE 2: The input sanity check on lines 112-120 of the code may be
 c         superfluous if the inputs have been tested in a previous step.
 c
 c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-'''
+"""
+
 import collections
 import concurrent.futures as cf
 import gc
-import numpy as np
 
-from farms import SOLAR_CONSTANT, SZA_LIM
 import farms.utilities as ut
+import numpy as np
+from farms import SOLAR_CONSTANT, SZA_LIM
 
 
 def op_mass(p, am, cosz, z):
@@ -53,10 +54,10 @@ def op_mass(p, am, cosz, z):
         Solar zenith angle in degrees.
     """
     masr = am * p / 1013.25
-    masw = np.maximum(1.0, 1.0 / (cosz + 0.10648 * (z ** 0.11423)
-                      / (93.781 - z) ** 1.9203))
-    maso = np.maximum(1.0, 1.0 / (cosz + 1.0651 * (z ** 0.6379)
-                      / (101.8 - z) ** 2.2694))
+    masw = np.maximum(
+        1.0, 1.0 / (cosz + 0.10648 * (z**0.11423) / (93.781 - z) ** 1.9203)
+    )
+    maso = np.maximum(1.0, 1.0 / (cosz + 1.0651 * (z**0.6379) / (101.8 - z) ** 2.2694))
 
     return masr, masw, maso
 
@@ -97,21 +98,23 @@ def trans_1(p, am, cosz, z, ozone, w):
     # get the optical masses
     masr, masw, maso = op_mass(p, am, cosz, z)
 
-    transr1 = ((1.0 + 1.8169 * masr - 0.033454 * masr ** 2)
-               / (1.0 + 2.063 * masr + 0.31978 * masr ** 2))
-    transg1 = ((1.0 + 0.95885 * masr + 0.012871 * masr ** 2)
-               / (1.0 + 0.96321 * masr + 0.015455 * masr ** 2))
+    transr1 = (1.0 + 1.8169 * masr - 0.033454 * masr**2) / (
+        1.0 + 2.063 * masr + 0.31978 * masr**2
+    )
+    transg1 = (1.0 + 0.95885 * masr + 0.012871 * masr**2) / (
+        1.0 + 0.96321 * masr + 0.015455 * masr**2
+    )
 
-    a1 = (ozone * (10.979 - 8.5421 * ozone)
-          / (1.0 + 2.0115 * ozone + 40.189 * ozone ** 2))
-    a2 = (ozone * (-0.027589 - 0.005138 * ozone)
-          / (1.0 - 2.4857 * ozone + 13.942 * ozone ** 2))
-    a3 = (ozone * (10.995 - 5.5001 * ozone)
-          / (1.0 + 1.6784 * ozone + 42.406 * ozone ** 2))
-    trano1 = (1.0 + a1 * maso + a2 * maso ** 2) / (1.0 + a3 * maso)
+    a1 = ozone * (10.979 - 8.5421 * ozone) / (1.0 + 2.0115 * ozone + 40.189 * ozone**2)
+    a2 = (
+        ozone
+        * (-0.027589 - 0.005138 * ozone)
+        / (1.0 - 2.4857 * ozone + 13.942 * ozone**2)
+    )
+    a3 = ozone * (10.995 - 5.5001 * ozone) / (1.0 + 1.6784 * ozone + 42.406 * ozone**2)
+    trano1 = (1.0 + a1 * maso + a2 * maso**2) / (1.0 + a3 * maso)
 
-    trann1 = ((1.0 + 0.18307 * masw - 0.00024 * masw ** 2)
-              / (1.0 + 0.18713 * masw))
+    trann1 = (1.0 + 0.18307 * masw - 0.00024 * masw**2) / (1.0 + 0.18713 * masw)
 
     c1 = w * (0.065445 + 0.00029901 * w) / (1.0 + 1.2728 * w)
     c2 = w * (0.065687 + 0.0013218 * w) / (1.0 + 1.2008 * w)
@@ -149,20 +152,22 @@ def trans_2(p, am, cosz, z, w):
     # get the optical masses
     masr, masw, _ = op_mass(p, am, cosz, z)
 
-    transr2 = (1.0 - 0.010394 * masr) / (1.0 - 0.00011042 * masr ** 2)
-    trang2 = ((1.0 + 0.27284 * masr - 0.00063699 * masr ** 2)
-              / (1.0 + 0.30306 * masr))
+    transr2 = (1.0 - 0.010394 * masr) / (1.0 - 0.00011042 * masr**2)
+    trang2 = (1.0 + 0.27284 * masr - 0.00063699 * masr**2) / (1.0 + 0.30306 * masr)
 
-    c1 = w * ((19.566 - 1.6506 * w + 1.0672 * w ** 2)
-              / (1.0 + 5.4248 * w + 1.6005 * w ** 2))
-    c2 = w * ((0.50158 - 0.14732 * w + 0.047584 * w ** 2)
-              / (1.0 + 1.1811 * w + 1.0699 * w ** 2))
-    c3 = w * ((21.286 - 0.39232 * w + 1.2692 * w ** 2)
-              / (1.0 + 4.8318 * w + 1.412 * w ** 2))
-    c4 = w * ((0.70992 - 0.23155 * w + 0.096514 * w ** 2)
-              / (1.0 + 0.44907 * w + 0.75425 * w ** 2))
-    tranw2 = ((1.0 + c1 * masw + c2 * masw ** 2)
-              / (1.0 + c3 * masw + c4 * masw ** 2))
+    c1 = w * (
+        (19.566 - 1.6506 * w + 1.0672 * w**2) / (1.0 + 5.4248 * w + 1.6005 * w**2)
+    )
+    c2 = w * (
+        (0.50158 - 0.14732 * w + 0.047584 * w**2) / (1.0 + 1.1811 * w + 1.0699 * w**2)
+    )
+    c3 = w * (
+        (21.286 - 0.39232 * w + 1.2692 * w**2) / (1.0 + 4.8318 * w + 1.412 * w**2)
+    )
+    c4 = w * (
+        (0.70992 - 0.23155 * w + 0.096514 * w**2) / (1.0 + 0.44907 * w + 0.75425 * w**2)
+    )
+    tranw2 = (1.0 + c1 * masw + c2 * masw**2) / (1.0 + c3 * masw + c4 * masw**2)
 
     return transr2, trang2, tranw2
 
@@ -181,8 +186,7 @@ def band_1(alpha, masa, beta):
         Angstrom turbidity coeff.
     """
     wvlmin1 = 0.5158 - 0.008334 * alpha
-    wvlmax1 = np.maximum(0.61, (0.6 + 0.95155 * alpha)
-                         / (1.0 + 1.3095 * alpha))
+    wvlmax1 = np.maximum(0.61, (0.6 + 0.95155 * alpha) / (1.0 + 1.3095 * alpha))
 
     if np.any(alpha < 0):
         i = np.where(alpha < 0)
@@ -190,25 +194,52 @@ def band_1(alpha, masa, beta):
         wvlmax1[i] = 0.61
 
     # Coefficients for Band 1
-    cc0 = (0.50947 - 0.012555 * alpha + 0.0026455 * alpha ** 2
-           + 0.0044092 * alpha ** 3 - 0.0022439 * alpha ** 4
-           + 0.0003123 * alpha ** 5)
-    cc1 = (0.062836 + 0.049194 * alpha + 0.013976 * alpha ** 2
-           - 0.0114290 * alpha ** 3 + 0.0053573 * alpha ** 4
-           + 0.0026402 * alpha ** 5)
-    cc2 = (0.096418 + 0.072221 * alpha + 0.015505 * alpha ** 2
-           - 0.0216490 * alpha ** 3 + 0.0119010 * alpha ** 4
-           + 0.0033763 * alpha ** 5)
+    cc0 = (
+        0.50947
+        - 0.012555 * alpha
+        + 0.0026455 * alpha**2
+        + 0.0044092 * alpha**3
+        - 0.0022439 * alpha**4
+        + 0.0003123 * alpha**5
+    )
+    cc1 = (
+        0.062836
+        + 0.049194 * alpha
+        + 0.013976 * alpha**2
+        - 0.0114290 * alpha**3
+        + 0.0053573 * alpha**4
+        + 0.0026402 * alpha**5
+    )
+    cc2 = (
+        0.096418
+        + 0.072221 * alpha
+        + 0.015505 * alpha**2
+        - 0.0216490 * alpha**3
+        + 0.0119010 * alpha**4
+        + 0.0033763 * alpha**5
+    )
     dd0 = 0.5
-    dd1 = (0.065180 - 0.039075 * alpha + 0.11648 * alpha ** 2
-           + 0.048987 * alpha ** 3 - 0.026766 * alpha ** 4
-           - 0.12573 * alpha ** 5 + 0.092131 * alpha ** 6)
-    dd2 = (0.099191 - 0.083962 * alpha + 0.20562 * alpha ** 2
-           + 0.057377 * alpha ** 3 - 0.049548 * alpha ** 4
-           - 0.17782 * alpha ** 5 + 0.13647 * alpha ** 6)
+    dd1 = (
+        0.065180
+        - 0.039075 * alpha
+        + 0.11648 * alpha**2
+        + 0.048987 * alpha**3
+        - 0.026766 * alpha**4
+        - 0.12573 * alpha**5
+        + 0.092131 * alpha**6
+    )
+    dd2 = (
+        0.099191
+        - 0.083962 * alpha
+        + 0.20562 * alpha**2
+        + 0.057377 * alpha**3
+        - 0.049548 * alpha**4
+        - 0.17782 * alpha**5
+        + 0.13647 * alpha**6
+    )
 
     y1 = masa * beta ** (0.3333 * alpha)
-    z1 = masa * beta ** 0.5
+    z1 = masa * beta**0.5
     wvle1 = (cc0 + cc1 * y1) / (1.0 + cc2 * y1)
 
     if np.any(masa * beta > 10):
@@ -235,7 +266,7 @@ def band_2(alpha, masa, beta):
         Angstrom turbidity coeff.
     """
     wvlmin2 = 1.0 - 0.02 * alpha
-    wvlmax2 = 1.3 + 1.5317 * alpha - 0.55289 * alpha ** 2
+    wvlmax2 = 1.3 + 1.5317 * alpha - 0.55289 * alpha**2
 
     if np.any(alpha < 0):
         i = np.where(alpha < 0)
@@ -243,17 +274,40 @@ def band_2(alpha, masa, beta):
         wvlmax2[i] = 1.3 + 0.25 * alpha[i]
 
     # Coefficients for Band 2
-    aa0 = (1.0677 - 0.05432 * alpha + 0.014351 * alpha ** 2
-           - 0.0097063 * alpha ** 3 + 0.0023655 * alpha ** 4)
-    aa1 = (-0.20914 - 0.27218 * alpha + 0.83552 * alpha ** 2
-           - 0.85437 * alpha ** 3 + 0.49305 * alpha ** 4
-           - 0.14965 * alpha ** 5 + 0.018964 * alpha ** 6)
-    aa2 = (0.0010588 + 0.039597 * alpha + 0.006733 * alpha ** 2
-           + 0.070698 * alpha ** 3 - 0.11284 * alpha ** 4
-           + 0.055096 * alpha ** 5 - 0.0086265 * alpha ** 6)
-    aa3 = (-0.19432 - 0.29366 * alpha + 0.83474 * alpha ** 2
-           - 0.78019 * alpha ** 3 + 0.37382 * alpha ** 4
-           - 0.089069 * alpha ** 5 + 0.0091113 * alpha ** 6)
+    aa0 = (
+        1.0677
+        - 0.05432 * alpha
+        + 0.014351 * alpha**2
+        - 0.0097063 * alpha**3
+        + 0.0023655 * alpha**4
+    )
+    aa1 = (
+        -0.20914
+        - 0.27218 * alpha
+        + 0.83552 * alpha**2
+        - 0.85437 * alpha**3
+        + 0.49305 * alpha**4
+        - 0.14965 * alpha**5
+        + 0.018964 * alpha**6
+    )
+    aa2 = (
+        0.0010588
+        + 0.039597 * alpha
+        + 0.006733 * alpha**2
+        + 0.070698 * alpha**3
+        - 0.11284 * alpha**4
+        + 0.055096 * alpha**5
+        - 0.0086265 * alpha**6
+    )
+    aa3 = (
+        -0.19432
+        - 0.29366 * alpha
+        + 0.83474 * alpha**2
+        - 0.78019 * alpha**3
+        + 0.37382 * alpha**4
+        - 0.089069 * alpha**5
+        + 0.0091113 * alpha**6
+    )
 
     x2 = np.log(1.0 + masa * beta)
     x22 = x2 * x2
@@ -292,7 +346,7 @@ def aer_scat_trans(wvle, piar, alpha, beta, masa):
         (taua, eq 6 in ref [1]) times the single-scattering albedo (ssa).
     """
     # AEROSOL TRANSMITTANCES FOR THE 2 BANDS
-    taua = beta / wvle ** alpha  # [1] eq. (6)
+    taua = beta / wvle**alpha  # [1] eq. (6)
     tauas = piar * taua
     amsbet = masa * taua
     tranas = np.exp(-masa * tauas)  # [1] eq. (7b)
@@ -324,7 +378,7 @@ def calc_eabs(tabs, f, radius):
     """
     # etdirn : Extraterrestrial direct normal irradiance at time t [W/m2]
     # etdirn = SOLAR_CONSTANT / (radius ** 2)
-    eabs = tabs * f * SOLAR_CONSTANT / (radius ** 2)
+    eabs = tabs * f * SOLAR_CONSTANT / (radius**2)
 
     return eabs
 
@@ -354,8 +408,7 @@ def calc_edni(transr, tranas, eabs):
     return edni
 
 
-def layer_props(transr, tauas, tranas, tabs, f, radius, cosz, albedo,
-                am, fm, g0):
+def layer_props(transr, tauas, tranas, tabs, f, radius, cosz, albedo, am, fm, g0):
     """Get the layer properties for a single wavelength band"""
     # 1. Top layer properties (absorbing only)
     eabs = calc_eabs(tabs, f, radius)
@@ -365,23 +418,23 @@ def layer_props(transr, tauas, tranas, tabs, f, radius, cosz, albedo,
     taur = -np.log(transr) / am
     taut = taur + tauas
 
-    frwd1 = ((0.5 + 1.8823 * cosz) / (1.0 + 1.7971 * cosz) * tauas
-             + 0.5 * taur)
+    frwd1 = (0.5 + 1.8823 * cosz) / (1.0 + 1.7971 * cosz) * tauas + 0.5 * taur
     amt = am * taut
     fn = (1.0 - 10.921 * amt - 11.741 * amt * amt) / (1.0 + 35.006 * amt)
 
     rsky = taut * (0.51754 + 0.15884 * taut) / (1.0 + 2.77 * taut)
 
     g1 = g0 * tauas / taut
-    fg = (-0.5 + 10.497 * g1 - 11.735 * g1 ** 2) / (1.0 + 401.0 * g1 ** 2)
+    fg = (-0.5 + 10.497 * g1 - 11.735 * g1**2) / (1.0 + 401.0 * g1**2)
     edif = frwd1 * np.exp(fn + fg + fm) * eabs
     edift = edif + albedo * rsky * (edni * cosz + edif) / (1.0 - albedo * rsky)
 
     return edni, edif, edift, rsky
 
 
-def rest2_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
-                   sza_lim=SZA_LIM, n_workers=16):
+def rest2_parallel(
+    p, albedo, ssa, g, z, radius, alpha, beta, ozone, w, sza_lim=SZA_LIM, n_workers=16
+):
     """REST2 Clear Sky parallel execution method."""
 
     futures = []
@@ -397,28 +450,41 @@ def rest2_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     x_w = np.array_split(w, n_workers)
 
     with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = [executor.submit(rest2, x_p[i], x_albedo[i], x_ssa[i],
-                                   x_g[i], x_z[i], x_radius[i], x_alpha[i],
-                                   x_beta[i], x_ozone[i], x_w[i],
-                                   sza_lim=sza_lim)
-                   for i in range(n_workers)]
+        futures = [
+            executor.submit(
+                rest2,
+                x_p[i],
+                x_albedo[i],
+                x_ssa[i],
+                x_g[i],
+                x_z[i],
+                x_radius[i],
+                x_alpha[i],
+                x_beta[i],
+                x_ozone[i],
+                x_w[i],
+                sza_lim=sza_lim,
+            )
+            for i in range(n_workers)
+        ]
 
         futures = [future.result() for future in futures]
 
-    var_list = ('ghi', 'dni', 'dhi', 'Tddclr', 'Tduclr', 'Ruuclr')
-    rest_data = collections.namedtuple('rest_data', var_list)
+    var_list = ("ghi", "dni", "dhi", "Tddclr", "Tduclr", "Ruuclr")
+    rest_data = collections.namedtuple("rest_data", var_list)
 
     for i, future in enumerate(futures):
         for var in var_list:
-            setattr(rest_data, var,
-                    np.concatenate((getattr(rest_data, var),
-                                    getattr(future, var)), axis=1))
+            setattr(
+                rest_data,
+                var,
+                np.concatenate((getattr(rest_data, var), getattr(future, var)), axis=1),
+            )
 
     return rest_data
 
 
-def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
-          sza_lim=SZA_LIM):
+def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w, sza_lim=SZA_LIM):
     """REST2 Clear Sky Model.
 
     Literature
@@ -536,14 +602,13 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     ssa = np.where(ssa <= 0, 0.92, ssa)
 
     # Optical Masses from SMARTS Model
-    am = np.maximum(1.0, 1.0 / (cosz + 0.48353 * (z ** 0.095846)
-                                / (96.741 - z) ** 1.754))
-    masa = np.maximum(1.0, 1.0 / (cosz + 0.16851 * (z ** 0.18198)
-                                  / (95.318 - z) ** 1.9542))
+    am = np.maximum(1.0, 1.0 / (cosz + 0.48353 * (z**0.095846) / (96.741 - z) ** 1.754))
+    masa = np.maximum(
+        1.0, 1.0 / (cosz + 0.16851 * (z**0.18198) / (95.318 - z) ** 1.9542)
+    )
 
     # calculate the transmittances for both bands
-    transr1, transg1, trano1, trann1, tranw1 = trans_1(p, am, cosz, z,
-                                                       ozone, w)
+    transr1, transg1, trano1, trann1, tranw1 = trans_1(p, am, cosz, z, ozone, w)
     transr2, trang2, tranw2 = trans_2(p, am, cosz, z, w)
 
     # New aerosol functions in v9
@@ -568,32 +633,32 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     fm = 0.15244 * (am - 1.0) / (1.0 + 2.2413 * am)
 
     # Get BAND1 layer properties : UV-VIS PART OF THE SPECTRUM (0.3-0.7 um)
-    edni1, edif1, edift1, rsky1 = layer_props(transr1, tauas1, tranas1,
-                                              tabs1, f1, radius, cosz,
-                                              albedo, am, fm, g0)
+    edni1, edif1, edift1, rsky1 = layer_props(
+        transr1, tauas1, tranas1, tabs1, f1, radius, cosz, albedo, am, fm, g0
+    )
     # Get BAND2 layer properties : INFRA-RED PART OF THE SPECTRUM (0.7-4 um)
-    edni2, edif2, edift2, rsky2 = layer_props(transr2, tauas2, tranas2,
-                                              tabs2, f2, radius, cosz,
-                                              albedo, am, fm, g0)
+    edni2, edif2, edift2, rsky2 = layer_props(
+        transr2, tauas2, tranas2, tabs2, f2, radius, cosz, albedo, am, fm, g0
+    )
     # Broadband results
     edif = edift1 + edift2
     edirn = (edni1 + edni2) * np.exp(aodcor)
     eglob = edif + edirn * cosz
 
     # Extra Return values for FastModel
-    Tddclr = edirn / (SOLAR_CONSTANT / (radius ** 2))
-    Tduclr = edif / ((SOLAR_CONSTANT / (radius ** 2)) * cosz)
-    Ruuclr = (((edni1 * cosz + edif1) * rsky1
-               + (edni2 * cosz + edif2) * rsky2)
-              / ((edni1 * cosz + edif1) + (edni2 * cosz + edif2)))
+    Tddclr = edirn / (SOLAR_CONSTANT / (radius**2))
+    Tduclr = edif / ((SOLAR_CONSTANT / (radius**2)) * cosz)
+    Ruuclr = ((edni1 * cosz + edif1) * rsky1 + (edni2 * cosz + edif2) * rsky2) / (
+        (edni1 * cosz + edif1) + (edni2 * cosz + edif2)
+    )
 
-    ut.check_range(Tddclr, 'Tddclr')
-    ut.check_range(Tduclr, 'Tduclr')
-    ut.check_range(Ruuclr, 'Ruuclr')
+    ut.check_range(Tddclr, "Tddclr")
+    ut.check_range(Tduclr, "Tduclr")
+    ut.check_range(Ruuclr, "Ruuclr")
 
-    rest_data = collections.namedtuple('rest_data', ['ghi', 'dni', 'dhi',
-                                                     'Tddclr', 'Tduclr',
-                                                     'Ruuclr'])
+    rest_data = collections.namedtuple(
+        "rest_data", ["ghi", "dni", "dhi", "Tddclr", "Tduclr", "Ruuclr"]
+    )
     rest_data.ghi = eglob
     rest_data.dni = edirn
     rest_data.dhi = edif
@@ -604,8 +669,7 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     return rest_data
 
 
-def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
-                 sza_lim=SZA_LIM):
+def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w, sza_lim=SZA_LIM):
     """REST2 Clear Sky Model for only calculating Tddclr for FARMS input.
 
     Literature
@@ -718,14 +782,13 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
     ssa = np.where(ssa <= 0, 0.92, ssa)
 
     # Optical Masses from SMARTS Model
-    am = np.maximum(1.0, 1.0 / (cosz + 0.48353 * (z ** 0.095846)
-                                / (96.741 - z) ** 1.754))
-    masa = np.maximum(1.0, 1.0 / (cosz + 0.16851 * (z ** 0.18198)
-                                  / (95.318 - z) ** 1.9542))
+    am = np.maximum(1.0, 1.0 / (cosz + 0.48353 * (z**0.095846) / (96.741 - z) ** 1.754))
+    masa = np.maximum(
+        1.0, 1.0 / (cosz + 0.16851 * (z**0.18198) / (95.318 - z) ** 1.9542)
+    )
 
     # calculate the transmittances for both bands
-    transr1, transg1, trano1, trann1, tranw1 = trans_1(p, am, cosz, z,
-                                                       ozone, w)
+    transr1, transg1, trano1, trann1, tranw1 = trans_1(p, am, cosz, z, ozone, w)
     transr2, trang2, tranw2 = trans_2(p, am, cosz, z, w)
 
     # clear some variables to free memory
@@ -766,16 +829,35 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
     edirn = (edni1 + edni2) * np.exp(aodcor)
 
     # Extra Return values for FastModel
-    Tddclr = edirn / (SOLAR_CONSTANT / (radius ** 2))
+    Tddclr = edirn / (SOLAR_CONSTANT / (radius**2))
 
-    ut.check_range(Tddclr, 'Tddclr')
+    ut.check_range(Tddclr, "Tddclr")
 
     return Tddclr
 
 
-def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
-                 diffuse_angles=(84.2608, 78.4630, 72.5424, 66.4218, 60.0000,
-                                 53.1301, 45.5730, 36.8699, 25.8419, 0.00000)):
+def rest2_tuuclr(
+    p,
+    albedo,
+    ssa,
+    radius,
+    alpha,
+    ozone,
+    w,
+    parallel=False,
+    diffuse_angles=(
+        84.2608,
+        78.4630,
+        72.5424,
+        66.4218,
+        60.0000,
+        53.1301,
+        45.5730,
+        36.8699,
+        25.8419,
+        0.00000,
+    ),
+):
     """Calculate Tuuclr based on average values from several REST2 runs.
 
     Equation 5 from the following reference:
@@ -823,26 +905,37 @@ def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
         # serial execution
         for angle in diffuse_angles:
             Tddclr_list.append(
-                rest2_tddclr(p=p, albedo=albedo, ssa=ssa, z=angle,
-                             radius=radius, alpha=alpha, beta=0,
-                             ozone=ozone, w=w))
+                rest2_tddclr(
+                    p=p,
+                    albedo=albedo,
+                    ssa=ssa,
+                    z=angle,
+                    radius=radius,
+                    alpha=alpha,
+                    beta=0,
+                    ozone=ozone,
+                    w=w,
+                )
+            )
             gc.collect()
     else:
         # parallel execution
         n_workers = len(diffuse_angles)
         with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
             # submit futures for each angle
-            futures = [executor.submit(rest2_tddclr, p, albedo, ssa, angle,
-                                       radius, alpha, 0, ozone, w)
-                       for angle in diffuse_angles]
+            futures = [
+                executor.submit(
+                    rest2_tddclr, p, albedo, ssa, angle, radius, alpha, 0, ozone, w
+                )
+                for angle in diffuse_angles
+            ]
 
             Tddclr_list = [future.result() for future in futures]
         gc.collect()
 
     scalar = 1 / (len(diffuse_angles))
     for i, angle in enumerate(diffuse_angles):
-        Tddclr_list[i] = (Tddclr_list[i] * np.cos(np.radians(angle))
-                          * scalar)
+        Tddclr_list[i] = Tddclr_list[i] * np.cos(np.radians(angle)) * scalar
 
     # Get the average for various angles
     Tuuclr = np.sum(np.array(Tddclr_list), axis=0) * 2.0

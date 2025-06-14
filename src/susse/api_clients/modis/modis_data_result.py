@@ -19,7 +19,7 @@ class ModisDataPoint:
     _DATA_TAG = "data"
     _DATE_FORMAT = "%Y-%m-%d"
 
-    def __init__(self, date: datetime, band_name: str, data: List[number]):
+    def __init__(self, date: datetime, band_name: str, data: List[float]):
         self.date = date
         self.band = band_name
         self.data = data

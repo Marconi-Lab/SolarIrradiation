@@ -40,3 +40,10 @@ __pycache__/
 /test-results/
 
 version.py
+<<<<<<< HEAD
+=======
+data/
+
+# Python bytecode files
+.mypy_cache/
+>>>>>>> origin/main

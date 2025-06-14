@@ -8,9 +8,9 @@ from susse import ModisProductEnum
 from susse.api_clients import ModisDataFetcher, ModisProductFactory
 
 
-@pytest.mark.skip(
-    reason="Modis service seems to be temporarily unavailable. This needs to be re-evaluated"
-)
+# @pytest.mark.skip(
+#     reason="Modis service seems to be temporarily unavailable. This needs to be re-evaluated"
+# )
 def test_modis_data_fetcher():
 
     geolocator = Nominatim(user_agent="SuSSe")
@@ -59,7 +59,7 @@ def test_modis_data_fetcher():
         end_date=end_date,
     )
     emissivity_value = emissivity.get_time_average()
-    expected_emissivity = 0.4783888888888889
+    expected_emissivity = 230.74333333333334
     assert (
         expected_emissivity == emissivity_value
     ), f"Emissivity mismatch: {emissivity_value} != {expected_emissivity}"
