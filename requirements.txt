@@ -1,6 +1,8 @@
 cryptography>=43.0.3
+geopandas>=1.1.0
 geopy>=2.4.1
 keyring>=24.3.1
+matplotlib>=3.10.0
 numpy>=2.0.2
 overrides>=7.4.0
 python-dotenv>=1.0.0
