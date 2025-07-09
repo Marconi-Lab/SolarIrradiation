@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from geopy.location import Location as GeopyLocation
 
-from .nasa_products import NASAPowerProducts
+from .nasa_products import NASAPowerProduct
 
 
 class NASAPowerDataResult:
@@ -16,7 +16,7 @@ class NASAPowerDataResult:
     def __init__(
         self,
         data: Dict[str, Union[float, int]],
-        product: NASAPowerProducts,
+        product: NASAPowerProduct,
         location: GeopyLocation,
         start_date: datetime,
         end_date: datetime,
@@ -31,7 +31,7 @@ class NASAPowerDataResult:
     def from_data(
         cls,
         data: Dict[str, Union[float, int]],
-        product: NASAPowerProducts,
+        product: NASAPowerProduct,
         location: GeopyLocation,
         start_date: datetime,
         end_date: datetime,
@@ -59,7 +59,7 @@ class NASAPowerMultiDataResult:
     def __init__(
         self,
         data: Dict[str, Dict[str, Union[float, int]]],
-        products: List[NASAPowerProducts],
+        products: List[NASAPowerProduct],
         location: GeopyLocation,
         start_date: datetime,
         end_date: datetime,
@@ -71,7 +71,7 @@ class NASAPowerMultiDataResult:
         self._end_date = end_date
 
     def get_parameter_data(
-        self, product: NASAPowerProducts
+        self, product: NASAPowerProduct
     ) -> Optional[Dict[str, Union[float, int]]]:
         """
         Retrieves the raw time-series data for a specific product.
@@ -84,7 +84,7 @@ class NASAPowerMultiDataResult:
         """
         return self._raw_data.get(product.value)
 
-    def to_numpy(self, product: NASAPowerProducts) -> np.ndarray:
+    def to_numpy(self, product: NASAPowerProduct) -> np.ndarray:
         """
         Converts the raw data for a specific product to a NumPy array.
 

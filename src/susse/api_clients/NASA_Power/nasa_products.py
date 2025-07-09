@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class NASAPowerProducts(Enum):
+class NASAPowerProduct(Enum):
     """
     Enum representing available NASA POWER data products.
 

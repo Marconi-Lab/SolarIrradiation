@@ -6,7 +6,7 @@ from geopy.location import Location as GeopyLocation
 
 from .nasa_power_config import NASAPowerConfig
 from .nasa_power_result import NASAPowerDataResult, NASAPowerMultiDataResult
-from .nasa_products import NASAPowerProducts, TemporalResolution
+from .nasa_products import NASAPowerProduct, TemporalResolution
 
 
 class NASAPowerFetchData:
@@ -14,16 +14,13 @@ class NASAPowerFetchData:
     Handles fetching data from the NASA POWER API.
     """
 
-    def __init__(self):
-        self._config = NASAPowerConfig()
-
+    @staticmethod
     def fetch_data(
-        self,
-        temporal_resolution: TemporalResolution,
         start_date: datetime,
         end_date: datetime,
         location: GeopyLocation,
-        product: NASAPowerProducts,
+        product: NASAPowerProduct,
+        temporal_resolution: TemporalResolution = TemporalResolution.DAILY,
     ) -> NASAPowerDataResult:
         """
         Fetches data for a single product from the NASA POWER API.
@@ -62,13 +59,13 @@ class NASAPowerFetchData:
             end_date=end_date,
         )
 
+    @staticmethod
     def fetch_multiple_parameters(
-        self,
-        temporal_resolution: TemporalResolution,
         start_date: datetime,
         end_date: datetime,
         location: GeopyLocation,
-        products: List[NASAPowerProducts],
+        products: List[NASAPowerProduct],
+        temporal_resolution: TemporalResolution = TemporalResolution.DAILY,
     ) -> NASAPowerMultiDataResult:
         """Fetch multiple parameters in one request."""
         url = NASAPowerConfig.generate_download_link(

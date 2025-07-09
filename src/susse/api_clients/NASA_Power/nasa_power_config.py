@@ -3,7 +3,7 @@ from typing import List, Union
 
 from geopy.location import Location as GeopyLocation
 
-from .nasa_products import NASAPowerProducts, TemporalResolution
+from .nasa_products import NASAPowerProduct, TemporalResolution
 
 
 class NASAPowerConfig:
@@ -19,7 +19,7 @@ class NASAPowerConfig:
         start_date: datetime,
         end_date: datetime,
         location: GeopyLocation,
-        products: Union[NASAPowerProducts, List[NASAPowerProducts]],
+        products: Union[NASAPowerProduct, List[NASAPowerProduct]],
         output_format: str = "JSON",
     ) -> str:
         """
@@ -39,7 +39,7 @@ class NASAPowerConfig:
         start_date_str = start_date.strftime("%Y%m%d")
         end_date_str = end_date.strftime("%Y%m%d")
 
-        if isinstance(products, NASAPowerProducts):
+        if isinstance(products, NASAPowerProduct):
             param_str = products.value
         else:
             param_str = ",".join([p.value for p in products])

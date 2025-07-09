@@ -9,7 +9,7 @@ from susse.api_clients import (
     NASAPowerConfig,
     NASAPowerDataResult,
     NASAPowerFetchData,
-    NASAPowerProducts,
+    NASAPowerProduct,
     TemporalResolution,
 )
 
@@ -46,7 +46,7 @@ def test_url_generation(resolution, code, dates, location):
         start,
         end,
         location,
-        NASAPowerProducts.SURFACE_PRESSURE,
+        NASAPowerProduct.SURFACE_PRESSURE,
     )
 
     assert f"/temporal/{code}/point" in url
@@ -58,7 +58,7 @@ def test_url_generation(resolution, code, dates, location):
 
 def test_fetch_data_success(requests_mock, fetcher, dates, location):
     start, end = dates
-    product = NASAPowerProducts.SURFACE_PRESSURE
+    product = NASAPowerProduct.SURFACE_PRESSURE
 
     # Prepare mock URL and JSON response
     url = NASAPowerConfig.generate_download_link(
@@ -82,11 +82,11 @@ def test_fetch_data_success(requests_mock, fetcher, dates, location):
     requests_mock.get(url, json=mock_data)
 
     result = fetcher.fetch_data(
-        TemporalResolution.HOURLY,
         start,
         end,
         location,
         product,
+        TemporalResolution.HOURLY,
     )
 
     assert isinstance(result, NASAPowerDataResult)
@@ -96,7 +96,7 @@ def test_fetch_data_success(requests_mock, fetcher, dates, location):
 
 def test_fetch_data_http_error(requests_mock, fetcher, dates, location):
     start, end = dates
-    product = NASAPowerProducts.SURFACE_PRESSURE
+    product = NASAPowerProduct.SURFACE_PRESSURE
 
     url = NASAPowerConfig.generate_download_link(
         TemporalResolution.HOURLY,
@@ -109,11 +109,11 @@ def test_fetch_data_http_error(requests_mock, fetcher, dates, location):
 
     with pytest.raises(requests.exceptions.RequestException):
         fetcher.fetch_data(
-            TemporalResolution.HOURLY,
             start,
             end,
             location,
             product,
+            TemporalResolution.HOURLY,
         )
 
 
@@ -127,7 +127,7 @@ def sample_result(dates, location) -> NASAPowerDataResult:
     }
     return NASAPowerDataResult(
         data=data,
-        product=NASAPowerProducts.SURFACE_PRESSURE,
+        product=NASAPowerProduct.SURFACE_PRESSURE,
         location=location,
         start_date=start,
         end_date=end,
@@ -151,7 +151,7 @@ def test_timestamp_ordering(location, dates):
     }
     result = NASAPowerDataResult(
         data=unsorted,
-        product=NASAPowerProducts.SURFACE_PRESSURE,
+        product=NASAPowerProduct.SURFACE_PRESSURE,
         location=location,
         start_date=start,
         end_date=end,

@@ -10,7 +10,7 @@ from geopy.location import Location as GLocation
 
 from ...api_clients.NASA_Power import (
     NASAPowerFetchData,
-    NASAPowerProducts,
+    NASAPowerProduct,
     TemporalResolution,
 )
 from .rest2 import rest2
@@ -46,29 +46,29 @@ class REST2Model:
             Array of clear-sky irradiance values.
         """
         params_df = self.fetcher.fetch_multiple_parameters(
-            resolution,
             start_date,
             end_date,
             location,
             [
-                NASAPowerProducts.SURFACE_PRESSURE,
-                NASAPowerProducts.AEROSOL_OPTICAL_DEPTH_550nm,
-                NASAPowerProducts.AEROSOL_OPTICAL_DEPTH_840nm,
-                NASAPowerProducts.PRECIPITABLE_WATER,
-                NASAPowerProducts.ALL_SKY_SURFACE_ALBEDO,
-                NASAPowerProducts.TOTAL_COLUMN_OZONE,
+                NASAPowerProduct.SURFACE_PRESSURE,
+                NASAPowerProduct.AEROSOL_OPTICAL_DEPTH_550nm,
+                NASAPowerProduct.AEROSOL_OPTICAL_DEPTH_840nm,
+                NASAPowerProduct.PRECIPITABLE_WATER,
+                NASAPowerProduct.ALL_SKY_SURFACE_ALBEDO,
+                NASAPowerProduct.TOTAL_COLUMN_OZONE,
             ],
+            temporal_resolution=resolution,
         )
 
         timestamps = self._generate_timestamps(start_date, end_date, resolution)
         radius = self._calculate_radius_factors(timestamps)
 
-        p = params_df.to_numpy(NASAPowerProducts.SURFACE_PRESSURE)
-        aod550 = params_df.to_numpy(NASAPowerProducts.AEROSOL_OPTICAL_DEPTH_550nm)
-        aod840 = params_df.to_numpy(NASAPowerProducts.AEROSOL_OPTICAL_DEPTH_840nm)
-        pw = params_df.to_numpy(NASAPowerProducts.PRECIPITABLE_WATER)
-        albedo = params_df.to_numpy(NASAPowerProducts.ALL_SKY_SURFACE_ALBEDO)
-        ozone = params_df.to_numpy(NASAPowerProducts.TOTAL_COLUMN_OZONE) * 0.001
+        p = params_df.to_numpy(NASAPowerProduct.SURFACE_PRESSURE)
+        aod550 = params_df.to_numpy(NASAPowerProduct.AEROSOL_OPTICAL_DEPTH_550nm)
+        aod840 = params_df.to_numpy(NASAPowerProduct.AEROSOL_OPTICAL_DEPTH_840nm)
+        pw = params_df.to_numpy(NASAPowerProduct.PRECIPITABLE_WATER)
+        albedo = params_df.to_numpy(NASAPowerProduct.ALL_SKY_SURFACE_ALBEDO)
+        ozone = params_df.to_numpy(NASAPowerProduct.TOTAL_COLUMN_OZONE) * 0.001
         z = self._get_solar_zenith_angle(timestamps, location)
 
         alpha, beta = self._calculate_angstrom_params(aod550, aod840)
