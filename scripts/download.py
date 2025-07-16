@@ -68,7 +68,7 @@ print("-" * 40)
 skipped_count = 0
 processed_count = 0
 
-for i, point in enumerate(uganda_coordinates[:3]):  # Limiting to first 3 points for demonstration
+for i, point in enumerate(uganda_coordinates):
     lon, lat = point
     
     # Check if this coordinate pair already exists

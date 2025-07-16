@@ -57,7 +57,7 @@ existing_coordinates, first_write = check_existing_coordinates(csv_filename)
 # Loop through each grid point and download the data
 skipped_count = 0
 processed_count = 0
-for i, point in enumerate(uganda_coordinates[:3]):  # Limiting to first 3 points for demonstration
+for i, point in enumerate(uganda_coordinates): 
     lon, lat = point
     
     if should_skip_coordinate(lat, lon, existing_coordinates):
