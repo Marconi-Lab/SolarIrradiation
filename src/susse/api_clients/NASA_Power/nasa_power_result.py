@@ -86,7 +86,7 @@ class NASAPowerResult:
             )
 
         # Get all unique timestamps
-        all_timestamps = set()
+        all_timestamps: set[str] = set()
         for product_data in self._raw_data.values():
             all_timestamps.update(product_data.keys())
         sorted_timestamps = sorted(all_timestamps)
