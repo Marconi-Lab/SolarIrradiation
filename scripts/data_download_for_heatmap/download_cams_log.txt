@@ -1,0 +1,287 @@
+nohup: ignoring input
+Number of coordinates within Uganda boundary: 1962
+Fetching data for the period: 2024-01-01 (UTC)
+Time step: 1d
+----------------------------------------
+Found existing CSV file with 150 unique coordinate pairs already downloaded.
+Existing coordinates:
+  (-1.3821, 29.6715)
+  (-1.3821, 29.9715)
+  (-1.2821, 29.6715)
+  (-1.2821, 29.7715)
+  (-1.2821, 29.8715)
+  (-1.2821, 29.9715)
+  (-1.2821, 30.0715)
+  (-1.1821, 29.6715)
+  (-1.1821, 29.7715)
+  (-1.1821, 29.8715)
+  (-1.1821, 29.9715)
+  (-1.1821, 30.0715)
+  (-1.1821, 30.1715)
+  (-1.1821, 30.2715)
+  (-1.0821, 29.6715)
+  (-1.0821, 29.7715)
+  (-1.0821, 29.8715)
+  (-1.0821, 29.9715)
+  (-1.0821, 30.0715)
+  (-1.0821, 30.1715)
+  (-1.0821, 30.2715)
+  (-0.9821, 29.6715)
+  (-0.9821, 29.7715)
+  (-0.9821, 29.8715)
+  (-0.9821, 29.9715)
+  (-0.9821, 30.0715)
+  (-0.9821, 30.1715)
+  (-0.9821, 30.2715)
+  (-0.9821, 30.3715)
+  (-0.9821, 30.4715)
+  (-0.9821, 30.5715)
+  (-0.9821, 30.6715)
+  (-0.9821, 30.7715)
+  (-0.9821, 30.8715)
+  (-0.9821, 30.9715)
+  (-0.9821, 31.0715)
+  (-0.9821, 31.1715)
+  (-0.9821, 31.2715)
+  (-0.9821, 31.3715)
+  (-0.9821, 31.4715)
+  (-0.9821, 31.5715)
+  (-0.9821, 31.6715)
+  (-0.9821, 31.7715)
+  (-0.9821, 31.8715)
+  (-0.9821, 31.9715)
+  (-0.9821, 32.0715)
+  (-0.9821, 32.1715)
+  (-0.9821, 32.2715)
+  (-0.9821, 32.3715)
+  (-0.9821, 32.4715)
+  (-0.9821, 32.5715)
+  (-0.9821, 32.6715)
+  (-0.9821, 32.7715)
+  (-0.9821, 32.8715)
+  (-0.9821, 32.9715)
+  (-0.9821, 33.0715)
+  (-0.9821, 33.1715)
+  (-0.9821, 33.2715)
+  (-0.9821, 33.3715)
+  (-0.9821, 33.4715)
+  (-0.9821, 33.5715)
+  (-0.9821, 33.6715)
+  (-0.9821, 33.7715)
+  (-0.9821, 33.8715)
+  (-0.8821, 29.6715)
+  (-0.8821, 29.7715)
+  (-0.8821, 29.8715)
+  (-0.8821, 29.9715)
+  (-0.8821, 30.0715)
+  (-0.8821, 30.1715)
+  (-0.8821, 30.2715)
+  (-0.8821, 30.3715)
+  (-0.8821, 30.4715)
+  (-0.8821, 30.5715)
+  (-0.8821, 30.6715)
+  (-0.8821, 30.7715)
+  (-0.8821, 30.8715)
+  (-0.8821, 30.9715)
+  (-0.8821, 31.0715)
+  (-0.8821, 31.1715)
+  (-0.8821, 31.2715)
+  (-0.8821, 31.3715)
+  (-0.8821, 31.4715)
+  (-0.8821, 31.5715)
+  (-0.8821, 31.6715)
+  (-0.8821, 31.7715)
+  (-0.8821, 31.8715)
+  (-0.8821, 31.9715)
+  (-0.8821, 32.0715)
+  (-0.8821, 32.1715)
+  (-0.8821, 32.2715)
+  (-0.8821, 32.3715)
+  (-0.8821, 32.4715)
+  (-0.8821, 32.5715)
+  (-0.8821, 32.6715)
+  (-0.8821, 32.7715)
+  (-0.8821, 32.8715)
+  (-0.8821, 32.9715)
+  (-0.8821, 33.0715)
+  (-0.8821, 33.1715)
+  (-0.8821, 33.2715)
+  (-0.8821, 33.3715)
+  (-0.8821, 33.4715)
+  (-0.8821, 33.5715)
+  (-0.8821, 33.6715)
+  (-0.8821, 33.7715)
+  (-0.8821, 33.8715)
+  (-0.7821, 29.6715)
+  (-0.7821, 29.7715)
+  (-0.7821, 29.8715)
+  (-0.7821, 29.9715)
+  (-0.7821, 30.0715)
+  (-0.7821, 30.1715)
+  (-0.7821, 30.2715)
+  (-0.7821, 30.3715)
+  (-0.7821, 30.4715)
+  (-0.7821, 30.5715)
+  (-0.7821, 30.6715)
+  (-0.7821, 30.7715)
+  (-0.7821, 30.8715)
+  (-0.7821, 30.9715)
+  (-0.7821, 31.0715)
+  (-0.7821, 31.1715)
+  (-0.7821, 31.2715)
+  (-0.7821, 31.3715)
+  (-0.7821, 31.5715)
+  (-0.7821, 31.6715)
+  (-0.7821, 31.7715)
+  (-0.7821, 31.8715)
+  (-0.7821, 31.9715)
+  (-0.7821, 32.0715)
+  (-0.7821, 32.1715)
+  (-0.7821, 32.2715)
+  (-0.7821, 32.3715)
+  (-0.7821, 32.4715)
+  (-0.7821, 32.5715)
+  (-0.7821, 32.6715)
+  (-0.7821, 32.7715)
+  (-0.7821, 32.8715)
+  (-0.7821, 32.9715)
+  (-0.7821, 33.0715)
+  (-0.7821, 33.1715)
+  (-0.7821, 33.2715)
+  (-0.7821, 33.3715)
+  (-0.7821, 33.4715)
+  (-0.7821, 33.5715)
+  (-0.7821, 33.6715)
+  (-0.7821, 33.7715)
+  (-0.7821, 33.8715)
+  (-0.6821, 29.6715)
+
+Skipping grid point 1/1962: (Lat=-1.38, Lon=29.67) - Already downloaded
+
+Skipping grid point 2/1962: (Lat=-1.38, Lon=29.97) - Already downloaded
+
+Skipping grid point 3/1962: (Lat=-1.28, Lon=29.67) - Already downloaded
+
+Skipping grid point 4/1962: (Lat=-1.28, Lon=29.77) - Already downloaded
+
+Skipping grid point 5/1962: (Lat=-1.28, Lon=29.87) - Already downloaded
+
+Skipping grid point 6/1962: (Lat=-1.28, Lon=29.97) - Already downloaded
+
+Skipping grid point 7/1962: (Lat=-1.28, Lon=30.07) - Already downloaded
+
+Skipping grid point 8/1962: (Lat=-1.18, Lon=29.67) - Already downloaded
+
+Skipping grid point 9/1962: (Lat=-1.18, Lon=29.77) - Already downloaded
+
+Skipping grid point 10/1962: (Lat=-1.18, Lon=29.87) - Already downloaded
+
+Skipping grid point 11/1962: (Lat=-1.18, Lon=29.97) - Already downloaded
+
+Skipping grid point 12/1962: (Lat=-1.18, Lon=30.07) - Already downloaded
+
+Skipping grid point 13/1962: (Lat=-1.18, Lon=30.17) - Already downloaded
+
+Skipping grid point 14/1962: (Lat=-1.18, Lon=30.27) - Already downloaded
+
+Skipping grid point 15/1962: (Lat=-1.08, Lon=29.67) - Already downloaded
+
+Skipping grid point 16/1962: (Lat=-1.08, Lon=29.77) - Already downloaded
+
+Skipping grid point 17/1962: (Lat=-1.08, Lon=29.87) - Already downloaded
+
+Skipping grid point 18/1962: (Lat=-1.08, Lon=29.97) - Already downloaded
+
+Skipping grid point 19/1962: (Lat=-1.08, Lon=30.07) - Already downloaded
+
+Skipping grid point 20/1962: (Lat=-1.08, Lon=30.17) - Already downloaded
+
+Skipping grid point 21/1962: (Lat=-1.08, Lon=30.27) - Already downloaded
+
+Skipping grid point 22/1962: (Lat=-0.98, Lon=29.67) - Already downloaded
+
+Skipping grid point 23/1962: (Lat=-0.98, Lon=29.77) - Already downloaded
+
+Skipping grid point 24/1962: (Lat=-0.98, Lon=29.87) - Already downloaded
+
+Skipping grid point 25/1962: (Lat=-0.98, Lon=29.97) - Already downloaded
+
+Skipping grid point 26/1962: (Lat=-0.98, Lon=30.07) - Already downloaded
+
+Skipping grid point 27/1962: (Lat=-0.98, Lon=30.17) - Already downloaded
+
+Skipping grid point 28/1962: (Lat=-0.98, Lon=30.27) - Already downloaded
+
+Skipping grid point 29/1962: (Lat=-0.98, Lon=30.37) - Already downloaded
+
+Skipping grid point 30/1962: (Lat=-0.98, Lon=30.47) - Already downloaded
+
+Skipping grid point 31/1962: (Lat=-0.98, Lon=30.57) - Already downloaded
+
+Skipping grid point 32/1962: (Lat=-0.98, Lon=30.67) - Already downloaded
+
+Skipping grid point 33/1962: (Lat=-0.98, Lon=30.77) - Already downloaded
+
+Skipping grid point 34/1962: (Lat=-0.98, Lon=30.87) - Already downloaded
+
+Skipping grid point 35/1962: (Lat=-0.98, Lon=30.97) - Already downloaded
+
+Skipping grid point 36/1962: (Lat=-0.98, Lon=31.07) - Already downloaded
+
+Skipping grid point 37/1962: (Lat=-0.98, Lon=31.17) - Already downloaded
+
+Skipping grid point 38/1962: (Lat=-0.98, Lon=31.27) - Already downloaded
+
+Skipping grid point 39/1962: (Lat=-0.98, Lon=31.37) - Already downloaded
+
+Skipping grid point 40/1962: (Lat=-0.98, Lon=31.47) - Already downloaded
+
+Skipping grid point 41/1962: (Lat=-0.98, Lon=31.57) - Already downloaded
+
+Skipping grid point 42/1962: (Lat=-0.98, Lon=31.67) - Already downloaded
+
+Skipping grid point 43/1962: (Lat=-0.98, Lon=31.77) - Already downloaded
+
+Skipping grid point 44/1962: (Lat=-0.98, Lon=31.87) - Already downloaded
+
+Skipping grid point 45/1962: (Lat=-0.98, Lon=31.97) - Already downloaded
+
+Skipping grid point 46/1962: (Lat=-0.98, Lon=32.07) - Already downloaded
+
+Skipping grid point 47/1962: (Lat=-0.98, Lon=32.17) - Already downloaded
+
+Skipping grid point 48/1962: (Lat=-0.98, Lon=32.27) - Already downloaded
+
+Skipping grid point 49/1962: (Lat=-0.98, Lon=32.37) - Already downloaded
+
+Skipping grid point 50/1962: (Lat=-0.98, Lon=32.47) - Already downloaded
+
+Skipping grid point 51/1962: (Lat=-0.98, Lon=32.57) - Already downloaded
+
+Skipping grid point 52/1962: (Lat=-0.98, Lon=32.67) - Already downloaded
+
+Skipping grid point 53/1962: (Lat=-0.98, Lon=32.77) - Already downloaded
+
+Skipping grid point 54/1962: (Lat=-0.98, Lon=32.87) - Already downloaded
+
+Skipping grid point 55/1962: (Lat=-0.98, Lon=32.97) - Already downloaded
+
+Skipping grid point 56/1962: (Lat=-0.98, Lon=33.07) - Already downloaded
+
+Skipping grid point 57/1962: (Lat=-0.98, Lon=33.17) - Already downloaded
+
+Skipping grid point 58/1962: (Lat=-0.98, Lon=33.27) - Already downloaded
+
+Skipping grid point 59/1962: (Lat=-0.98, Lon=33.37) - Already downloaded
+
+Skipping grid point 60/1962: (Lat=-0.98, Lon=33.47) - Already downloaded
+
+Skipping grid point 61/1962: (Lat=-0.98, Lon=33.57) - Already downloaded
+
+Skipping grid point 62/1962: (Lat=-0.98, Lon=33.67) - Already downloaded
+
+Skipping grid point 63/1962: (Lat=-0.98, Lon=33.77) - Already downloaded
+
+Skipping grid point 64/1962: (Lat=-0.98, Lon=33.87) - Already downloaded
+
+Skipping grid point 65/1962: (Lat=-0.88, Lon=29.67) - Already downloaded
