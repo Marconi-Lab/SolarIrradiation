@@ -17,7 +17,7 @@ from download_utils import (
 
 GRID_SPACING_DEGREES = 0.1
 
-UGANDA_SHAPEFILE = "jupyter_notebooks/Data/gadm41_UGA_shp/gadm41_UGA_0.shp"
+UGANDA_SHAPEFILE = "scripts/data_download_for_heatmap/Uganda_shape_files/gadm41_UGA_0.shp"
 uganda_map = gpd.read_file(UGANDA_SHAPEFILE)
 uganda_map = uganda_map.to_crs(epsg=4326)
 uganda_boundary = uganda_map.union_all() 
@@ -51,7 +51,7 @@ client = CAMSClient()
 
 print("-" * 40)
 
-csv_filename = "scripts/cams_radiation_ug_data.csv"
+csv_filename = "scripts/downloaded_data/CAMS_Radiation_ug_data.csv"
 existing_coordinates, first_write = check_existing_coordinates(csv_filename)
 
 # Loop through each grid point and download the data

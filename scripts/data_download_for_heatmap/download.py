@@ -19,7 +19,7 @@ from download_utils import (
 
 GRID_SPACING_DEGREES = 0.1
 
-UGANDA_SHAPEFILE = "jupyter_notebooks/Data/gadm41_UGA_shp/gadm41_UGA_0.shp"
+UGANDA_SHAPEFILE = "scripts/data_download_for_heatmap/Uganda_shape_files/gadm41_UGA_0.shp"
 uganda_map = gpd.read_file(UGANDA_SHAPEFILE)
 uganda_map = uganda_map.to_crs(epsg=4326)
 uganda_boundary = uganda_map.union_all() 
@@ -49,16 +49,12 @@ print(f"Fetching data for the period: {start_date.date()} to {end_date.date()}")
 # Initialize the data fetcher class
 fetcher = NASAPowerFetchData()
 
-# Define the list of data products to download
-products_to_download = [
-    NASAPowerProduct.GHI,
-    NASAPowerProduct.DNI, 
-    NASAPowerProduct.DHI,
-]
+# Create a list of products 
+products_to_download = list(NASAPowerProduct)
 temporal_res = TemporalResolution.DAILY
 
 # Create CSV file for direct writing and check existing data
-csv_filename = "scripts/NASA_power_ug_data.csv"
+csv_filename = "scripts/downloaded_data/NASA_power_ug_data.csv"
 existing_coordinates, first_write = check_existing_coordinates(csv_filename)
 
 print(f"Downloading products: {[p.name for p in products_to_download]}")
