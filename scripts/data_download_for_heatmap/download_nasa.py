@@ -54,7 +54,7 @@ products_to_download = list(NASAPowerProduct)
 temporal_res = TemporalResolution.DAILY
 
 # Create CSV file for direct writing and check existing data
-csv_filename = "scripts/downloaded_data/NASA_power_ug_data.csv"
+csv_filename = "scripts/data_download_for_heatmap/downloaded_data/NASA_power_ug_data.csv"
 existing_coordinates, first_write = check_existing_coordinates(csv_filename)
 
 print(f"Downloading products: {[p.name for p in products_to_download]}")

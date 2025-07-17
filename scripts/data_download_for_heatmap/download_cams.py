@@ -51,7 +51,7 @@ client = CAMSClient()
 
 print("-" * 40)
 
-csv_filename = "scripts/downloaded_data/CAMS_Radiation_ug_data.csv"
+csv_filename = "scripts/data_download_for_heatmap/downloaded_data/CAMS_Radiation_ug_data.csv"
 existing_coordinates, first_write = check_existing_coordinates(csv_filename)
 
 # Loop through each grid point and download the data
