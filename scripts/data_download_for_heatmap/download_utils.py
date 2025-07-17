@@ -38,9 +38,9 @@ def check_existing_coordinates(csv_filename, precision=4):
                 first_write = False
                 
                 print(f"Found existing CSV file with {len(existing_coordinates)} unique coordinate pairs already downloaded.")
-                print("Existing coordinates:")
-                for coord in sorted(existing_coordinates):
-                    print(f"  ({coord[0]:.{precision}f}, {coord[1]:.{precision}f})")
+                # print("Existing coordinates:")
+                # for coord in sorted(existing_coordinates):
+                #     print(f"  ({coord[0]:.{precision}f}, {coord[1]:.{precision}f})")
             else:
                 print("Found existing CSV file but it's empty or missing coordinate columns.")
         except Exception as e:
