@@ -46,3 +46,4 @@ data/
 # Python bytecode files
 .mypy_cache/
 .vscode/
+/data
