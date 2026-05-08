@@ -216,6 +216,81 @@ class TestEarthdataCredentials:
         assert creds.password == "secret"
 
 
+class TestParallelEquivalence:
+    """Parallel and serial fetch paths must produce identical results.
+
+    Without parallelism a real bulk ingest takes ~9 days of wall time
+    (300K OPeNDAP requests at ~2.5 s each). The fetcher uses a thread
+    pool to batch them, but threading must not change the *content* of
+    the returned DataFrame — only the row order, which is documented as
+    non-deterministic when ``max_workers > 1``.
+
+    These tests stub ``_fetch_sub_daily`` so neither path hits the
+    network or requires Earthdata credentials.
+    """
+
+    def _stub_fetch(self) -> callable:
+        """Returns a deterministic synthetic ``_fetch_sub_daily`` whose
+        output uniquely encodes (api_code, date) so we can verify each
+        task got the right inputs after re-shuffling.
+        """
+        # Map api_code → small integer offset so each variable is
+        # distinguishable in the output.
+        api_offset = {"TOTEXTTAU": 0, "TOTSCATAU": 1000, "AODANA": 2000, "TQV": 3000}
+
+        def fake_fetch(self, *, product_data, date, merra_lat_idx,
+                       merra_lon_idx, cadence):
+            # All-zeros except a spike at noon whose value encodes
+            # (api_code, date). cos_zenith_aggregate weights noon highest
+            # so the daily value will be dominated by that spike.
+            arr = np.zeros(cadence)
+            offset = api_offset.get(product_data.product_name, 9999)
+            # `date` here is a `date` instance (not datetime) — month*100+day
+            # gives a unique integer for each day in a single-month test.
+            arr[cadence // 2] = float(offset + date.month * 100 + date.day)
+            return arr
+
+        return fake_fetch
+
+    def test_parallel_matches_serial(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from susse.api_clients.merra_2.merra_daily_fetcher import MerraDailyFetcher
+
+        monkeypatch.setattr(MerraDailyFetcher, "_fetch_sub_daily", self._stub_fetch())
+        # Skip auth — never reached because _fetch_sub_daily is stubbed,
+        # but the pre-auth call in fetch_long_for_location still tries
+        # to set up a session.
+        monkeypatch.setattr(
+            MerraDailyFetcher, "_authenticated_session",
+            lambda self, url: object(),
+        )
+
+        kwargs = dict(
+            latitude=0.5179, longitude=32.4715,
+            date_start=date(2024, 6, 1), date_end=date(2024, 6, 14),
+            api_codes=("TOTEXTTAU", "TOTSCATAU"),
+        )
+
+        serial_df = MerraDailyFetcher(max_workers=1).fetch_long_for_location(**kwargs)
+        parallel_df = MerraDailyFetcher(max_workers=4).fetch_long_for_location(**kwargs)
+
+        # Two variables × 14 days = 28 rows in each result.
+        assert len(serial_df) == 28
+        assert len(parallel_df) == 28
+
+        # Sort both before comparing — parallel results come back in
+        # completion order, not submission order.
+        sort_cols = ["variable_id", "date"]
+        s = serial_df.sort_values(sort_cols).reset_index(drop=True)
+        p = parallel_df.sort_values(sort_cols).reset_index(drop=True)
+        pd.testing.assert_frame_equal(s, p)
+
+    def test_rejects_zero_workers(self) -> None:
+        from susse.api_clients.merra_2.merra_daily_fetcher import MerraDailyFetcher
+
+        with pytest.raises(ValueError, match="max_workers must be >= 1"):
+            MerraDailyFetcher(max_workers=0)
+
+
 class TestProductLookup:
     def test_known_api_code_resolves(self) -> None:
         product_data = MerraDailyFetcher._product_data_for("TOTEXTTAU")
