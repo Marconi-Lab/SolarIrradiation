@@ -1,41 +1,71 @@
+"""Random-forest regressor wrapping sklearn's :class:`RandomForestRegressor`.
+
+Tree-based; no scaling needed (CLAUDE.md / NB 03 decision: scaling lives
+in the model wrapper, RF wrappers skip it).
+"""
+
 from __future__ import annotations
 
-from .base import  BaseRegressor
+from typing import Optional
 
-from pathlib import Path
-from typing import Any, Dict
-
-import joblib
 import numpy as np
-from numpy.typing import NDArray
-from sklearn.ensemble import RandomForestRegressor
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor as _SkRF
+
+from .base import BaseRegressor
+from .params import RandomForestParams
 
 
-class RFRegressor(BaseRegressor):
-    """RandomForestRegressor wrapper implementing BaseRegressor interface."""
+class RandomForestRegressor(BaseRegressor[RandomForestParams]):
+    """Sklearn random forest with the typed-params interface."""
 
-    def __init__(self, **params: Any) -> None:
-        if "random_state" not in params:
-            params["random_state"] = 42
-        self.estimator = RandomForestRegressor(**params)
+    def __init__(self, params: RandomForestParams) -> None:
+        self._params = params
+        self._estimator: Optional[_SkRF] = None
 
-    def fit(self, X: NDArray[np.floating], y: NDArray[np.floating]) -> None:
-        self.estimator.fit(X, y)
+    @property
+    def params(self) -> RandomForestParams:
+        return self._params
 
-    def predict(self, X: NDArray[np.floating]) -> NDArray[np.floating]:
-        return np.asarray(self.estimator.predict(X), dtype=float)
+    @property
+    def is_fitted(self) -> bool:
+        return self._estimator is not None
 
-    def save(self, path: Path) -> None:
-        path.mkdir(parents=True, exist_ok=True)
-        joblib.dump(self.estimator, path / "model.joblib")
-        (path / "model_type.txt").write_text("random_forest", encoding="utf-8")
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "RandomForestRegressor":
+        params = self._params
+        estimator = _SkRF(
+            n_estimators=params.n_estimators,
+            max_depth=params.max_depth,
+            min_samples_split=params.min_samples_split,
+            min_samples_leaf=params.min_samples_leaf,
+            max_features=params.max_features,
+            random_state=params.random_state,
+            n_jobs=params.n_jobs,
+        )
+        estimator.fit(X.values, np.asarray(y.values, dtype=float))
+        self._estimator = estimator
+        return self
 
-    @staticmethod
-    def load(path: Path) -> RFRegressor:
-        est: RandomForestRegressor = joblib.load(path / "model.joblib")
-        obj = RFRegressor()
-        obj.estimator = est
-        return obj
+    def predict(self, X: pd.DataFrame) -> pd.Series:
+        if self._estimator is None:
+            raise RuntimeError(
+                "RandomForestRegressor.predict called before .fit()."
+            )
+        preds = self._estimator.predict(X.values)
+        return pd.Series(np.asarray(preds, dtype=float), index=X.index)
 
-    def get_params(self) -> Dict[str, Any]:
-        return self.estimator.get_params(deep=True)
+    def _state(self) -> object:
+        return self._estimator
+
+    @classmethod
+    def _from_state(
+        cls, params: RandomForestParams, state: object
+    ) -> "RandomForestRegressor":
+        if not isinstance(state, _SkRF):
+            raise ValueError(
+                f"RandomForestRegressor._from_state expected an sklearn "
+                f"RandomForestRegressor, got {type(state).__name__}."
+            )
+        instance = cls(params)
+        instance._estimator = state
+        return instance
