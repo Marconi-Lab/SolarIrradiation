@@ -4,6 +4,8 @@ from typing import List, Optional
 import numpy as np
 from numpy import number
 
+import pandas as pd
+
 from .modis_product import ModisBand
 
 
@@ -141,3 +143,13 @@ class ModisDataResult:
     def get_time_average(self) -> float:
         values = [v.data_avg for v in self.data_points]
         return float(np.mean(np.asarray(values)))
+
+    def to_df(self) -> pd.DataFrame:
+
+        # vals = [data_point.data_avg for data_point in self.data_points]
+        vals = [data_point.data_avg for data_point in self.data_points]
+        time_pts = [data_point.date for data_point in self.data_points]
+
+        df = pd.DataFrame(vals, index=time_pts, columns=[self.data_points[0].band])
+        return df
+

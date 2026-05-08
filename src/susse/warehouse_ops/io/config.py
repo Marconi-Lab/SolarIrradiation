@@ -32,7 +32,7 @@ Author: (c) 2025
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence, Final
 from datetime import date
 
 import pandas as pd
@@ -42,36 +42,21 @@ from google.cloud import bigquery
 # Configuration
 # ---------------------------------------------------------------------------
 
+PROJECT_ID: Final[str] = "solar-irradiation-estimation"
+DATASET: Final[str] = "solar_warehouse"
 
 @dataclass(frozen=True)
 class TableRefs:
-    """Holds fully-qualified table names.
+    nasa_daily_vars_long: str = f"{PROJECT_ID}.{DATASET}.nasa_daily_vars_long"
+    cams_daily_vars_long: str = f"{PROJECT_ID}.{DATASET}.cams_daily_vars_long"
+    irradiance_daily: str = f"{PROJECT_ID}.{DATASET}.irradiance_daily"
+    ground_measurements: str = f"{PROJECT_ID}.{DATASET}.ground_measurements"
+    ground_measurements_raw: str = f"{PROJECT_ID}.{DATASET}.ground_measurements_raw"
 
-    Customize these if your dataset names differ.
-    """
+    # Nearest-point helper table functions
+    fn_nearest_point: str = f"{PROJECT_ID}.{DATASET}.fn_nearest_point"
+    fn_nearest_var_daily: str = f"{PROJECT_ID}.{DATASET}.fn_nearest_var_daily"
 
-    project: str = "solar-irradiation-estimation"
-    dataset: str = "solar_warehouse"
-
-    # Curated ground measurements (month-partitioned)
-    ground_measurements: str = (
-        "`solar-irradiation-estimation.solar_warehouse.ground_measurements`"
-    )
-
-    # Daily irradiance (NASA/CAMS), already present in your warehouse
-    irradiance_daily: str = (
-        "`solar-irradiation-estimation.solar_warehouse.irradiance_daily`"
-    )
-
-    # NASA daily variables (long format: date, lat, lon, geohash5, variable_id, value)
-    nasa_daily_vars_long: str = (
-        "`solar-irradiation-estimation.solar_warehouse.nasa_daily_vars_long`"
-    )
-
-    # Optional dimension table for variable metadata
-    dim_variable: str = (
-        "`solar-irradiation-estimation.solar_warehouse.dim_variable`"
-    )
 
 
 @dataclass(frozen=True)
@@ -83,28 +68,3 @@ class WarehouseOptions:
     include_nasa: bool = True
     # how to match ground↔satellite: 'geohash' or 'nearest' (TODO: implement nearest later)
     match_strategy: str = "geohash"
-
-# ---------------------------------------------------------------------------
-# Example (manual test)
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    # Minimal smoke test; adapt dates/coords as needed.
-    bq = BQ(project="solar-irradiation-estimation")
-    tables = TableRefs()
-    svc = FeatureService(bq, tables)
-
-    # Training pairs for a short range
-    df_pairs = svc.build_training_pairs(
-        start=date(2024, 2, 1), end=date(2024, 2, 15),
-        locations=None,
-        nasa_variables=["T2M", "CLRSKY_DNI"],  # example variable_ids
-    )
-    print(df_pairs.head())
-
-    # Inference features for one point/time
-    features = svc.build_inference_features(
-        target_date=date(2024, 2, 15), lat=-1.38214, lon=29.671499,
-        nasa_variables=["T2M"],
-    )
-    print(features)

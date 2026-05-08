@@ -60,7 +60,7 @@ class MerraDataResult:
                 start_date = pd.to_datetime(
                     ds.attrs.get("RangeBeginningDate", "1970-01-01")
                 )
-                time_index = [start_date + timedelta(hours=int(t)) for t in time_values]
+                time_index = time_values#[start_date + timedelta(hours=int(t)) for t in time_values]
             else:
                 time_index = np.arange(
                     len(var_data)

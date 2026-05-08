@@ -6,7 +6,7 @@ from datetime import date
 
 import pandas as pd
 from google.cloud import bigquery
-from .bq import BQ
+from .bq import BigQueryClient
 from .config import TableRefs, WarehouseOptions
 from .repositories import SatelliteRepository, GroundRepository
 
@@ -22,7 +22,7 @@ class FeatureService:
     by (date, geohash5). Nearest-distance matching can be added later.
     """
 
-    def __init__(self, bq: BQ, tables: TableRefs, opts: WarehouseOptions | None = None) -> None:
+    def __init__(self, bq: BigQueryClient, tables: TableRefs, opts: WarehouseOptions | None = None) -> None:
         self._bq = bq
         self._t = tables
         self._opts = opts or WarehouseOptions()
@@ -69,7 +69,7 @@ class FeatureService:
         LEFT JOIN sat USING (date, geohash5)
         """
 
-        df = self._bq.df(sql)
+        df = self._bq.query(sql)
 
         # Optionally enrich with NASA vars
         if nasa_variables:
@@ -86,42 +86,69 @@ class FeatureService:
         lon: float,
         geohash_precision: Optional[int] = None,
         nasa_variables: Optional[Sequence[str]] = None,
+        *,
+        nearest: bool = False,
+        max_km: Optional[float] = None,
+        fill_missing_with_nearest: bool = True,
     ) -> pd.DataFrame:
         """Return a single-row feature frame for inference at (lat, lon, date).
 
-        Strategy: geohash binning to the same grid as the warehouse tables,
-        then pull satellite features (+ optional NASA vars) for that bin/date.
+        If `nearest=True`, uses the nearest-point table functions; otherwise
+        uses geohash-binned joins (original behavior). If `fill_missing_with_nearest`
+        is True, a geohash miss auto-falls back to nearest within `max_km`.
         """
         gh_prec = geohash_precision or self._opts.geohash_precision
-        # Compute geohash within BigQuery to avoid client-side deps
-        sql_sat = f"""
-        WITH pt AS (
-          SELECT DATE('{target_date}') AS date,
-                 ST_GEOHASH(ST_GEOGPOINT({lon}, {lat}), {gh_prec}) AS geohash5
-        ), sat AS (
-          SELECT s.date, s.geohash5,
-                 MAX(IF(source='CAMS', ghi_kwh_m2_day, NULL)) AS sat_ghi_cams_kwh_m2_day,
-                 MAX(IF(source='NASA', ghi_kwh_m2_day, NULL)) AS sat_ghi_nasa_kwh_m2_day
-          FROM {self._t.irradiance_daily} s
-          JOIN pt USING (date)
-          WHERE s.geohash5 = (SELECT geohash5 FROM pt)
-          GROUP BY s.date, s.geohash5
-        )
-        SELECT * FROM sat
-        """
-        sat_df = self._bq.df(sql_sat)
+        sat_repo = SatelliteRepository(self._bq, self._t)
 
+        def _geohash_features() -> pd.DataFrame:
+            sql_sat = f"""
+            WITH pt AS (
+              SELECT DATE('{target_date}') AS date,
+                     ST_GEOHASH(ST_GEOGPOINT({lon}, {lat}), {gh_prec}) AS geohash5
+            ), sat AS (
+              SELECT s.date, s.geohash5,
+                     MAX(IF(source='CAMS', ghi_kwh_m2_day, NULL)) AS sat_ghi_cams_kwh_m2_day,
+                     MAX(IF(source='NASA', ghi_kwh_m2_day, NULL)) AS sat_ghi_nasa_kwh_m2_day
+              FROM {self._t.irradiance_daily} s
+              JOIN pt USING (date)
+              WHERE s.geohash5 = (SELECT geohash5 FROM pt)
+              GROUP BY s.date, s.geohash5
+            )
+            SELECT * FROM sat
+            """
+            return self._bq.query(sql_sat)
+
+        def _nearest_features() -> pd.DataFrame:
+            return sat_repo.nearest_irradiance(lat=lat, lon=lon, start=target_date, end=target_date, max_km=max_km)
+
+        # Satellite features
+        if nearest:
+            sat_df = _nearest_features()
+        else:
+            sat_df = _geohash_features()
+            if sat_df.empty and fill_missing_with_nearest:
+                sat_df = _nearest_features()
+
+        # Ensure a single-row frame even if nothing found
         if sat_df.empty:
-            # Return an empty frame with expected columns so caller can handle gracefully
-            cols = [
-                "date", "geohash5", "sat_ghi_cams_kwh_m2_day", "sat_ghi_nasa_kwh_m2_day",
-            ]
-            return pd.DataFrame(columns=cols)
+            cols = ["date", "sat_ghi_cams_kwh_m2_day", "sat_ghi_nasa_kwh_m2_day"]
+            sat_df = pd.DataFrame([[pd.NaT, None, None]], columns=cols)
+            sat_df["date"] = pd.to_datetime(target_date).date()
 
+        # Optional NASA variables
         if nasa_variables:
-            nv = SatelliteRepository(self._bq, self._t).nasa_vars_pivoted(target_date, target_date, nasa_variables)
-            if not nv.empty:
-                sat_df = sat_df.merge(nv, on=["date", "geohash5"], how="left")
+            if nearest:
+                nv = sat_repo.nearest_nasa_vars_daily(lat=lat, lon=lon, start=target_date, end=target_date, variables=nasa_variables, max_km=max_km)
+            else:
+                nv = sat_repo.nasa_vars_pivoted(start=target_date, end=target_date, variables=nasa_variables)
+                # need geohash to join; compute it for the point
+                nv_gh_sql = f"SELECT DATE('{target_date}') AS date, ST_GEOHASH(ST_GEOGPOINT({lon}, {lat}), {gh_prec}) AS geohash5"
+                pt_df = self._bq.query(nv_gh_sql)
+                if not nv.empty and not pt_df.empty:
+                    nv = nv.merge(pt_df, on=["date"], how="inner")
+                    sat_df = sat_df.merge(nv, on=["date"], how="left")
+            if nearest and not sat_df.empty and not nv.empty:
+                sat_df = sat_df.merge(nv, on=["date"], how="left")
 
         # Add lat/lon used for traceability
         sat_df["lat"] = float(lat)

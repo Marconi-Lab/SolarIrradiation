@@ -7,7 +7,7 @@ from datetime import date
 import pandas as pd
 from google.cloud import bigquery
 
-from .bq import BQ
+from .bq import BigQueryClient
 from .config import TableRefs
 
 # ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ class GroundRepository:
     ghi_kwh_m2_day, qc_level, ...).
     """
 
-    def __init__(self, bq: BQ, tables: TableRefs) -> None:
+    def __init__(self, bq: BigQueryClient, tables: TableRefs) -> None:
         self._bq = bq
         self._t = tables
 
@@ -58,13 +58,13 @@ class GroundRepository:
         FROM {self._t.ground_measurements}
         WHERE {where}
         """
-        return self._bq.df(sql)
+        return self._bq.query(sql)
 
 
 class SatelliteRepository:
-    """Access daily satellite irradiance (NASA/CAMS)."""
+    """Access daily satellite irradiance (NASA/CAMS) and NASA variables."""
 
-    def __init__(self, bq: BQ, tables: TableRefs) -> None:
+    def __init__(self, bq: BigQueryClient, tables: TableRefs) -> None:
         self._bq = bq
         self._t = tables
 
@@ -100,7 +100,35 @@ class SatelliteRepository:
         WHERE date BETWEEN DATE('{start}') AND DATE('{end}')
         GROUP BY date, geohash5
         """
-        return self._bq.df(sql)
+        return self._bq.query(sql)
+
+    def nearest_irradiance(
+        self,
+        lat: float,
+        lon: float,
+        start: date,
+        end: date,
+        max_km: Optional[float] = None,
+    ) -> pd.DataFrame:
+        """Return nearest-per-day irradiance from the table function, pivoted wide.
+
+        Output columns: date, sat_ghi_cams_kwh_m2_day, sat_ghi_nasa_kwh_m2_day,
+        plus source-specific DNI/DHI if you later extend.
+        """
+        max_km_sql = "NULL" if max_km is None else str(float(max_km))
+        sql = f"""
+        WITH base AS (
+          SELECT *
+          FROM {self._t.fn_nearest_point}({lat}, {lon}, DATE('{start}'), DATE('{end}'), {max_km_sql})
+        )
+        SELECT date,
+               MAX(IF(source='CAMS', ghi_kwh_m2_day, NULL)) AS sat_ghi_cams_kwh_m2_day,
+               MAX(IF(source='NASA', ghi_kwh_m2_day, NULL)) AS sat_ghi_nasa_kwh_m2_day
+        FROM base
+        GROUP BY date
+        ORDER BY date
+        """
+        return self._bq.query(sql)
 
     def nasa_vars_pivoted(
         self,
@@ -128,5 +156,36 @@ class SatelliteRepository:
         PIVOT ( ANY_VALUE(value) FOR variable_id IN ({var_list}) )
         ORDER BY date, geohash5
         """
-        return self._bq.df(sql)
+        return self._bq.query(sql)
 
+    def nearest_nasa_vars_daily(
+        self,
+        lat: float,
+        lon: float,
+        start: date,
+        end: date,
+        variables: Sequence[str],
+        max_km: Optional[float] = None,
+    ) -> pd.DataFrame:
+        """Call fn_nearest_var_daily for each variable_id and pivot to wide on date.
+
+        Returns: date plus one column per variable_id.
+        """
+        if not variables:
+            return pd.DataFrame()
+        max_km_sql = "NULL" if max_km is None else str(float(max_km))
+        var_list = ",".join([f"'{v}'" for v in variables])
+        sql = f"""
+        WITH vars AS (
+          SELECT var AS variable_id FROM UNNEST([{var_list}]) AS var
+        ),
+        calls AS (
+          SELECT v.variable_id, t.date, t.value
+          FROM vars v,
+               {self._t.fn_nearest_var_daily}(v.variable_id, {lat}, {lon}, DATE('{start}'), DATE('{end}'), {max_km_sql}) AS t
+        )
+        SELECT * FROM calls
+        PIVOT ( ANY_VALUE(value) FOR variable_id IN ({var_list}) )
+        ORDER BY date
+        """
+        return self._bq.query(sql)

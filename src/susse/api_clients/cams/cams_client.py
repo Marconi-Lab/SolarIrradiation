@@ -58,7 +58,7 @@ class CAMSClient:
         start: datetime,
         end: datetime,
         time_step: str,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
         Fetch and process CAMS radiation data.
 
@@ -67,7 +67,9 @@ class CAMSClient:
             longitude (float): Longitude of location.
             start (datetime): Start datetime (UTC).
             end (datetime): End datetime (UTC).
-            time_step (str): ISO 8601 duration string (e.g., 'PT1H').
+            time_step (str): time_step: str, {'1min', '15min', '1h', '1d', '1M'}, default: '1h'
+                            Time step of the time series, either 1 minute, 15 minute, hourly,
+                            daily, or monthly.
 
         Returns:
             Dict[str, Any]: Dictionary containing records, column names,
@@ -89,20 +91,10 @@ class CAMSClient:
 
             processed_df = self._process_dataframe(raw_df)
 
-            return {
-                "data": processed_df.to_dict(orient="records"),
-                "columns": list(processed_df.columns),
-                "metadata": metadata,
-                "error": None,
-            }
+            return processed_df, metadata
 
         except Exception as exc:
-            return {
-                "data": None,
-                "columns": None,
-                "metadata": None,
-                "error": str(exc),
-            }
+            return None, {"error": str(exc)}
 
     @staticmethod
     def _process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
