@@ -1,78 +1,76 @@
-import os
+"""Tests for the CAMS Radiation Service client wrapper.
+
+End-to-end fetches require a registered SoDa email and live network;
+these tests cover only the parts that don't.
+"""
+
+from __future__ import annotations
+
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import pvlib
 import pytest
-from dotenv import set_key as dotenv_set_key
 
-from susse.api_clients import EMAIL_ENV_KEY, ENV_PATH, CAMSClient
+from susse.api_clients.cams import CAMSClient
+from susse.api_clients.cams.cams_client import CamsApiError
 
 
-def test_get_email_from_env(monkeypatch):
-    client = CAMSClient()
-    test_email = "user@example.com"
-    monkeypatch.setenv(EMAIL_ENV_KEY, test_email)
+def test_get_email_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(CAMSClient.DEFAULT_EMAIL_ENV_KEY, "user@example.com")
     monkeypatch.setattr(
-        "builtins.input", lambda prompt: pytest.skip("Should not prompt")
+        "builtins.input", lambda prompt: pytest.fail("input() should not be called when env var is set"),
     )
-    monkeypatch.setattr(
-        dotenv_set_key,
-        "__call__",
-        lambda *args, **kwargs: pytest.skip("Should not set key"),
-    )
-
-    email = client._get_email()
-    assert email == test_email
+    assert CAMSClient()._get_email() == "user@example.com"
 
 
-def test_process_dataframe():
-    # Create sample DataFrame
-    idx = pd.date_range("2025-01-01", periods=2, freq="H")
-    df = pd.DataFrame({"value": [1, 2]}, index=idx)
-
-    processed = CAMSClient._process_dataframe(df)
+def test_process_dataframe_iso_formats_timestamp_column() -> None:
+    idx = pd.date_range("2025-01-01", periods=2, freq="h")
+    raw = pd.DataFrame({"value": [1.0, 2.0]}, index=idx)
+    processed = CAMSClient._process_dataframe(raw)
     assert "timestamp" in processed.columns
     assert processed.loc[0, "timestamp"].endswith("Z")
-    assert processed.loc[1, "value"] == 2
+    assert processed.loc[1, "value"] == 2.0
 
 
-def test_fetch_data_success(monkeypatch):
-    client = CAMSClient()
-    # Prepare dummy raw_df and metadata
-    idx = pd.date_range("2025-01-01", periods=2, freq="H")
-    raw_df = pd.DataFrame({"a": [10, 20]}, index=idx)
-    metadata = {"meta": "data"}
+def test_fetch_data_returns_processed_df_and_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # CAMSClient.fetch_data returns a (processed_df, metadata) tuple, not
+    # a dict. Earlier tests asserted the dict shape and broke after the
+    # refactor — this is the up-to-date contract.
+    idx = pd.date_range("2025-01-01", periods=2, freq="h")
+    raw_df = pd.DataFrame({"ghi": [10.0, 20.0]}, index=idx)
+    metadata = {"latitude": 0.0, "longitude": 0.0}
 
-    # Patch _get_email and pvlib.iotools.get_cams
-    monkeypatch.setattr(client, "_get_email", lambda: "u@e.com")
-    monkeypatch.setattr(pvlib.iotools, "get_cams", lambda **kwargs: (raw_df, metadata))
+    monkeypatch.setattr(CAMSClient, "_get_email", lambda self: "u@e.com")
+    monkeypatch.setattr(pvlib.iotools, "get_cams", lambda **kw: (raw_df, metadata))
 
-    result = client.fetch_data(
-        0, 0, datetime(2025, 1, 1), datetime(2025, 1, 1, 1), "PT1H"
+    df, meta = CAMSClient().fetch_data(
+        latitude=0.0, longitude=0.0,
+        start=datetime(2025, 1, 1), end=datetime(2025, 1, 1, 1),
+        time_step="1h",
     )
-    assert result["error"] is None
-    assert result["metadata"] == metadata
-    assert isinstance(result["data"], list)
-    assert result["columns"] == ["timestamp", "a"]
-    assert "timestamp" in result["data"][0]
-    assert result["data"][1]["a"] == 20
+    assert "timestamp" in df.columns
+    assert list(df["ghi"]) == [10.0, 20.0]
+    assert meta == metadata
 
 
-def test_fetch_data_exception(monkeypatch):
-    client = CAMSClient()
-
+def test_fetch_data_raises_cams_api_error_on_pvlib_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Earlier behaviour was to return a {"error": ...} dict; the CAMS
+    # refactor removed the silent-failure path so callers can't propagate
+    # ``None`` DataFrames downstream.
     def fail(**kwargs):
-        raise RuntimeError("fail")
+        raise RuntimeError("network fell over")
 
-    monkeypatch.setattr(client, "_get_email", lambda: "u@e.com")
+    monkeypatch.setattr(CAMSClient, "_get_email", lambda self: "u@e.com")
     monkeypatch.setattr(pvlib.iotools, "get_cams", fail)
 
-    result = client.fetch_data(
-        0, 0, datetime(2025, 1, 1), datetime(2025, 1, 1, 1), "PT1H"
-    )
-    assert result["data"] is None
-    assert "fail" in result["error"]
-    assert result["columns"] is None
-    assert result["metadata"] is None
+    with pytest.raises(CamsApiError, match="network fell over"):
+        CAMSClient().fetch_data(
+            latitude=0.0, longitude=0.0,
+            start=datetime(2025, 1, 1), end=datetime(2025, 1, 1, 1),
+            time_step="1h",
+        )

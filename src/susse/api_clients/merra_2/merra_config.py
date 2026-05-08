@@ -1,16 +1,24 @@
+"""GES DISC MERRA-2 endpoint configuration + lat/lon → grid-index helpers.
+
+The OPeNDAP URL itself is built by :class:`MerraDailyFetcher`; this module
+only owns the parts that are independent of the request shape: the base
+URL, the per-collection database URL prefix, the YYYYMMDD file-name
+convention, and the conversion from real lat/lon to MERRA-2's native grid
+indices.
+"""
+
 from datetime import datetime
 
 import numpy as np
 
-from .merra_product import MerraProductData, MerraProducts
+from .merra_product import MerraProductData
 
 
 class Merra2Config:
-    """
-    This class contains the URLs used and the functions for generating download URLs for MERRA-2 data. It also contains
-    functions to convert longitude and latitude coordinates to merra2 coordinates, as well as other transformation.
-    Some of these functions are based on the implementation from here:
-    https://github.com/emilylaiken/merradownload
+    """Static configuration for MERRA-2 OPeNDAP access.
+
+    Some of the lat/lon-to-grid translation logic is adapted from
+    https://github.com/emilylaiken/merradownload.
     """
 
     BASE_URL = "https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2"
@@ -20,25 +28,6 @@ class Merra2Config:
     @staticmethod
     def generate_database_url(product_data: MerraProductData) -> str:
         return f"{Merra2Config.BASE_URL}/{product_data.database_name}"
-
-    @staticmethod
-    def generate_download_link(
-        date: datetime, product_data: MerraProductData, lat: float, lon: float
-    ) -> str:
-        file_name = Merra2Config.create_file_name(date, product_data)
-        m_str = str(date.month).zfill(2)
-        y_str = str(date.year)
-        lat_geos5 = Merra2Config._translate_lat_to_geos5_native(lat)
-        lon_geos5 = Merra2Config._translate_lon_to_geos5_native(lon)
-        merra_lat = Merra2Config._find_closest_merra_coordinate(
-            lat_geos5, Merra2Config.MERRA_LAT_COORDS
-        )
-        merra_lon = Merra2Config._find_closest_merra_coordinate(
-            lon_geos5, Merra2Config.MERRA_LON_COORDS
-        )
-        suffix = f"{product_data.product_name}[0:1:23][{merra_lat}:1:{merra_lat}][{merra_lon}:1:{merra_lon}]"
-        url = f"{Merra2Config.generate_database_url(product_data)}/{y_str}/{m_str}/{file_name}.nc4?{suffix}"
-        return url
 
     @staticmethod
     def create_file_name(date: datetime, product_data: MerraProductData) -> str:
