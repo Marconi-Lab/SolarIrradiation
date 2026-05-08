@@ -135,20 +135,26 @@ class FeatureService:
             sat_df = pd.DataFrame([[pd.NaT, None, None]], columns=cols)
             sat_df["date"] = pd.to_datetime(target_date).date()
 
-        # Optional NASA variables
+        # Optional NASA variables. The pivoted result carries `geohash5`,
+        # so we can merge on (date, geohash5) directly — that selects the
+        # single matching row out of the ~1977 the warehouse-wide pivot
+        # returns. (Earlier code joined only on date, which produced a
+        # 1977-row Cartesian explosion before falling out of the merge.)
         if nasa_variables:
             if nearest:
-                nv = sat_repo.nearest_nasa_vars_daily(lat=lat, lon=lon, start=target_date, end=target_date, variables=nasa_variables, max_km=max_km)
-            else:
-                nv = sat_repo.nasa_vars_pivoted(start=target_date, end=target_date, variables=nasa_variables)
-                # need geohash to join; compute it for the point
-                nv_gh_sql = f"SELECT DATE('{target_date}') AS date, ST_GEOHASH(ST_GEOGPOINT({lon}, {lat}), {gh_prec}) AS geohash5"
-                pt_df = self._bq.query(nv_gh_sql)
-                if not nv.empty and not pt_df.empty:
-                    nv = nv.merge(pt_df, on=["date"], how="inner")
+                nv = sat_repo.nearest_nasa_vars_daily(
+                    lat=lat, lon=lon,
+                    start=target_date, end=target_date,
+                    variables=nasa_variables, max_km=max_km,
+                )
+                if not sat_df.empty and not nv.empty:
                     sat_df = sat_df.merge(nv, on=["date"], how="left")
-            if nearest and not sat_df.empty and not nv.empty:
-                sat_df = sat_df.merge(nv, on=["date"], how="left")
+            else:
+                nv = sat_repo.nasa_vars_pivoted(
+                    start=target_date, end=target_date, variables=nasa_variables,
+                )
+                if not nv.empty and "geohash5" in sat_df.columns:
+                    sat_df = sat_df.merge(nv, on=["date", "geohash5"], how="left")
 
         # Add lat/lon used for traceability
         sat_df["lat"] = float(lat)
