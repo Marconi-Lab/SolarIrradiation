@@ -11,10 +11,9 @@ Variable routing:
 * Everything else → the long-format companion table for that source
   (``nasa_daily_vars_long`` or ``cams_daily_vars_long``).
 
-The variable_id strings for NASA POWER are kept consistent with what the
-existing warehouse already stores (verified 2026-05-08), including the
-``arimass`` and ``longwave_downward_irr`` typos. Renaming them is a
-future migration task; we don't fix them silently here.
+The variable_id strings for NASA POWER match what the warehouse stores
+after migration A2 (the legacy ``arimass`` typo was renamed to
+``airmass``). New variables added here must use the correct spelling.
 """
 
 from __future__ import annotations
@@ -227,11 +226,11 @@ class VariableCatalog:
         VariableSpec(
             variable_id="surface_albedo",
             source=Source.NASA_POWER,
-            api_code="SRF_ALB",
-            display_name="Surface Albedo",
+            api_code="SRF_ALB_ADJ",
+            display_name="Surface Albedo (Terrain-Adjusted)",
             unit="unitless",
             native_unit="unitless",
-            description="Surface albedo.",
+            description="Terrain-adjusted surface albedo.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
         ),
         VariableSpec(
@@ -273,11 +272,7 @@ class VariableCatalog:
             display_name="Clear-sky Longwave Downward Irradiance",
             unit="W/m^2",
             native_unit="W/m^2",
-            description=(
-                "Clear-sky surface longwave downward irradiance. "
-                "Variable id retains the legacy 'downward → downard' typo "
-                "for warehouse compatibility."
-            ),
+            description="Clear-sky surface longwave downward irradiance.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
         ),
         VariableSpec(
@@ -341,16 +336,13 @@ class VariableCatalog:
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
         ),
         VariableSpec(
-            variable_id="arimass",
+            variable_id="airmass",
             source=Source.NASA_POWER,
             api_code="AIRMASS",
             display_name="Airmass",
             unit="unitless",
             native_unit="unitless",
-            description=(
-                "Atmospheric airmass. Variable id retains the legacy "
-                "'airmass → arimass' typo for warehouse compatibility."
-            ),
+            description="Atmospheric airmass.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
         ),
         VariableSpec(
@@ -384,6 +376,18 @@ class VariableCatalog:
             native_unit="W/m^2",
             description="Energy consumed by evapotranspiration.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
+        ),
+        VariableSpec(
+            variable_id="solar_zenith_angle",
+            source=Source.NASA_POWER,
+            api_code="SZA",
+            display_name="Solar Zenith Angle",
+            unit="degrees",
+            native_unit="degrees",
+            description="Daily mean solar zenith angle at the location.",
+            spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
+            valid_min=0.0,
+            valid_max=180.0,
         ),
     )
 
