@@ -90,6 +90,18 @@ Every migration begins with a docstring covering:
 | ID | File | Summary | Status |
 |---|---|---|---|
 | a1 | [`2026-05-08_a1_populate_dim_variable.py`](./2026-05-08_a1_populate_dim_variable.py) | Replace the 4 sentinel-bug rows in `dim_variable` with the full 41-variable NASA POWER + CAMS catalog. | applied |
+| a2 | [`2026-05-08_a2_fix_typos.py`](./2026-05-08_a2_fix_typos.py) | Rename `arimass` → `airmass` in `nasa_daily_vars_long` and `dim_variable`; refresh catalog (now 42 rows incl. `solar_zenith_angle`). | applied |
+| a3 | [`2026-05-08_a3_create_cams_daily_vars_long.py`](./2026-05-08_a3_create_cams_daily_vars_long.py) | Create the empty `cams_daily_vars_long` table from its DDL. | applied |
+| a4 | [`2026-05-08_a4_backfill_cams_aux_uganda_2024.py`](./2026-05-08_a4_backfill_cams_aux_uganda_2024.py) | MERGE the 6 CAMS auxiliary variables (Uganda 2024) from `cams_daily_ext` into `cams_daily_vars_long` (4.31M rows). | applied |
+| a5 | _(no-op, not written)_ | Investigation showed the 48 "missing" points for `evaporation_land` / `evapotranspiration_energy` are Lake Victoria water-cells. NASA POWER's `EVLAND` / `EVPTRNS` are land-only variables; the gap is correct data. | skipped |
+| a6 | [`2026-05-08_a6_ingest_28_ground_stations.py`](./2026-05-08_a6_ingest_28_ground_stations.py) | Ingest NASA POWER + CAMS for 28 ground-measurement stations over each station's full ground-data date range. Requires `CAMS_EMAIL` in `.env`. Idempotent via per-(geohash5, date) coverage check. | drafted |
+| a7 | [`2026-05-08_a7_drop_external_relics.py`](./2026-05-08_a7_drop_external_relics.py) | Drop the legacy `cams_daily_ext` and `nasa_daily_ext` external CSV tables. | drafted |
+| a8 | _(notebook edit)_ | Add audit and pair-assertion cells to `notebooks/01_warehouse_population.ipynb` between the warehouse-tour and Pattern-1 sections. | applied |
+| a9 | [`2026-05-08_a9_fix_cams_units.py`](./2026-05-08_a9_fix_cams_units.py) | Multiply CAMS rows above magnitude threshold by 0.024 in `irradiance_daily` and `cams_daily_vars_long`. Fixes a units bug where `CamsSatelliteJob` wrote raw W/m² mean values into kWh/m²/day columns. 178,372 rows corrected. | applied |
+| a10 | [`2026-05-08_a10_drop_solar_zenith_angle.py`](./2026-05-08_a10_drop_solar_zenith_angle.py) | Delete the `solar_zenith_angle` row from `dim_variable`. NASA POWER doesn't serve SZA at daily resolution; the entry caused spurious re-fetches because the coverage check saw it as always-missing. | applied |
+| b3 | [`2026-05-08_b3_create_merra_daily_vars_long.py`](./2026-05-08_b3_create_merra_daily_vars_long.py) | Create the empty `merra_daily_vars_long` table from its DDL. | drafted |
+| b7 | [`2026-05-08_b7_populate_dim_variable_merra.py`](./2026-05-08_b7_populate_dim_variable_merra.py) | Extend `dim_variable` with the 4 MERRA-2 catalog entries. Idempotent. | drafted |
+| b8 | [`2026-05-08_b8_ingest_merra_stations_and_grid.py`](./2026-05-08_b8_ingest_merra_stations_and_grid.py) | Ingest MERRA-2 for the 28 ground stations and the Uganda 2024 grid. Requires `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD` in `.env`. | drafted |
 
 (Add a new row to this table for every migration. Status starts as
 `drafted`, becomes `applied` once it has run against the production
