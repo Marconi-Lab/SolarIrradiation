@@ -29,14 +29,15 @@ class Source(StrEnum):
     """Origin of a satellite or reanalysis dataset.
 
     Enum values match the ``source`` column convention already established
-    in the warehouse (``'NASA'`` and ``'CAMS'``). The enum *member name*
-    is more specific (``NASA_POWER`` distinguishes from MERRA-2, which is
-    also a NASA dataset) while the *value* is the string actually written
-    to BigQuery.
+    in the warehouse (``'NASA'``, ``'CAMS'``, ``'MERRA2'``, ``'MODIS'``).
+    The enum *member name* is more specific (``NASA_POWER`` distinguishes
+    from MERRA-2, which is also a NASA dataset) while the *value* is the
+    string actually written to BigQuery.
     """
 
     NASA_POWER = "NASA"
     CAMS = "CAMS"
+    MERRA_2 = "MERRA2"
 
 
 @dataclass(frozen=True)

@@ -34,6 +34,9 @@ _logger = logging.getLogger(__name__)
 # warehouse rows are a known bug; we write the correct positive values.
 _NASA_POWER_RESOLUTION_KM = 55.5  # 0.5° native grid
 _CAMS_RESOLUTION_KM = 5.5  # 0.05° native grid
+# MERRA-2 native grid is 0.5° lat × 0.625° lon; using the lat figure as
+# the representative spatial resolution.
+_MERRA_2_RESOLUTION_KM = 55.5
 
 
 class VariableCatalog:
@@ -486,9 +489,81 @@ class VariableCatalog:
         ),
     )
 
+    MERRA_2_VARIABLES: ClassVar[tuple[VariableSpec, ...]] = (
+        # All MERRA-2 entries land in the long-format companion table
+        # `merra_daily_vars_long`; none are routed to `irradiance_daily`
+        # (MERRA-2 doesn't expose a direct GHI estimate the way POWER or
+        # CAMS do). Hourly source values are aggregated to one daily value
+        # per (date, point) by cosine-zenith-weighted mean — see
+        # `MerraStreamFetcher` for the aggregation logic.
+        VariableSpec(
+            variable_id="aod_550_extinction",
+            source=Source.MERRA_2,
+            api_code="TOTEXTTAU",
+            display_name="Total Aerosol Extinction AOT @ 550 nm",
+            unit="unitless",
+            native_unit="unitless",
+            description=(
+                "Total aerosol extinction optical thickness at 550 nm "
+                "(daily mean, cosine-zenith-weighted from hourly tavg1_2d_aer_Nx)."
+            ),
+            spatial_resolution_km=_MERRA_2_RESOLUTION_KM,
+            valid_min=0.0,
+        ),
+        VariableSpec(
+            variable_id="aod_550_scattering",
+            source=Source.MERRA_2,
+            api_code="TOTSCATAU",
+            display_name="Total Aerosol Scattering AOT @ 550 nm",
+            unit="unitless",
+            native_unit="unitless",
+            description=(
+                "Total aerosol scattering optical thickness at 550 nm. "
+                "Combined with `aod_550_extinction` gives single-scattering "
+                "albedo (SSA = scattering / extinction), which discriminates "
+                "absorbing aerosols (dust, smoke) from scattering ones "
+                "(sulfate, sea salt). Daily mean, cosine-zenith-weighted "
+                "from hourly tavg1_2d_aer_Nx."
+            ),
+            spatial_resolution_km=_MERRA_2_RESOLUTION_KM,
+            valid_min=0.0,
+        ),
+        VariableSpec(
+            variable_id="aod_550_analysis",
+            source=Source.MERRA_2,
+            api_code="AODANA",
+            display_name="Aerosol Optical Depth (Analysis)",
+            unit="unitless",
+            native_unit="unitless",
+            description=(
+                "MERRA-2 aerosol analysis AOD field. Independent of POWER's "
+                "AOD and of TOTEXTTAU; useful as a cross-check. Daily mean, "
+                "cosine-zenith-weighted from 3-hourly inst3_2d_gas_Nx."
+            ),
+            spatial_resolution_km=_MERRA_2_RESOLUTION_KM,
+            valid_min=0.0,
+        ),
+        VariableSpec(
+            variable_id="precipitable_water",
+            source=Source.MERRA_2,
+            api_code="TQV",
+            display_name="Total Precipitable Water Vapour",
+            unit="kg/m^2",
+            native_unit="kg/m^2",
+            description=(
+                "Total column precipitable water vapour. Same physical "
+                "quantity as NASA POWER's `precipitable_water` (cm), provided "
+                "here from MERRA-2 directly for cross-source comparison. "
+                "Daily mean, cosine-zenith-weighted from hourly tavg1_2d_slv_Nx."
+            ),
+            spatial_resolution_km=_MERRA_2_RESOLUTION_KM,
+            valid_min=0.0,
+        ),
+    )
+
     @classmethod
     def all_variables(cls) -> tuple[VariableSpec, ...]:
-        return cls.NASA_POWER_VARIABLES + cls.CAMS_VARIABLES
+        return cls.NASA_POWER_VARIABLES + cls.CAMS_VARIABLES + cls.MERRA_2_VARIABLES
 
     @classmethod
     def for_source(cls, source: Source) -> tuple[VariableSpec, ...]:

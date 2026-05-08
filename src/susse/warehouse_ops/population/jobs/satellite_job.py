@@ -336,7 +336,14 @@ class BaseSatelliteJob(BaseJob):
     def _long_schema(self):
         if self.source is Source.NASA_POWER:
             return TableSchemas.NASA_DAILY_VARS_LONG
-        return TableSchemas.CAMS_DAILY_VARS_LONG
+        if self.source is Source.CAMS:
+            return TableSchemas.CAMS_DAILY_VARS_LONG
+        if self.source is Source.MERRA_2:
+            return TableSchemas.MERRA_DAILY_VARS_LONG
+        raise ValueError(
+            f"No long-format schema registered for source={self.source}. "
+            f"Add a branch here when adding a new satellite source."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -494,3 +501,64 @@ class CamsSatelliteJob(BaseSatelliteJob):
         long = long[["date", "variable_id", "value"]].dropna(subset=["value"])
         long["value"] = long["value"].astype(float)
         return long.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# MERRA-2
+# ---------------------------------------------------------------------------
+
+
+class MerraSatelliteJob(BaseSatelliteJob):
+    """Ingest job for MERRA-2 reanalysis (daily-aggregated from hourly).
+
+    The fetcher pulls native-cadence (1-hourly or 3-hourly) values from
+    GES DISC OPeNDAP and aggregates them client-side via cosine-zenith
+    weighting. All MERRA-2 catalog variables route to
+    ``merra_daily_vars_long``; MERRA-2 doesn't contribute irradiance to
+    ``irradiance_daily``.
+    """
+
+    def __init__(
+        self,
+        bq: BigQueryClient,
+        *,
+        fetcher=None,
+        refs: TableRefs | None = None,
+        geohash_precision: int = 5,
+    ) -> None:
+        super().__init__(bq, refs=refs, geohash_precision=geohash_precision)
+        if fetcher is None:
+            from ....api_clients.merra_2 import MerraDailyFetcher
+            fetcher = MerraDailyFetcher()
+        self._fetcher = fetcher
+
+    @property
+    def source(self) -> Source:
+        return Source.MERRA_2
+
+    @property
+    def long_table_fqn(self) -> str:
+        return self._refs.merra_daily_vars_long
+
+    def _fetch_long_for_location(
+        self,
+        location: LocationSpec,
+        date_range: DateRange,
+        variables: tuple[VariableSpec, ...],
+    ) -> pd.DataFrame:
+        api_codes = tuple(v.api_code for v in variables)
+        df = self._fetcher.fetch_long_for_location(
+            latitude=location.lat,
+            longitude=location.lon,
+            date_start=date_range.start,
+            date_end=date_range.end,
+            api_codes=api_codes,
+        )
+        # The fetcher returns variable_id == api_code; map back to the
+        # warehouse variable_id declared in the catalog.
+        api_to_var = {v.api_code: v.variable_id for v in variables}
+        if not df.empty:
+            df = df.copy()
+            df["variable_id"] = df["variable_id"].map(api_to_var)
+            df = df.dropna(subset=["variable_id"])
+        return df

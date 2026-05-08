@@ -97,6 +97,15 @@ class TableSchemas:
             "but for the CAMS source."
         ),
     )
+    MERRA_DAILY_VARS_LONG: ClassVar[TableSchema] = TableSchema(
+        table_id="merra_daily_vars_long",
+        merge_keys=("date", "geohash5", "variable_id", "source"),
+        description=(
+            "Long-format daily MERRA-2 variables. Mirrors NASA_DAILY_VARS_LONG. "
+            "Daily values are cosine-zenith-weighted means of MERRA-2's "
+            "hourly-native data, aggregated client-side."
+        ),
+    )
     IRRADIANCE_DAILY: ClassVar[TableSchema] = TableSchema(
         table_id="irradiance_daily",
         merge_keys=("date", "geohash5", "source"),
@@ -149,6 +158,10 @@ class TableRefs:
     @property
     def cams_daily_vars_long(self) -> str:
         return self.config.fqn(TableSchemas.CAMS_DAILY_VARS_LONG.table_id)
+
+    @property
+    def merra_daily_vars_long(self) -> str:
+        return self.config.fqn(TableSchemas.MERRA_DAILY_VARS_LONG.table_id)
 
     @property
     def irradiance_daily(self) -> str:

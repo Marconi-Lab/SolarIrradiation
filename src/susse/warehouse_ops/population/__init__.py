@@ -24,6 +24,7 @@ from .jobs import (
     BaseSatelliteJob,
     CamsSatelliteJob,
     GroundIngestJob,
+    MerraSatelliteJob,
     NasaPowerSatelliteJob,
 )
 from .loaders import DerivedColumn, MergeLoader, MergeSpec
@@ -64,6 +65,7 @@ __all__ = [
     "LocationSpec",
     "MergeLoader",
     "MergeSpec",
+    "MerraSatelliteJob",
     "NamedLocationsPlan",
     "NasaPowerSatelliteJob",
     "Source",
