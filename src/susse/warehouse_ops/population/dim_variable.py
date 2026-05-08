@@ -380,18 +380,14 @@ class VariableCatalog:
             description="Energy consumed by evapotranspiration.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
         ),
-        VariableSpec(
-            variable_id="solar_zenith_angle",
-            source=Source.NASA_POWER,
-            api_code="SZA",
-            display_name="Solar Zenith Angle",
-            unit="degrees",
-            native_unit="degrees",
-            description="Daily mean solar zenith angle at the location.",
-            spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
-            valid_min=0.0,
-            valid_max=180.0,
-        ),
+        # NOTE: NASA POWER does *not* serve solar_zenith_angle (SZA) at
+        # daily resolution — the API returns the -999 fill value, which
+        # the loader filters out, leaving zero rows. Including SZA in
+        # the catalog therefore caused the per-station coverage check
+        # to think SZA was always missing and re-fetch the entire
+        # station on every A6 invocation. Migration A10 removes the
+        # corresponding dim_variable row. Re-add only if NASA POWER
+        # starts serving SZA daily, which would need verification.
     )
 
     CAMS_VARIABLES: ClassVar[tuple[VariableSpec, ...]] = (
