@@ -291,6 +291,55 @@ class TestParallelEquivalence:
             MerraDailyFetcher(max_workers=0)
 
 
+class TestSessionRetryConfig:
+    """Sessions returned by ``_authenticated_session`` must mount an
+    HTTPAdapter with a Retry policy that handles 503/502/504 patiently
+    enough to ride out NASA's OPeNDAP load spikes.
+
+    Without this config, ~25-30% of bulk-ingest fetches fail because
+    urllib3's default ``Retry`` only attempts 3 times with no backoff,
+    which loses to busy windows that last >1 second.
+    """
+
+    def test_retry_policy_mounted_on_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import requests
+        from susse.api_clients.merra_2.merra_daily_fetcher import (
+            MerraDailyFetcher, _Earthdata,
+        )
+
+        # Stub the URS handshake — we just want a Session object back.
+        def fake_setup_session(username, password, check_url):
+            return requests.Session()
+        monkeypatch.setattr(
+            "susse.api_clients.merra_2.merra_daily_fetcher.setup_session",
+            fake_setup_session,
+        )
+
+        fetcher = MerraDailyFetcher(
+            credentials=_Earthdata(username="alice", password="x"),
+        )
+        session = fetcher._authenticated_session("https://example.invalid/")
+
+        # Both schemes must have the patient retry adapter mounted.
+        for scheme in ("http://", "https://"):
+            adapter = session.get_adapter(scheme)
+            retry = adapter.max_retries
+            assert retry.total >= 5, (
+                f"Retry.total={retry.total} is too few for OPeNDAP load spikes; "
+                "we want 8."
+            )
+            assert 503 in retry.status_forcelist, (
+                "503 must trigger a retry — that's the most common transient "
+                "OPeNDAP failure."
+            )
+            assert retry.backoff_factor > 0, (
+                "Retries with no backoff slam the busy server immediately and "
+                "exhaust before the load window clears."
+            )
+
+
 class TestProductLookup:
     def test_known_api_code_resolves(self) -> None:
         product_data = MerraDailyFetcher._product_data_for("TOTEXTTAU")

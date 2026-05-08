@@ -36,6 +36,8 @@ import pvlib
 from dotenv import load_dotenv
 from pydap.cas.urs import setup_session
 from pydap.client import open_url
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .merra_config import Merra2Config
 from .merra_product import MerraProductData, MerraProducts
@@ -59,6 +61,21 @@ _DEFAULT_MAX_WORKERS = 8
 # them so a long ingest produces a readable summary even with workers
 # interleaving.
 _PROGRESS_LOG_EVERY = 100
+
+# urllib3 retry policy for transient OPeNDAP failures. NASA's GES DISC
+# cluster periodically returns 503 under load and the default
+# 3-attempts-no-backoff policy fails on most bursts; an 8-attempt
+# exponential-backoff policy (~64 s ceiling) recovers from the typical
+# load spike. ``status_forcelist`` covers the gateway errors we see in
+# practice; ``respect_retry_after_header=True`` honours any Retry-After
+# the server sends back.
+_REQUEST_RETRY = Retry(
+    total=8,
+    backoff_factor=0.5,
+    status_forcelist=(502, 503, 504),
+    allowed_methods=frozenset(("GET", "HEAD")),
+    respect_retry_after_header=True,
+)
 
 
 class MerraAuthError(RuntimeError):
@@ -409,7 +426,7 @@ class MerraDailyFetcher:
             if self._session is None:
                 creds = self._credentials or _Earthdata.from_env()
                 try:
-                    self._session = setup_session(
+                    session = setup_session(
                         creds.username, creds.password, check_url=url
                     )
                 except Exception as exc:
@@ -419,6 +436,14 @@ class MerraDailyFetcher:
                         "and that the 'NASA GESDISC DATA ARCHIVE' application "
                         "is approved on your Earthdata profile."
                     ) from exc
+                # Replace the default HTTPAdapter on this session with one
+                # that retries 503/502/504 with exponential backoff. NASA's
+                # OPeNDAP returns 503 under load and the default 3-attempt
+                # policy is too eager to give up.
+                adapter = HTTPAdapter(max_retries=_REQUEST_RETRY)
+                session.mount("https://", adapter)
+                session.mount("http://", adapter)
+                self._session = session
         return self._session
 
     @staticmethod
