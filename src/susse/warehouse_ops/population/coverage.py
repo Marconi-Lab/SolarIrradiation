@@ -33,13 +33,15 @@ class CoverageRepository:
         date_range: DateRange,
         source: Source,
         variable_ids: Sequence[str],
+        geohash5s: Sequence[str] | None = None,
     ) -> set[tuple]:
         """Return existing ``(date, geohash5, variable_id)`` tuples.
 
-        Scoped by date range, source, and variable list — runs over a small
-        slice of the long-format table, not the whole thing. The ``source``
-        filter is implicit (the caller should pass keys without it; tuples
-        we return omit the source column for clarity).
+        Scoped by date range, source, and variable list. When ``geohash5s``
+        is provided the scan is further constrained — essential when only
+        a small set of locations is being processed but the date range
+        overlaps the existing warehouse footprint (otherwise the query
+        pulls back millions of irrelevant rows).
         """
         var_list = ", ".join(f"'{v}'" for v in variable_ids)
         filters = [
@@ -47,12 +49,25 @@ class CoverageRepository:
             f"source = '{source.value}'",
             f"variable_id IN ({var_list})",
         ]
-        # We project geohash5 + date + variable_id; source is fixed by the filter.
-        return self._bq.existing_keys(
+        if geohash5s is not None:
+            if not geohash5s:
+                # Empty location list → no rows can match. Skip the BQ trip.
+                return set()
+            gh_list = ", ".join(f"'{g}'" for g in geohash5s)
+            filters.append(f"geohash5 IN ({gh_list})")
+        _logger.info(
+            "coverage: scanning %s for date %s..%s, source=%s, %d vars%s",
+            table_fqn, date_range.start, date_range.end, source.value,
+            len(variable_ids),
+            f", {len(geohash5s)} geohash(es)" if geohash5s is not None else "",
+        )
+        result = self._bq.existing_keys(
             table_fqn,
             key_columns=("date", "geohash5", "variable_id"),
             where_filters=filters,
         )
+        _logger.info("coverage: %s → %d existing keys.", table_fqn, len(result))
+        return result
 
     def existing_irradiance_keys(
         self,
@@ -60,17 +75,33 @@ class CoverageRepository:
         *,
         date_range: DateRange,
         source: Source,
+        geohash5s: Sequence[str] | None = None,
     ) -> set[tuple]:
-        """Return existing ``(date, geohash5)`` tuples in ``irradiance_daily``."""
+        """Return existing ``(date, geohash5)`` tuples in ``irradiance_daily``.
+
+        Same ``geohash5s`` scope semantics as :meth:`existing_long_keys`.
+        """
         filters = [
             f"date BETWEEN DATE('{date_range.start}') AND DATE('{date_range.end}')",
             f"source = '{source.value}'",
         ]
-        return self._bq.existing_keys(
+        if geohash5s is not None:
+            if not geohash5s:
+                return set()
+            gh_list = ", ".join(f"'{g}'" for g in geohash5s)
+            filters.append(f"geohash5 IN ({gh_list})")
+        _logger.info(
+            "coverage: scanning %s for date %s..%s, source=%s%s",
+            table_fqn, date_range.start, date_range.end, source.value,
+            f", {len(geohash5s)} geohash(es)" if geohash5s is not None else "",
+        )
+        result = self._bq.existing_keys(
             table_fqn,
             key_columns=("date", "geohash5"),
             where_filters=filters,
         )
+        _logger.info("coverage: %s → %d existing keys.", table_fqn, len(result))
+        return result
 
     def existing_ground_raw_keys(
         self,

@@ -45,20 +45,25 @@ from ...io.config import TableRefs, TableSchemas
 
 try:
     from geopy import Point
-    from geopy.location import Location as GeopyLocation
 except ImportError:  # pragma: no cover - geopy is a hard dep but the import path is checked at use site
     Point = None  # type: ignore[assignment]
-    GeopyLocation = None  # type: ignore[assignment]
 
 
 def _location_spec_to_geopy(loc: LocationSpec):
-    """Adapter for the NASA POWER fetcher, which accepts ``geopy.Location``."""
-    if GeopyLocation is None or Point is None:
+    """Adapter for the NASA POWER fetcher.
+
+    The fetcher only reads ``.latitude`` / ``.longitude`` from the object it
+    is passed, both of which :class:`geopy.Point` exposes directly. We used
+    to wrap the ``Point`` in a :class:`geopy.location.Location`, but
+    ``Location.__init__`` requires ``address``/``raw`` as of geopy 2.4 —
+    and we have neither, nor do we need them.
+    """
+    if Point is None:
         raise RuntimeError(
             "geopy is required for NASA POWER ingest but could not be imported. "
             "Add geopy to requirements.txt and reinstall."
         )
-    return GeopyLocation(point=Point(loc.lat, loc.lon))
+    return Point(loc.lat, loc.lon)
 
 _logger = logging.getLogger(__name__)
 
@@ -139,16 +144,31 @@ class BaseSatelliteJob(BaseJob):
         )
 
         coverage = CoverageRepository(self._bq)
+        # Pre-compute the geohashes for this plan's locations so coverage
+        # queries can be scoped to them. Without this scope, named-location
+        # plans whose date range overlaps the existing warehouse footprint
+        # pull back millions of irrelevant rows and grind for minutes.
+        plan_geohashes = tuple(
+            pygeohash.encode(loc.lat, loc.lon, precision=self._geohash_precision)
+            for loc in locations
+        )
+        _logger.info(
+            "%s: %d location(s), date %s..%s, %d long-vars, %d irradiance-vars",
+            self.name, len(locations), date_range.start, date_range.end,
+            len(long_vars), len(irradiance_vars),
+        )
         existing_long = coverage.existing_long_keys(
             self.long_table_fqn,
             date_range=date_range,
             source=self.source,
             variable_ids=tuple(v.variable_id for v in long_vars),
+            geohash5s=plan_geohashes,
         ) if long_vars else set()
         existing_irr = coverage.existing_irradiance_keys(
             self._refs.irradiance_daily,
             date_range=date_range,
             source=self.source,
+            geohash5s=plan_geohashes,
         ) if irradiance_vars else set()
 
         rows_added_long = 0
