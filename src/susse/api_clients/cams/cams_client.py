@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Tuple
@@ -10,6 +12,8 @@ from typing import Any, ClassVar, Tuple
 import pandas as pd
 import pvlib
 from dotenv import load_dotenv, set_key
+
+_logger = logging.getLogger(__name__)
 
 
 class CamsApiError(RuntimeError):
@@ -86,6 +90,12 @@ class CAMSClient:
             CamsApiError: pvlib raised any exception during the request.
         """
         email = self._get_email()
+        n_days = (end - start).days + 1
+        _logger.info(
+            "CAMS request: lat=%.4f lon=%.4f step=%s n_days=%d",
+            latitude, longitude, time_step, n_days,
+        )
+        t0 = time.monotonic()
         try:
             raw_df, metadata = pvlib.iotools.get_cams(
                 latitude=latitude,
@@ -102,6 +112,8 @@ class CAMSClient:
                 f"CAMS fetch failed for ({latitude}, {longitude}) "
                 f"between {start.date()} and {end.date()}: {exc}"
             ) from exc
+        elapsed = time.monotonic() - t0
+        _logger.info("CAMS response: %d rows in %.1fs.", len(raw_df), elapsed)
 
         return self._process_dataframe(raw_df), metadata
 
