@@ -8,12 +8,18 @@ creates duplicates.
 For columns whose value is computed from the *staging* row rather than
 carried by the client (e.g. ``geog`` = ``ST_GEOGPOINT(lon, lat)``), pass
 :class:`DerivedColumn` instances in :class:`MergeSpec.derived_columns`.
+
+When a staging frame contains a ``date`` column and spans many distinct
+dates against a date-partitioned target, the loader chunks the MERGE by
+date range to stay under BigQuery's 4,000-partitions-per-DML-statement
+limit (see :data:`_BQ_PARTITION_LIMIT_PER_STATEMENT`).
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -21,6 +27,12 @@ from ..io.bq import BigQueryClient
 from ..io.config import TableSchema
 
 _logger = logging.getLogger(__name__)
+
+# BigQuery enforces a hard cap of 4,000 partitions modified per DML
+# statement. We chunk well under it (3,500 days per MERGE) so a single
+# multi-year ingest won't trip the limit even with leap-year edge cases
+# or accidental duplicate-date rows in the staging table.
+_BQ_PARTITION_LIMIT_PER_STATEMENT = 3500
 
 
 @dataclass(frozen=True)
@@ -135,17 +147,99 @@ class MergeLoader:
             f"CREATE TABLE IF NOT EXISTS `{self._table_fqn}` AS "
             f"SELECT {staging_select} FROM `{staging_fqn}` WHERE 1=0;"
         )
-        merge_sql = f"""
-        MERGE `{self._table_fqn}` t
-        USING (SELECT {staging_select} FROM `{staging_fqn}`) s
-        ON {on_clause}
-        {when_matched_clause}WHEN NOT MATCHED THEN
-            INSERT ({col_list}) VALUES ({val_list});
-        """
+
+        def _merge_sql(date_filter: str = "1=1") -> str:
+            return f"""
+            MERGE `{self._table_fqn}` t
+            USING (
+                SELECT {staging_select}
+                FROM `{staging_fqn}`
+                WHERE {date_filter}
+            ) s
+            ON {on_clause}
+            {when_matched_clause}WHEN NOT MATCHED THEN
+                INSERT ({col_list}) VALUES ({val_list});
+            """
+
         drop_sql = f"DROP TABLE `{staging_fqn}`;"
 
-        _logger.debug("MERGE pipeline for %s:\n%s\n%s\n%s",
-                      self._table_fqn, create_sql, merge_sql, drop_sql)
         self._bq.execute_ddl(create_sql)
-        self._bq.execute_ddl(merge_sql)
+        self._merge_in_partition_chunks(
+            staging_columns=staging_columns,
+            staging_fqn=staging_fqn,
+            merge_sql_factory=_merge_sql,
+        )
         self._bq.execute_ddl(drop_sql)
+
+    def _merge_in_partition_chunks(
+        self,
+        *,
+        staging_columns: tuple[str, ...],
+        staging_fqn: str,
+        merge_sql_factory,
+    ) -> None:
+        """Run the MERGE, chunking by date when the staging spans many partitions.
+
+        BigQuery rejects a single DML statement that touches more than
+        ~4,000 partitions. For most loads the staging spans far fewer
+        dates and a single MERGE is enough; for long-history named-location
+        ingests (e.g. one Uganda station with 12 years of daily data) we
+        split the MERGE into date-range chunks of at most
+        :data:`_BQ_PARTITION_LIMIT_PER_STATEMENT` calendar days each.
+
+        Tables without a ``date`` column (e.g. ``dim_variable``) cannot
+        have this issue and are MERGEd in one statement.
+        """
+        if "date" not in staging_columns:
+            self._bq.execute_ddl(merge_sql_factory())
+            return
+
+        span_df = self._bq.query(
+            f"SELECT MIN(date) AS min_d, MAX(date) AS max_d FROM `{staging_fqn}`"
+        )
+        if span_df.empty or pd.isna(span_df.iloc[0]["min_d"]):
+            return  # Staging is empty — nothing to MERGE.
+
+        min_d = span_df.iloc[0]["min_d"]
+        max_d = span_df.iloc[0]["max_d"]
+        if hasattr(min_d, "date"):
+            min_d = min_d.date()
+        if hasattr(max_d, "date"):
+            max_d = max_d.date()
+
+        chunks = _date_chunks(min_d, max_d, _BQ_PARTITION_LIMIT_PER_STATEMENT)
+        if len(chunks) > 1:
+            _logger.info(
+                "MERGE for %s spans %d days from %s to %s — splitting into "
+                "%d chunks of <=%d days to stay under BigQuery's "
+                "partition-per-DML cap.",
+                self._table_fqn, (max_d - min_d).days + 1, min_d, max_d,
+                len(chunks), _BQ_PARTITION_LIMIT_PER_STATEMENT,
+            )
+        for start, end in chunks:
+            filter_expr = (
+                f"date BETWEEN DATE('{start.isoformat()}') "
+                f"AND DATE('{end.isoformat()}')"
+            )
+            self._bq.execute_ddl(merge_sql_factory(filter_expr))
+
+
+def _date_chunks(
+    start: date, end: date, max_days: int
+) -> list[tuple[date, date]]:
+    """Split ``[start, end]`` into contiguous spans of at most ``max_days``.
+
+    The returned spans are inclusive on both ends and cover every day in
+    ``[start, end]`` exactly once.
+    """
+    if start > end:
+        raise ValueError(f"start ({start}) must be <= end ({end}).")
+    if max_days < 1:
+        raise ValueError(f"max_days={max_days} must be >= 1.")
+    chunks: list[tuple[date, date]] = []
+    cursor = start
+    while cursor <= end:
+        chunk_end = min(cursor + timedelta(days=max_days - 1), end)
+        chunks.append((cursor, chunk_end))
+        cursor = chunk_end + timedelta(days=1)
+    return chunks
