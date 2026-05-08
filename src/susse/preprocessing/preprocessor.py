@@ -1,279 +1,192 @@
+"""Stateless preprocessor: TrainingDataset → PreprocessedDataset.
+
+The :class:`Preprocessor` applies a :class:`FeatureSpec` to the output
+of :class:`susse.datasets.FeatureService` and produces a
+:class:`PreprocessedDataset` ready to feed into a model. All
+transformations are deterministic given the inputs — no fit/transform
+asymmetry, no internal state to worry about leaking across folds.
+
+Scaling deliberately lives in the model wrapper, not here: tree-based
+models (RF / XGBoost) don't need it; neural-network models do, and only
+they know which columns to scale + on which fold to fit. Keeping the
+preprocessor stateless means the same instance can transform train,
+val, and test data with no risk of cross-fold leakage from a fitted
+scaler.
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-import json
-import logging
-import math
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Optional
 
-import joblib
-import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
-from sklearn.base import BaseEstimator
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.impute import SimpleImputer
-from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import KFold, train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
-from ..configs import FeatureConfig, ModelConfig, TrainingConfig
-
-
-# ---------------------------------------------------------------------------
-# Feature specification (immutable contract after Preprocessor.fit)
-# ---------------------------------------------------------------------------
+from ..datasets import TrainingDataset
+from .derived_features import clear_sky_index, cyclical_day_of_year
+from .feature_spec import FeatureSpec
 
 
 @dataclass(frozen=True)
-class FeatureSpec:
-    """Immutable description of the feature pipeline after fitting.
+class PreprocessedDataset:
+    """Result of applying a :class:`FeatureSpec` to a :class:`TrainingDataset`.
 
-    Attributes
-    ----------
-    ordered_feature_names: full list of expanded feature names after transforms
-        (e.g., with one-hot categories, temporal encodings), in strict order.
-    numeric_source_cols: numeric columns used prior to transforms.
-    categorical_source_cols: categorical columns used prior to transforms.
-    temporal_encoded: whether temporal encodings were added.
-    spatial_encoded: whether spatial encodings were added.
+    Attributes:
+        df: Materialised DataFrame with id columns + derived features +
+            target. Column order: ``id_columns`` first, then
+            ``output_feature_names``, then ``target_column``.
+        feature_columns: Ordered tuple of model-input column names. The
+            consuming model uses ``df[list(feature_columns)]`` to slice
+            X; this avoids string-keyed indexing or positional drift.
+        target_column: Name of the target column in ``df``.
+        feature_spec: The :class:`FeatureSpec` that produced ``df``.
+            Persisted so inference can recreate identical
+            transformations.
+        source_dataset_name: Name of the source :class:`TrainingDataset`
+            (manifest provenance).
+        source_dataset_version: Version of the source dataset.
+        source_content_hash: Content hash of the source parquet —
+            uniquely identifies which materialisation produced this
+            preprocessed view.
+        created_at_utc: ISO 8601 timestamp of preprocessing.
     """
 
-    ordered_feature_names: List[str]
-    numeric_source_cols: List[str]
-    categorical_source_cols: List[str]
-    temporal_encoded: bool
-    spatial_encoded: bool
+    df: pd.DataFrame
+    feature_columns: tuple[str, ...]
+    target_column: str
+    feature_spec: FeatureSpec
+    source_dataset_name: str
+    source_dataset_version: str
+    source_content_hash: str
+    created_at_utc: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
-    def to_json(self) -> str:
-        return json.dumps(asdict(self), indent=2)
+    @property
+    def n_rows(self) -> int:
+        return len(self.df)
 
-    @staticmethod
-    def from_json(s: str) -> FeatureSpec:
-        obj = json.loads(s)
-        return FeatureSpec(**obj)
+    @property
+    def n_features(self) -> int:
+        return len(self.feature_columns)
 
+    def X(self) -> pd.DataFrame:
+        """Model-input slice: ``df[feature_columns]`` in the spec's order."""
+        return self.df[list(self.feature_columns)]
 
-# ---------------------------------------------------------------------------
-# Preprocessor
-# ---------------------------------------------------------------------------
+    def y(self) -> pd.Series:
+        """Target slice."""
+        return self.df[self.target_column]
 
 
 class Preprocessor:
-    """Encapsulates pandas-based preparation into model-ready NumPy arrays.
+    """Apply a :class:`FeatureSpec` to one or more :class:`TrainingDataset`s.
 
-    Public contract exposes only NumPy arrays and a FeatureSpec.
+    Construct once with a spec; call :meth:`apply` per dataset. Stateless
+    between calls — the same instance can transform train, val, and test
+    folds without fit-time data leakage (because there is no fit time).
     """
 
-    def __init__(self, feature_cfg: FeatureConfig) -> None:
-        self._cfg = feature_cfg
-        self._fitted: bool = False
-        self._spec: Optional[FeatureSpec] = None
-        self._pipeline: Optional[ColumnTransformer] = None
-
-    # ---- Utility: temporal encoding -------------------------------------------------
-    @staticmethod
-    def _temporal_features(ts: pd.Series) -> pd.DataFrame:
-        ts = pd.to_datetime(ts, utc=False)
-        # Month-of-year encoding
-        month = ts.dt.month.astype(int)
-        # Day-of-year encoding
-        dayofyear = ts.dt.dayofyear.astype(int)
-        # Cyclical encodings
-        month_sin = np.sin(2 * np.pi * (month / 12.0))
-        month_cos = np.cos(2 * np.pi * (month / 12.0))
-        doy_sin = np.sin(2 * np.pi * (dayofyear / 365.0))
-        doy_cos = np.cos(2 * np.pi * (dayofyear / 365.0))
-        return pd.DataFrame(
-            {
-                "month": month,
-                "dayofyear": dayofyear,
-                "month_sin": month_sin,
-                "month_cos": month_cos,
-                "doy_sin": doy_sin,
-                "doy_cos": doy_cos,
-            }
-        )
-
-    # ---- Utility: spatial encoding --------------------------------------------------
-    @staticmethod
-    def _spatial_features(lat: pd.Series, lon: pd.Series) -> pd.DataFrame:
-        # Simple expansions; can be replaced with projections or RBFs later
-        lat2 = lat.astype(float) ** 2
-        lon2 = lon.astype(float) ** 2
-        lat_lon = lat.astype(float) * lon.astype(float)
-        return pd.DataFrame(
-            {
-                "lat": lat.astype(float),
-                "lon": lon.astype(float),
-                "lat2": lat2,
-                "lon2": lon2,
-                "lat_lon": lat_lon,
-            }
-        )
-
-    # ---- Resampling ---------------------------------------------------------------
-    def _maybe_resample(self, df: pd.DataFrame) -> pd.DataFrame:
-        cfg = self._cfg
-        if cfg.time_column and cfg.resample_rule:
-            if cfg.time_column not in df.columns:
-                raise KeyError(
-                    f"time_column '{cfg.time_column}' not found in DataFrame for resampling"
-                )
-            df = df.copy()
-            df[cfg.time_column] = pd.to_datetime(df[cfg.time_column], utc=False)
-            df = df.set_index(cfg.time_column)
-            if cfg.resample_aggs is None:
-                # Default: mean for numeric, first for categorical
-                numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-                default_aggs: Dict[str, str] = {c: "mean" for c in numeric_cols}
-                # Anything else gets 'first'
-                for c in df.columns:
-                    if c not in default_aggs:
-                        default_aggs[c] = "first"
-                aggs = default_aggs
-            else:
-                aggs = cfg.resample_aggs
-            df = df.resample(cfg.resample_rule).agg(aggs)
-            df = df.reset_index().rename(columns={cfg.time_column: cfg.time_column})
-        return df
-
-    # ---- Fit/Transform ------------------------------------------------------------
-    def fit(self, df: pd.DataFrame) -> FeatureSpec:
-        cfg = self._cfg
-        df = self._maybe_resample(df)
-
-        # Construct working dataframe containing requested inputs
-        missing = [c for c in cfg.input_columns if c not in df.columns]
-        if missing:
-            raise KeyError(f"Missing input columns: {missing}")
-
-        X_df = df[cfg.input_columns].copy()
-
-        # Optional engineered temporal features
-        engineered: List[pd.DataFrame] = []
-        if cfg.add_temporal_encoding and cfg.time_column is not None:
-            if cfg.time_column not in df.columns:
-                raise KeyError(
-                    f"time_column '{cfg.time_column}' not found for temporal encoding"
-                )
-            engineered.append(self._temporal_features(df[cfg.time_column]))
-
-        # Optional spatial features
-        if cfg.add_spatial_encoding and cfg.spatial_columns is not None:
-            lat_col, lon_col = cfg.spatial_columns
-            if lat_col not in df.columns or lon_col not in df.columns:
-                raise KeyError(
-                    f"spatial columns {cfg.spatial_columns} not found for spatial encoding"
-                )
-            engineered.append(self._spatial_features(df[lat_col], df[lon_col]))
-
-        if engineered:
-            X_df = pd.concat([X_df.reset_index(drop=True)] + [e.reset_index(drop=True) for e in engineered], axis=1)
-
-        # Split into numeric/categorical based on dtype
-        numeric_cols = X_df.select_dtypes(include=[np.number]).columns.tolist()
-        categorical_cols = [c for c in X_df.columns if c not in numeric_cols]
-
-        transformers: List[Tuple[str, Pipeline, List[str]]] = []
-
-        num_steps: List[Tuple[str, Any]] = [("imputer", SimpleImputer(strategy="median"))]
-        if cfg.scale_numeric:
-            num_steps.append(("scaler", StandardScaler(with_mean=True, with_std=True)))
-        num_pipe = Pipeline(num_steps)
-        transformers.append(("num", num_pipe, numeric_cols))
-
-        if categorical_cols:
-            cat_pipe = Pipeline(
-                [
-                    ("imputer", SimpleImputer(strategy="most_frequent")),
-                    ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
-                ]
-            )
-            transformers.append(("cat", cat_pipe, categorical_cols))
-
-        pipeline = ColumnTransformer(transformers=transformers, remainder="drop")
-        pipeline.fit(X_df)
-
-        # Derive expanded feature names
-        feature_names: List[str] = []
-        # Numeric
-        feature_names.extend(numeric_cols)
-        # Categorical (after OHE)
-        if categorical_cols:
-            ohe: OneHotEncoder = pipeline.named_transformers_["cat"].named_steps["ohe"]
-            ohe_names = ohe.get_feature_names_out(categorical_cols).tolist()
-            feature_names.extend(ohe_names)
-
-        # Create and store spec
-        spec = FeatureSpec(
-            ordered_feature_names=feature_names,
-            numeric_source_cols=numeric_cols,
-            categorical_source_cols=categorical_cols,
-            temporal_encoded=bool(cfg.add_temporal_encoding and cfg.time_column),
-            spatial_encoded=bool(cfg.add_spatial_encoding and cfg.spatial_columns),
-        )
-
-        self._pipeline = pipeline
+    def __init__(self, spec: FeatureSpec) -> None:
         self._spec = spec
-        self._fitted = True
-        return spec
 
-    def transform(self, df: pd.DataFrame) -> NDArray[np.float_]:
-        if not self._fitted or self._pipeline is None:
-            raise RuntimeError("Preprocessor must be fitted before transform().")
-        df = self._maybe_resample(df)
+    @property
+    def spec(self) -> FeatureSpec:
+        return self._spec
 
-        cfg = self._cfg
-        missing = [c for c in cfg.input_columns if c not in df.columns]
+    def apply(self, dataset: TrainingDataset) -> PreprocessedDataset:
+        """Transform a :class:`TrainingDataset` into a :class:`PreprocessedDataset`."""
+        spec = self._spec
+        df = dataset.df
+        self._validate_columns(df)
+
+        out = pd.DataFrame(index=df.index)
+
+        # Pass-through id columns (kept for traceability, never given to model).
+        for col in spec.id_columns:
+            if col in df.columns:
+                out[col] = df[col]
+            # Missing id columns are non-fatal — not all datasets carry
+            # every id (e.g. inference frames have no `location`). Skip.
+
+        # Pass-through model features.
+        for col in spec.feature_columns:
+            out[col] = df[col]
+
+        # Derived: clear-sky index features.
+        for kt_spec in spec.clear_sky_index_specs:
+            out[kt_spec.output_column] = clear_sky_index(
+                df[kt_spec.ghi_column], df[kt_spec.ghi_clear_column]
+            )
+
+        # Derived: cyclical day-of-year.
+        if spec.include_cyclical_doy:
+            doy = cyclical_day_of_year(df["date"])
+            out["doy_sin"] = doy["doy_sin"]
+            out["doy_cos"] = doy["doy_cos"]
+
+        # Target.
+        if spec.target_column in df.columns:
+            out[spec.target_column] = df[spec.target_column]
+
+        # NaN-drop policy.
+        if spec.dropna_target and spec.target_column in out.columns:
+            out = out.dropna(subset=[spec.target_column])
+        if spec.dropna_features:
+            feature_cols_present = [
+                c for c in spec.output_feature_names if c in out.columns
+            ]
+            if feature_cols_present:
+                out = out.dropna(subset=feature_cols_present)
+
+        out = out.reset_index(drop=True)
+
+        return PreprocessedDataset(
+            df=out,
+            feature_columns=spec.output_feature_names,
+            target_column=spec.target_column,
+            feature_spec=spec,
+            source_dataset_name=dataset.manifest.name,
+            source_dataset_version=dataset.manifest.version,
+            source_content_hash=dataset.manifest.content_hash,
+        )
+
+    def _validate_columns(self, df: pd.DataFrame) -> None:
+        """Raise a clear error if the dataset is missing required columns.
+
+        Validation is up-front so a misconfigured spec fails before any
+        transforms run, with a message naming the missing column and
+        the field of :class:`FeatureSpec` that referenced it.
+        """
+        spec = self._spec
+        missing: list[tuple[str, str]] = []  # (column, source_field)
+        for col in spec.feature_columns:
+            if col not in df.columns:
+                missing.append((col, "feature_columns"))
+        for kt_spec in spec.clear_sky_index_specs:
+            if kt_spec.ghi_column not in df.columns:
+                missing.append(
+                    (kt_spec.ghi_column,
+                     f"clear_sky_index_specs[{kt_spec.output_column}].ghi_column"),
+                )
+            if kt_spec.ghi_clear_column not in df.columns:
+                missing.append(
+                    (kt_spec.ghi_clear_column,
+                     f"clear_sky_index_specs[{kt_spec.output_column}].ghi_clear_column"),
+                )
+        if spec.include_cyclical_doy and "date" not in df.columns:
+            missing.append(("date", "include_cyclical_doy=True requires `date`"))
+        # The target may legitimately be missing for inference frames; a
+        # missing target is only an error if dropna_target is True
+        # (which forces the column to exist).
+        if spec.dropna_target and spec.target_column not in df.columns:
+            missing.append((spec.target_column, "target_column (with dropna_target=True)"))
         if missing:
-            raise KeyError(f"Missing input columns: {missing}")
-
-        X_df = df[cfg.input_columns].copy()
-        engineered: List[pd.DataFrame] = []
-        if cfg.add_temporal_encoding and cfg.time_column is not None:
-            engineered.append(self._temporal_features(df[cfg.time_column]))
-        if cfg.add_spatial_encoding and cfg.spatial_columns is not None:
-            lat_col, lon_col = cfg.spatial_columns
-            engineered.append(self._spatial_features(df[lat_col], df[lon_col]))
-        if engineered:
-            X_df = pd.concat([X_df.reset_index(drop=True)] + [e.reset_index(drop=True) for e in engineered], axis=1)
-
-        X = self._pipeline.transform(X_df)
-        X = np.asarray(X, dtype=float)
-        return X
-
-    def fit_transform(self, df: pd.DataFrame) -> Tuple[NDArray[np.float_], Optional[NDArray[np.float_]], FeatureSpec]:
-        spec = self.fit(df)
-        X = self.transform(df)
-        y: Optional[NDArray[np.float_]] = None
-        if self._cfg.target_column is not None:
-            if self._cfg.target_column not in df.columns:
-                raise KeyError(f"Target column '{self._cfg.target_column}' not found.")
-            y = np.asarray(df[self._cfg.target_column].values, dtype=float)
-        return X, y, spec
-
-    # Persistence of the fitted preprocessor (pipeline + spec)
-    def save(self, path: Path) -> None:
-        if not self._fitted or self._pipeline is None or self._spec is None:
-            raise RuntimeError("Preprocessor must be fitted before save().")
-        path.mkdir(parents=True, exist_ok=True)
-        joblib.dump(self._pipeline, path / "preprocessor_pipeline.joblib")
-        (path / "feature_spec.json").write_text(self._spec.to_json(), encoding="utf-8")
-        (path / "feature_cfg.json").write_text(json.dumps(asdict(self._cfg), indent=2), encoding="utf-8")
-
-    @staticmethod
-    def load(path: Path) -> Tuple[Preprocessor, FeatureSpec]:
-        pipeline: ColumnTransformer = joblib.load(path / "preprocessor_pipeline.joblib")
-        spec = FeatureSpec.from_json((path / "feature_spec.json").read_text(encoding="utf-8"))
-        cfg_dict = json.loads((path / "feature_cfg.json").read_text(encoding="utf-8"))
-        pre = Preprocessor(FeatureConfig(**cfg_dict))
-        pre._pipeline = pipeline
-        pre._spec = spec
-        pre._fitted = True
-        return pre, spec
-
+            details = "; ".join(
+                f"{col!r} (referenced by {field})" for col, field in missing
+            )
+            raise ValueError(
+                f"Preprocessor.apply: input DataFrame is missing required "
+                f"column(s): {details}. Either rebuild the upstream "
+                f"TrainingDataset to include them, or amend the FeatureSpec."
+            )
