@@ -1,26 +1,28 @@
+"""Read-only repositories over the warehouse tables.
+
+Each repository wraps one logical table-family (ground, satellite-irradiance,
+per-source long-format aux variables) and exposes typed query methods that
+return pandas DataFrames. The :class:`FeatureService` orchestrates these
+into the assembled training / inference frame.
+
+These are intentionally thin: each method is one SQL query. Joins live in
+the FeatureService layer where pandas can replace BigQuery's per-table
+limits and the call sites are easier to read.
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Iterable, Optional, Sequence
 from datetime import date
+from typing import Optional, Sequence
 
 import pandas as pd
-from google.cloud import bigquery
 
 from .bq import BigQueryClient
 from .config import TableRefs
 
-# ---------------------------------------------------------------------------
-# Repositories
-# ---------------------------------------------------------------------------
-
 
 class GroundRepository:
-    """Access curated ground measurements.
-
-    Returns daily records with (date, location, lat, lon, geog, geohash5,
-    ghi_kwh_m2_day, qc_level, ...).
-    """
+    """Curated daily ground GHI measurements with QC, location, geohash."""
 
     def __init__(self, bq: BigQueryClient, tables: TableRefs) -> None:
         self._bq = bq
@@ -30,39 +32,45 @@ class GroundRepository:
         self,
         start: date,
         end: date,
+        *,
         locations: Optional[Sequence[str]] = None,
-        qc_levels: Optional[Sequence[str]] = ("pass",),
+        qc_levels: Sequence[str] = ("pass",),
     ) -> pd.DataFrame:
-        """Fetch ground measurements between start and end (inclusive).
+        """Fetch ground measurements between ``start`` and ``end`` (inclusive).
 
-        Parameters
-        ----------
-        start, end: date bounds (inclusive)
-        locations: optional filter by location names
-        qc_levels: e.g., ("pass",) to keep only QC-passed rows
+        Args:
+            start, end: Date bounds (inclusive).
+            locations: Optional list of station names; ``None`` returns all.
+            qc_levels: QC labels to keep. Default ``("pass",)`` excludes
+                fail-range etc.
+
+        Returns:
+            DataFrame with columns ``date, location, lat, lon, geohash5,
+            ghi_kwh_m2_day, qc_level``.
         """
-        filters = [
-            f"date BETWEEN DATE('{start}') AND DATE('{end}')",
-        ]
+        if not qc_levels:
+            raise ValueError(
+                "qc_levels must be non-empty. To keep all rows, pass every "
+                "level explicitly (e.g. ('pass', 'fail_range'))."
+            )
+        filters = [f"date BETWEEN DATE('{start}') AND DATE('{end}')"]
         if locations:
-            loc_list = ",".join([f"'{l}'" for l in locations])
-            filters.append(f"location IN ({loc_list})")
-        if qc_levels:
-            lvl_list = ",".join([f"'{q}'" for q in qc_levels])
-            filters.append(f"qc_level IN ({lvl_list})")
-
-        where = " AND \n      ".join(filters)
+            quoted = ", ".join(f"'{loc}'" for loc in locations)
+            filters.append(f"location IN ({quoted})")
+        qc_quoted = ", ".join(f"'{q}'" for q in qc_levels)
+        filters.append(f"qc_level IN ({qc_quoted})")
+        where = " AND ".join(filters)
         sql = f"""
-        SELECT date, location, lat, lon, geog, geohash5,
+        SELECT date, location, lat, lon, geohash5,
                ghi_kwh_m2_day, qc_level
-        FROM {self._t.ground_measurements}
+        FROM `{self._t.ground_measurements}`
         WHERE {where}
         """
         return self._bq.query(sql)
 
 
 class SatelliteRepository:
-    """Access daily satellite irradiance (NASA/CAMS) and NASA variables."""
+    """Daily satellite irradiance + per-source pivoted aux variables."""
 
     def __init__(self, bq: BigQueryClient, tables: TableRefs) -> None:
         self._bq = bq
@@ -72,120 +80,109 @@ class SatelliteRepository:
         self,
         start: date,
         end: date,
-        sources: Optional[Sequence[str]] = ("NASA", "CAMS"),
+        *,
+        sources: Sequence[str] = ("NASA", "CAMS"),
+        geohash5s: Optional[Sequence[str]] = None,
     ) -> pd.DataFrame:
-        """Returns per-(date, geohash5) daily irradiance for requested sources.
+        """Per-(date, geohash5) wide irradiance for the requested sources.
 
-        Columns: date, geohash5, sat_ghi_cams_kwh_m2_day, sat_ghi_nasa_kwh_m2_day
+        Returns columns ``date, geohash5, sat_ghi_<source>_kwh_m2_day`` —
+        one extra column per source. Empty list of sources returns an
+        empty frame (no SQL trip).
         """
-        src_case = []
-        if sources is None:
-            sources = []
-        if "CAMS" in sources:
-            src_case.append(
-                "MAX(IF(source = 'CAMS', ghi_kwh_m2_day, NULL)) AS sat_ghi_cams_kwh_m2_day"
-            )
-        if "NASA" in sources:
-            src_case.append(
-                "MAX(IF(source = 'NASA', ghi_kwh_m2_day, NULL)) AS sat_ghi_nasa_kwh_m2_day"
-            )
-        if not src_case:
-            # Return empty
+        if not sources:
             return pd.DataFrame()
-
+        select_cols = [
+            f"MAX(IF(source = '{src}', ghi_kwh_m2_day, NULL)) "
+            f"AS sat_ghi_{src.lower()}_kwh_m2_day"
+            for src in sources
+        ]
+        filters = [f"date BETWEEN DATE('{start}') AND DATE('{end}')"]
+        if geohash5s:
+            gh_list = ", ".join(f"'{g}'" for g in geohash5s)
+            filters.append(f"geohash5 IN ({gh_list})")
+        where = " AND ".join(filters)
         sql = f"""
         SELECT date, geohash5,
-               {', '.join(src_case)}
-        FROM {self._t.irradiance_daily}
-        WHERE date BETWEEN DATE('{start}') AND DATE('{end}')
+               {', '.join(select_cols)}
+        FROM `{self._t.irradiance_daily}`
+        WHERE {where}
         GROUP BY date, geohash5
         """
         return self._bq.query(sql)
 
-    def nearest_irradiance(
+    def long_aux_pivoted(
         self,
-        lat: float,
-        lon: float,
+        *,
+        table_fqn: str,
+        column_prefix: str,
         start: date,
         end: date,
-        max_km: Optional[float] = None,
+        variable_ids: Sequence[str],
+        geohash5s: Optional[Sequence[str]] = None,
     ) -> pd.DataFrame:
-        """Return nearest-per-day irradiance from the table function, pivoted wide.
+        """Pivot a long-format aux table ``(date, geohash5, variable_id, value)``.
 
-        Output columns: date, sat_ghi_cams_kwh_m2_day, sat_ghi_nasa_kwh_m2_day,
-        plus source-specific DNI/DHI if you later extend.
-        """
-        max_km_sql = "NULL" if max_km is None else str(float(max_km))
-        sql = f"""
-        WITH base AS (
-          SELECT *
-          FROM {self._t.fn_nearest_point}({lat}, {lon}, DATE('{start}'), DATE('{end}'), {max_km_sql})
-        )
-        SELECT date,
-               MAX(IF(source='CAMS', ghi_kwh_m2_day, NULL)) AS sat_ghi_cams_kwh_m2_day,
-               MAX(IF(source='NASA', ghi_kwh_m2_day, NULL)) AS sat_ghi_nasa_kwh_m2_day
-        FROM base
-        GROUP BY date
-        ORDER BY date
-        """
-        return self._bq.query(sql)
+        Args:
+            table_fqn: Fully-qualified BQ table name (e.g.
+                ``project.solar_warehouse.nasa_daily_vars_long``).
+            column_prefix: Source tag prepended to every output column to
+                avoid collisions across sources (``"nasa"``, ``"cams"``,
+                ``"merra"``). E.g. ``T2M`` → ``nasa_T2M``.
+            start, end: Inclusive date bounds.
+            variable_ids: Variables to pivot. Empty list → empty frame.
+            geohash5s: Optional location scope.
 
-    def nasa_vars_pivoted(
-        self,
-        start: date,
-        end: date,
-        variables: Sequence[str],
-    ) -> pd.DataFrame:
-        """Fetch selected NASA variables (long) and pivot to wide by (date, geohash5).
-
-        Parameters
-        ----------
-        variables: list of variable_id (or variable code) to include.
+        Returns:
+            Wide DataFrame with columns ``date, geohash5, <prefix>_<var>...``.
         """
-        if not variables:
+        if not variable_ids:
             return pd.DataFrame()
-        var_list = ",".join([f"'{v}'" for v in variables])
-        sql = f"""
-        WITH base AS (
-          SELECT date, geohash5, variable_id, value
-          FROM {self._t.nasa_daily_vars_long}
-          WHERE date BETWEEN DATE('{start}') AND DATE('{end}')
-            AND variable_id IN ({var_list})
+        # PIVOT clause supports per-pivot-column aliasing via "AS alias".
+        pivot_in = ", ".join(
+            f"'{vid}' AS {column_prefix}_{vid}" for vid in variable_ids
         )
-        SELECT * FROM base
-        PIVOT ( ANY_VALUE(value) FOR variable_id IN ({var_list}) )
+        var_list = ", ".join(f"'{vid}'" for vid in variable_ids)
+        filters = [
+            f"date BETWEEN DATE('{start}') AND DATE('{end}')",
+            f"variable_id IN ({var_list})",
+        ]
+        if geohash5s:
+            gh_list = ", ".join(f"'{g}'" for g in geohash5s)
+            filters.append(f"geohash5 IN ({gh_list})")
+        where = " AND ".join(filters)
+        sql = f"""
+        SELECT * FROM (
+          SELECT date, geohash5, variable_id, value
+          FROM `{table_fqn}`
+          WHERE {where}
+        )
+        PIVOT (ANY_VALUE(value) FOR variable_id IN ({pivot_in}))
         ORDER BY date, geohash5
         """
         return self._bq.query(sql)
 
-    def nearest_nasa_vars_daily(
-        self,
-        lat: float,
-        lon: float,
-        start: date,
-        end: date,
-        variables: Sequence[str],
-        max_km: Optional[float] = None,
-    ) -> pd.DataFrame:
-        """Call fn_nearest_var_daily for each variable_id and pivot to wide on date.
+    def warehouse_table_mods(
+        self, table_ids: Sequence[str]
+    ) -> dict[str, str]:
+        """Return ``{table_id: last_modified_time_iso}`` for each table.
 
-        Returns: date plus one column per variable_id.
+        Used by the dataset manifest to capture the warehouse state at
+        snapshot-build time. Rows for tables that don't exist are simply
+        omitted.
         """
-        if not variables:
-            return pd.DataFrame()
-        max_km_sql = "NULL" if max_km is None else str(float(max_km))
-        var_list = ",".join([f"'{v}'" for v in variables])
+        if not table_ids:
+            return {}
+        quoted = ", ".join(f"'{t}'" for t in table_ids)
+        config = self._bq.config
         sql = f"""
-        WITH vars AS (
-          SELECT var AS variable_id FROM UNNEST([{var_list}]) AS var
-        ),
-        calls AS (
-          SELECT v.variable_id, t.date, t.value
-          FROM vars v,
-               {self._t.fn_nearest_var_daily}(v.variable_id, {lat}, {lon}, DATE('{start}'), DATE('{end}'), {max_km_sql}) AS t
-        )
-        SELECT * FROM calls
-        PIVOT ( ANY_VALUE(value) FOR variable_id IN ({var_list}) )
-        ORDER BY date
+        SELECT table_id,
+               TIMESTAMP_MILLIS(last_modified_time) AS last_modified_ts
+        FROM `{config.project_id}.{config.dataset}.__TABLES__`
+        WHERE table_id IN ({quoted})
         """
-        return self._bq.query(sql)
+        df = self._bq.query(sql)
+        return {
+            row["table_id"]: pd.Timestamp(row["last_modified_ts"]).isoformat()
+            for _, row in df.iterrows()
+        }

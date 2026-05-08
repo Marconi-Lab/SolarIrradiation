@@ -25,4 +25,5 @@ requests>=2.32.3
 requests-mock>=1.11.0
 types-requests>=2.32.0
 urllib3>=2.3.0
+wandb>=0.18.0
 xarray>=2025.3.0

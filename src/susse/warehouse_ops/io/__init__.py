@@ -9,13 +9,11 @@ from .config import (
     WarehouseConfig,
     WarehouseOptions,
 )
-from .feature_service import FeatureService
 from .repositories import GroundRepository, SatelliteRepository
 
 __all__ = [
     "BigQueryClient",
     "BigQueryOptions",
-    "FeatureService",
     "GroundRepository",
     "MatchStrategy",
     "SatelliteRepository",
