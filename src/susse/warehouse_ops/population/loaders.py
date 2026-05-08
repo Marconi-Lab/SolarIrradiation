@@ -126,17 +126,26 @@ class MergeLoader:
         )
 
         staging_fqn = f"{self._table_fqn}_staging"
-        sql = f"""
-        BEGIN TRANSACTION;
-        CREATE TABLE IF NOT EXISTS `{self._table_fqn}` AS
-            SELECT {staging_select} FROM `{staging_fqn}` WHERE 1=0;
+
+        # BigQuery rejects DDL inside multi-statement transactions, so we
+        # issue create / merge / drop as three separate statements. MERGE
+        # is atomic on its own; staging persists between failures but is
+        # WRITE_TRUNCATE'd on the next load anyway.
+        create_sql = (
+            f"CREATE TABLE IF NOT EXISTS `{self._table_fqn}` AS "
+            f"SELECT {staging_select} FROM `{staging_fqn}` WHERE 1=0;"
+        )
+        merge_sql = f"""
         MERGE `{self._table_fqn}` t
         USING (SELECT {staging_select} FROM `{staging_fqn}`) s
         ON {on_clause}
         {when_matched_clause}WHEN NOT MATCHED THEN
             INSERT ({col_list}) VALUES ({val_list});
-        DROP TABLE `{staging_fqn}`;
-        COMMIT TRANSACTION;
         """
-        _logger.debug("MERGE SQL for %s:\n%s", self._table_fqn, sql)
-        self._bq.execute_ddl(sql)
+        drop_sql = f"DROP TABLE `{staging_fqn}`;"
+
+        _logger.debug("MERGE pipeline for %s:\n%s\n%s\n%s",
+                      self._table_fqn, create_sql, merge_sql, drop_sql)
+        self._bq.execute_ddl(create_sql)
+        self._bq.execute_ddl(merge_sql)
+        self._bq.execute_ddl(drop_sql)

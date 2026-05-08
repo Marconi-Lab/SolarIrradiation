@@ -103,12 +103,16 @@ class TestMergeLoaderSql:
         }])
         loader.load(df)
 
-        # Staging load happened, then exactly one DDL with the MERGE block.
+        # Staging load happened, then create / merge / drop as three
+        # separate DDL statements (BQ rejects DDL inside multi-statement
+        # transactions, so the loader splits them).
         assert len(bq.loaded) == 1
-        assert len(bq.ddl_statements) == 1
-        sql = bq.ddl_statements[0]
-        assert "MERGE `x.y.t` t" in sql
-        assert "ST_GEOGPOINT(lon, lat) AS `geog`" in sql
+        assert len(bq.ddl_statements) == 3
+        create_sql, merge_sql, drop_sql = bq.ddl_statements
+        assert create_sql.startswith("CREATE TABLE IF NOT EXISTS `x.y.t`")
+        assert "MERGE `x.y.t` t" in merge_sql
+        assert "ST_GEOGPOINT(lon, lat) AS `geog`" in merge_sql
         # MERGE keys for ground_measurements are (date, location).
-        assert "t.`date` = s.`date`" in sql
-        assert "t.`location` = s.`location`" in sql
+        assert "t.`date` = s.`date`" in merge_sql
+        assert "t.`location` = s.`location`" in merge_sql
+        assert drop_sql == "DROP TABLE `x.y.t_staging`;"

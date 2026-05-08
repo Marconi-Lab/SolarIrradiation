@@ -23,7 +23,7 @@ def _valid_long_row() -> dict:
         "geohash5": "s8p1v",
         "variable_id": "temperature",
         "value": 25.0,
-        "source": "NASA_POWER",
+        "source": "NASA",
     }
 
 

@@ -153,7 +153,7 @@ class TestNamedLocationsPlan:
             locations=(_kampala_loc(),),
             variables=(_nasa_var(),),
         )
-        assert "NASA_POWER" in plan.describe()
+        assert f"source={Source.NASA_POWER.value}" in plan.describe()
         assert "locations=1" in plan.describe()
 
     def test_rejects_empty_locations(self) -> None:
