@@ -1,54 +1,62 @@
+"""Thin client around pvlib's ``get_cams`` for CAMS radiation data."""
+
+from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, ClassVar, Tuple
 
 import pandas as pd
 import pvlib
 from dotenv import load_dotenv, set_key
 
-# Constants for configuration and magic strings
-ENV_PATH = Path(".") / ".env"
-EMAIL_ENV_KEY = "CAMS_EMAIL"
-DEFAULT_IDENTIFIER = "cams_radiation"
-TIMEOUT_SECONDS = 180
+
+class CamsApiError(RuntimeError):
+    """Raised when a CAMS request fails or returns no usable data.
+
+    Wraps the underlying pvlib / network exception so callers can catch
+    a single error type at the boundary instead of unrelated ones.
+    """
 
 
 class CAMSClient:
-    """
-    Client for fetching CAMS radiation data via pvlib.
+    """Client for fetching CAMS radiation data via pvlib.
 
-    Reads and stores user email in environment variables.
+    Reads the registered CAMS email from a ``.env`` file (or prompts and
+    persists it). Failures from the underlying pvlib call surface as
+    :class:`CamsApiError` so callers don't silently propagate ``None``
+    DataFrames downstream.
     """
+
+    DEFAULT_ENV_PATH: ClassVar[Path] = Path(".") / ".env"
+    DEFAULT_EMAIL_ENV_KEY: ClassVar[str] = "CAMS_EMAIL"
+    DEFAULT_IDENTIFIER: ClassVar[str] = "cams_radiation"
+    DEFAULT_TIMEOUT_SECONDS: ClassVar[int] = 180
 
     def __init__(
         self,
-        env_path: Path = ENV_PATH,
-        email_env_key: str = EMAIL_ENV_KEY,
-        identifier: str = DEFAULT_IDENTIFIER,
-        timeout: int = TIMEOUT_SECONDS,
+        env_path: Path | None = None,
+        email_env_key: str | None = None,
+        identifier: str | None = None,
+        timeout: int | None = None,
     ) -> None:
-        self._env_path = env_path
-        self._email_env_key = email_env_key
-        self._identifier = identifier
-        self._timeout = timeout
-
-        # Load environment variables from .env file
+        self._env_path = env_path or self.DEFAULT_ENV_PATH
+        self._email_env_key = email_env_key or self.DEFAULT_EMAIL_ENV_KEY
+        self._identifier = identifier or self.DEFAULT_IDENTIFIER
+        self._timeout = timeout if timeout is not None else self.DEFAULT_TIMEOUT_SECONDS
         load_dotenv(dotenv_path=self._env_path)
 
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
     def _get_email(self) -> str:
-        """
-        Retrieve the CAMS email from environment or prompt the user.
-
-        Returns:
-            str: Registered CAMS email.
-        """
+        """Retrieve the CAMS email from environment or prompt the user."""
         email = os.getenv(self._email_env_key)
-
         if not email:
             email = input("Enter your registered CAMS email: ").strip()
             set_key(str(self._env_path), self._email_env_key, email)
-
         return email
 
     def fetch_data(
@@ -58,25 +66,26 @@ class CAMSClient:
         start: datetime,
         end: datetime,
         time_step: str,
-    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """
-        Fetch and process CAMS radiation data.
+    ) -> Tuple[pd.DataFrame, dict[str, Any]]:
+        """Fetch CAMS radiation data for one point.
 
         Args:
-            latitude (float): Latitude of location.
-            longitude (float): Longitude of location.
-            start (datetime): Start datetime (UTC).
-            end (datetime): End datetime (UTC).
-            time_step (str): time_step: str, {'1min', '15min', '1h', '1d', '1M'}, default: '1h'
-                            Time step of the time series, either 1 minute, 15 minute, hourly,
-                            daily, or monthly.
+            latitude: degrees, [-90, 90].
+            longitude: degrees, [-180, 180].
+            start: UTC datetime.
+            end: UTC datetime.
+            time_step: pvlib time-step string. One of ``'1min'``, ``'15min'``,
+                ``'1h'``, ``'1d'``, ``'1M'``.
 
         Returns:
-            Dict[str, Any]: Dictionary containing records, column names,
-            metadata, and any error message.
+            ``(processed_df, metadata)`` — DataFrame with a ``timestamp``
+            column (ISO string) followed by per-variable columns, plus the
+            metadata dict pvlib returns.
+
+        Raises:
+            CamsApiError: pvlib raised any exception during the request.
         """
         email = self._get_email()
-
         try:
             raw_df, metadata = pvlib.iotools.get_cams(
                 latitude=latitude,
@@ -88,27 +97,28 @@ class CAMSClient:
                 timeout=self._timeout,
                 identifier=self._identifier,
             )
-
-            processed_df = self._process_dataframe(raw_df)
-
-            return processed_df, metadata
-
         except Exception as exc:
-            return None, {"error": str(exc)}
+            raise CamsApiError(
+                f"CAMS fetch failed for ({latitude}, {longitude}) "
+                f"between {start.date()} and {end.date()}: {exc}"
+            ) from exc
+
+        return self._process_dataframe(raw_df), metadata
 
     @staticmethod
     def _process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Reset index and format timestamp column.
-
-        Args:
-            df (pd.DataFrame): Raw DataFrame with DateTimeIndex.
-
-        Returns:
-            pd.DataFrame: Processed DataFrame with ISO-formatted timestamps.
-        """
+        """Reset the datetime index and ISO-format the timestamp column."""
         processed = df.reset_index().rename(columns={"index": "timestamp"})
         processed["timestamp"] = processed["timestamp"].dt.strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
         return processed
+
+
+# Legacy module-level constants exported for backwards compatibility with
+# code that imported them directly. New code should reference the ClassVar
+# attributes on :class:`CAMSClient`.
+ENV_PATH = CAMSClient.DEFAULT_ENV_PATH
+EMAIL_ENV_KEY = CAMSClient.DEFAULT_EMAIL_ENV_KEY
+DEFAULT_IDENTIFIER = CAMSClient.DEFAULT_IDENTIFIER
+TIMEOUT_SECONDS = CAMSClient.DEFAULT_TIMEOUT_SECONDS
