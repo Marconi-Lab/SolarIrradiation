@@ -436,6 +436,22 @@ class MerraDailyFetcher:
                         "and that the 'NASA GESDISC DATA ARCHIVE' application "
                         "is approved on your Earthdata profile."
                     ) from exc
+                # ``setup_session`` returns ``None`` (rather than raising)
+                # when its check_url probe fails — typically because
+                # goldsmr4 is briefly busy at startup. Fall back to a
+                # plain ``requests.Session`` with basic auth; URS handles
+                # the redirect chain via ``.netrc`` if the user has set
+                # one up, and the actual per-day fetches will validate
+                # auth on first use.
+                if session is None:
+                    import requests
+                    _logger.warning(
+                        "pydap.setup_session returned None (check_url probe "
+                        "failed). Falling back to a plain requests.Session "
+                        "with basic auth + .netrc redirect handling."
+                    )
+                    session = requests.Session()
+                    session.auth = (creds.username, creds.password)
                 # Replace the default HTTPAdapter on this session with one
                 # that retries 503/502/504 with exponential backoff. NASA's
                 # OPeNDAP returns 503 under load and the default 3-attempt

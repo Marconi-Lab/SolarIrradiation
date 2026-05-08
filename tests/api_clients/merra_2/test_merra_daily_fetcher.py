@@ -291,6 +291,43 @@ class TestParallelEquivalence:
             MerraDailyFetcher(max_workers=0)
 
 
+class TestSessionNoneFallback:
+    """``pydap.cas.urs.setup_session`` is documented to return ``None``
+    when its check_url probe fails. NASA's goldsmr4 OPeNDAP cluster
+    sometimes returns 503 on the probe even when the data endpoints
+    themselves work; we must fall back to a plain ``requests.Session``
+    with basic auth rather than crashing.
+    """
+
+    def test_falls_back_to_plain_session_when_setup_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from susse.api_clients.merra_2.merra_daily_fetcher import (
+            MerraDailyFetcher, _Earthdata,
+        )
+
+        # Stub setup_session to return None — the failure mode this test pins.
+        monkeypatch.setattr(
+            "susse.api_clients.merra_2.merra_daily_fetcher.setup_session",
+            lambda *a, **kw: None,
+        )
+
+        fetcher = MerraDailyFetcher(
+            credentials=_Earthdata(username="alice", password="x"),
+        )
+        # Must not raise; must return something usable.
+        session = fetcher._authenticated_session("https://example.invalid/")
+        assert session is not None
+        assert hasattr(session, "mount"), (
+            "fallback session must be a real requests.Session "
+            "(not None or some other placeholder)"
+        )
+        assert session.auth == ("alice", "x"), (
+            "fallback session must carry basic auth so it can authenticate "
+            "via the URS redirect chain"
+        )
+
+
 class TestSessionRetryConfig:
     """Sessions returned by ``_authenticated_session`` must mount an
     HTTPAdapter with a Retry policy that handles 503/502/504 patiently
