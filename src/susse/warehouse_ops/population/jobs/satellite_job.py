@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from abc import abstractmethod
 from datetime import date, datetime, timezone
+from typing import ClassVar
 
 import pandas as pd
 import pygeohash
@@ -463,6 +464,13 @@ class CamsSatelliteJob(BaseSatelliteJob):
     def long_table_fqn(self) -> str:
         return self._refs.cams_daily_vars_long
 
+    # CAMS via pvlib's get_cams returns daily irradiance values as the
+    # mean power in W/m² over a 24-hour observation period. The warehouse
+    # column convention is total energy in kWh/m²/day, so we multiply by
+    # (24 hours / 1000 W/kW) = 0.024. Validated empirically against the
+    # legacy CSV ingest path in migration A4.
+    _W_M2_TO_KWH_M2_DAY: ClassVar[float] = 0.024
+
     def _fetch_long_for_location(
         self,
         location: LocationSpec,
@@ -481,9 +489,9 @@ class CamsSatelliteJob(BaseSatelliteJob):
             raise
         return self._cams_dataframe_to_long(df, variables)
 
-    @staticmethod
+    @classmethod
     def _cams_dataframe_to_long(
-        df: pd.DataFrame, variables: tuple[VariableSpec, ...]
+        cls, df: pd.DataFrame, variables: tuple[VariableSpec, ...]
     ) -> pd.DataFrame:
         api_to_var = {v.api_code: v.variable_id for v in variables}
         # The pvlib output's first column is timestamp (already ISO string after
@@ -499,7 +507,7 @@ class CamsSatelliteJob(BaseSatelliteJob):
         long["date"] = pd.to_datetime(long[ts_col]).dt.date
         long["variable_id"] = long["api_code"].map(api_to_var)
         long = long[["date", "variable_id", "value"]].dropna(subset=["value"])
-        long["value"] = long["value"].astype(float)
+        long["value"] = long["value"].astype(float) * cls._W_M2_TO_KWH_M2_DAY
         return long.reset_index(drop=True)
 
 

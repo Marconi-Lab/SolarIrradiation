@@ -14,6 +14,7 @@ import pytest
 
 from susse.warehouse_ops.population.jobs.satellite_job import (
     BaseSatelliteJob,
+    CamsSatelliteJob,
     MerraSatelliteJob,
     NasaPowerSatelliteJob,
     _location_spec_to_geopy,
@@ -265,6 +266,53 @@ class TestRunScopesCoverageByLocation:
             assert gh1 in joined and gh2 in joined, (
                 f"coverage filter must include both plan geohashes: {call!r}"
             )
+
+
+class TestCamsUnitConversion:
+    """CAMS via pvlib returns daily irradiance as W/m² (mean over the
+    24-hour period). The warehouse stores kWh/m²/day, so the loader must
+    multiply by 0.024 = 24 hours / 1000 W/kW.
+
+    A6's first run hit production with the conversion missing, polluting
+    the warehouse with values 41.7× too large. This test pins the
+    contract so it can't regress.
+    """
+
+    def test_pvlib_w_per_m2_converted_to_kwh_per_m2_day(self) -> None:
+        # A typical clear-sky GHI in West Africa is ~250 W/m² mean (over
+        # the 24h period); the corresponding daily energy is ~6 kWh/m²/day.
+        cams_var = VariableSpec(
+            variable_id="ghi", source=Source.CAMS, api_code="ghi",
+            display_name="GHI", unit="kWh/m^2/day",
+            native_unit="Wh/m^2 (period)", description="x",
+        )
+        df = pd.DataFrame([
+            {"timestamp": "2024-06-15T00:00:00Z", "ghi": 250.0},
+            {"timestamp": "2024-06-16T00:00:00Z", "ghi": 200.0},
+        ])
+        long = CamsSatelliteJob._cams_dataframe_to_long(df, (cams_var,))
+        assert len(long) == 2
+        # 250 W/m² × 0.024 = 6.0 kWh/m²/day
+        assert long["value"].iloc[0] == pytest.approx(6.0, abs=1e-9)
+        assert long["value"].iloc[1] == pytest.approx(4.8, abs=1e-9)
+
+    def test_conversion_factor_is_explicit(self) -> None:
+        # Pin the factor as a class constant so other code can reference
+        # it (e.g. the data-fix migration). 24 hours ÷ 1000 W/kW = 0.024.
+        assert CamsSatelliteJob._W_M2_TO_KWH_M2_DAY == pytest.approx(0.024)
+
+    def test_zero_passes_through_unchanged(self) -> None:
+        # 0 W/m² → 0 kWh/m²/day; the conversion shouldn't introduce an
+        # offset. (Defensive: previous bugs in similar pipelines have
+        # added/subtracted constants.)
+        cams_var = VariableSpec(
+            variable_id="ghi_clear", source=Source.CAMS, api_code="ghi_clear",
+            display_name="GHI clear", unit="kWh/m^2/day",
+            native_unit="Wh/m^2 (period)", description="x",
+        )
+        df = pd.DataFrame([{"timestamp": "2024-06-15T00:00:00Z", "ghi_clear": 0.0}])
+        long = CamsSatelliteJob._cams_dataframe_to_long(df, (cams_var,))
+        assert long["value"].iloc[0] == 0.0
 
 
 class TestMerraSatelliteJob:
