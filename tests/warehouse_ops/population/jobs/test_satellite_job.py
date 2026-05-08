@@ -15,10 +15,12 @@ import pytest
 from susse.warehouse_ops.population.jobs.satellite_job import (
     BaseSatelliteJob,
     NasaPowerSatelliteJob,
+    _location_spec_to_geopy,
 )
 from susse.warehouse_ops.population.types import (
     DateRange,
     LocationSpec,
+    NamedLocationsPlan,
     Source,
     VariableSpec,
 )
@@ -150,6 +152,118 @@ class TestLocationFullyCached:
             existing_long=set(),
             existing_irr=set(),  # missing
         ) is False
+
+
+class TestLocationSpecToGeopy:
+    """The NASA POWER fetcher only reads ``.latitude`` / ``.longitude``.
+
+    Earlier the adapter wrapped a ``Point`` in ``geopy.location.Location``,
+    which broke at runtime in geopy >=2.4 (``Location.__init__`` requires
+    ``address`` and ``raw``). This test pins the contract: the adapter
+    must return *something* with usable lat/lon attrs that round-trip the
+    input values, and it must not raise.
+    """
+
+    def test_returns_object_with_lat_lon_attrs(self) -> None:
+        spec = LocationSpec(name="kampala", lat=0.333542, lon=32.568630)
+        adapted = _location_spec_to_geopy(spec)
+        assert hasattr(adapted, "latitude"), (
+            "adapter must return an object with a .latitude attribute "
+            "(NASA POWER fetcher reads it)"
+        )
+        assert hasattr(adapted, "longitude")
+        assert adapted.latitude == pytest.approx(spec.lat)
+        assert adapted.longitude == pytest.approx(spec.lon)
+
+
+class _RecordingBQForCoverage:
+    """Stub BigQueryClient that records calls coverage helpers make.
+
+    Returns a ``set`` populated densely enough that
+    ``_location_fully_cached`` is satisfied for every location in the plan,
+    so the test never reaches the API-fetch stage.
+    """
+
+    def __init__(self, full_coverage_keys_long, full_coverage_keys_irr):
+        self._long_keys = full_coverage_keys_long
+        self._irr_keys = full_coverage_keys_irr
+        self.coverage_calls: list[dict] = []
+
+    @property
+    def config(self):
+        from susse.warehouse_ops.io.config import WarehouseConfig
+        return WarehouseConfig()
+
+    def existing_keys(self, table_fqn, key_columns, *, where_filters=()):
+        self.coverage_calls.append({
+            "table_fqn": table_fqn,
+            "key_columns": tuple(key_columns),
+            "where_filters": tuple(where_filters),
+        })
+        # Distinguish long-table vs irradiance-table call by key tuple length.
+        if len(key_columns) == 3:
+            return self._long_keys
+        return self._irr_keys
+
+
+class TestRunScopesCoverageByLocation:
+    """``BaseSatelliteJob.run`` must pass plan geohashes to the coverage
+    queries. Without this scope, named-location plans whose date range
+    overlaps the existing warehouse footprint pull millions of irrelevant
+    rows back from BigQuery before any API call is even issued.
+
+    Regression guard for the A6 hang.
+    """
+
+    def test_named_locations_plan_includes_geohash_filter(self) -> None:
+        import pygeohash
+
+        loc1 = LocationSpec(name="kampala", lat=0.333542, lon=32.568630)
+        loc2 = LocationSpec(name="lira", lat=2.295190, lon=32.921370)
+        gh1 = pygeohash.encode(loc1.lat, loc1.lon, precision=5)
+        gh2 = pygeohash.encode(loc2.lat, loc2.lon, precision=5)
+        date_range = DateRange(start=date(2024, 1, 1), end=date(2024, 1, 2))
+        long_var = _temp_var()
+        irr_var = _ghi_var(Source.NASA_POWER)
+
+        # Pre-populate "warehouse" with every (date, geohash, variable) tuple
+        # that the locations would need, so _location_fully_cached returns
+        # True for both and the run skips fetching.
+        all_dates = (date(2024, 1, 1), date(2024, 1, 2))
+        full_long = {
+            (d, gh, v.variable_id)
+            for d in all_dates for gh in (gh1, gh2) for v in (long_var,)
+        }
+        full_irr = {(d, gh) for d in all_dates for gh in (gh1, gh2)}
+        bq = _RecordingBQForCoverage(full_long, full_irr)
+
+        job = NasaPowerSatelliteJob(bq)  # type: ignore[arg-type]
+        plan = NamedLocationsPlan(
+            source=Source.NASA_POWER,
+            date_range=date_range,
+            locations=(loc1, loc2),
+            variables=(long_var, irr_var),
+        )
+        result = job.run(plan)
+
+        # The job should have made coverage calls (one for long, one for
+        # irradiance) and skipped both locations.
+        assert result.api_calls_made == 0, (
+            "fully-cached locations must skip the API call"
+        )
+        assert result.extra["skipped_locations"] == 2
+
+        # Both coverage calls must include a geohash5 IN (...) filter
+        # with the plan's geohashes.
+        assert len(bq.coverage_calls) == 2
+        for call in bq.coverage_calls:
+            joined = " ".join(call["where_filters"])
+            assert "geohash5 IN" in joined, (
+                f"coverage call missing geohash5 scope: {call!r}"
+            )
+            assert gh1 in joined and gh2 in joined, (
+                f"coverage filter must include both plan geohashes: {call!r}"
+            )
 
 
 class TestRunRejectsBadPlan:
