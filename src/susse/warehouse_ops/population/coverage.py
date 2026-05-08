@@ -103,6 +103,49 @@ class CoverageRepository:
         _logger.info("coverage: %s → %d existing keys.", table_fqn, len(result))
         return result
 
+    def existing_modis_keys(
+        self,
+        table_fqn: str,
+        *,
+        date_range: DateRange,
+        product_band_pairs: Sequence[tuple[str, str]],
+        geohash5s: Sequence[str] | None = None,
+    ) -> set[tuple]:
+        """Return existing ``(date, geohash5, product_id, band_id)`` tuples.
+
+        Modis-specific because rows are keyed on the (product, band) pair
+        rather than a flat ``variable_id``. Same scoping semantics as
+        :meth:`existing_long_keys`.
+        """
+        if not product_band_pairs:
+            return set()
+        # Build a tuple-IN filter: WHERE (product_id, band_id) IN (('p1','b1'), ('p2','b2'))
+        pb_tuples = ", ".join(
+            f"('{p}', '{b}')" for p, b in product_band_pairs
+        )
+        filters = [
+            f"date BETWEEN DATE('{date_range.start}') AND DATE('{date_range.end}')",
+            f"source = '{Source.MODIS.value}'",
+            f"(product_id, band_id) IN ({pb_tuples})",
+        ]
+        if geohash5s is not None:
+            if not geohash5s:
+                return set()
+            gh_list = ", ".join(f"'{g}'" for g in geohash5s)
+            filters.append(f"geohash5 IN ({gh_list})")
+        _logger.info(
+            "coverage: scanning %s for date %s..%s, %d (product, band) pairs%s",
+            table_fqn, date_range.start, date_range.end, len(product_band_pairs),
+            f", {len(geohash5s)} geohash(es)" if geohash5s is not None else "",
+        )
+        result = self._bq.existing_keys(
+            table_fqn,
+            key_columns=("date", "geohash5", "product_id", "band_id"),
+            where_filters=filters,
+        )
+        _logger.info("coverage: %s → %d existing keys.", table_fqn, len(result))
+        return result
+
     def existing_ground_raw_keys(
         self,
         table_fqn: str,

@@ -37,6 +37,12 @@ _CAMS_RESOLUTION_KM = 5.5  # 0.05° native grid
 # MERRA-2 native grid is 0.5° lat × 0.625° lon; using the lat figure as
 # the representative spatial resolution.
 _MERRA_2_RESOLUTION_KM = 55.5
+# MODIS resolutions are per-product. MOD11A1 LST is 1 km native; MCD43A3
+# albedo is 500 m; MOD10A1 snow is 500 m; MOD13Q1 NDVI is 250 m.
+_MODIS_LST_RESOLUTION_KM = 1.0
+_MODIS_ALBEDO_RESOLUTION_KM = 0.5
+_MODIS_SNOW_RESOLUTION_KM = 0.5
+_MODIS_NDVI_RESOLUTION_KM = 0.25
 
 
 class VariableCatalog:
@@ -557,9 +563,82 @@ class VariableCatalog:
         ),
     )
 
+    MODIS_VARIABLES: ClassVar[tuple[VariableSpec, ...]] = (
+        # MODIS rows land in `modis_observations` (not the long-format
+        # tables) because each value is associated with a (product_id,
+        # band_id) pair that the long-format schema doesn't carry. The
+        # `variable_id` here uses the convention `{PRODUCT}_{BAND}` so
+        # `dim_variable` still has a unique key per row, and the
+        # underlying observations table preserves product_id and band_id
+        # as separate columns for downstream querying.
+        #
+        # Product list constrained by what ORNL DAAC's RST subset API
+        # actually serves (verified 2026-05-08 against the live /products
+        # endpoint). MCD43A3 (true albedo), MOD11A1 (daily LST), and
+        # MOD10A1 (snow cover) were originally planned but are not on
+        # this endpoint — they require AppEEARS or LAADS DAAC integration
+        # which is deferred to a future phase. The three below are the
+        # closest practical substitutes from ORNL's catalog.
+        VariableSpec(
+            variable_id="MCD43A4_Nadir_Reflectance_Band1",
+            source=Source.MODIS,
+            api_code="MCD43A4",
+            display_name="MODIS Nadir BRDF-Adjusted Reflectance, Band 1 (Red)",
+            unit="unitless",
+            native_unit="unitless",
+            description=(
+                "Daily 500 m nadir BRDF-adjusted reflectance in MODIS "
+                "band 1 (red, 620-670 nm). Surface-state proxy; "
+                "alternative to direct broadband albedo (MCD43A3, not "
+                "available at ORNL DAAC)."
+            ),
+            spatial_resolution_km=_MODIS_ALBEDO_RESOLUTION_KM,
+            valid_min=0.0,
+            valid_max=1.0,
+        ),
+        VariableSpec(
+            variable_id="MOD11A2_LST_Day_1km",
+            source=Source.MODIS,
+            api_code="MOD11A2",
+            display_name="MODIS Land Surface Temperature (Day, 8-day, 1 km)",
+            unit="K",
+            native_unit="K",
+            description=(
+                "Daytime land surface temperature from MOD11A2, 8-day "
+                "composite at 1 km. The daily-cadence MOD11A1 is not "
+                "available at ORNL DAAC; this 8-day composite is the "
+                "best LST signal we can pull from this endpoint."
+            ),
+            spatial_resolution_km=_MODIS_LST_RESOLUTION_KM,
+            valid_min=0.0,
+            valid_max=400.0,
+        ),
+        VariableSpec(
+            variable_id="MOD13Q1_250m_16_days_NDVI",
+            source=Source.MODIS,
+            api_code="MOD13Q1",
+            display_name="MODIS Normalised Difference Vegetation Index",
+            unit="unitless",
+            native_unit="unitless",
+            description=(
+                "16-day NDVI composite from MOD13Q1 at 250 m. Land-cover "
+                "proxy; useful as a slow-changing categorical-ish feature "
+                "for surface-type discrimination."
+            ),
+            spatial_resolution_km=_MODIS_NDVI_RESOLUTION_KM,
+            valid_min=-0.2,
+            valid_max=1.0,
+        ),
+    )
+
     @classmethod
     def all_variables(cls) -> tuple[VariableSpec, ...]:
-        return cls.NASA_POWER_VARIABLES + cls.CAMS_VARIABLES + cls.MERRA_2_VARIABLES
+        return (
+            cls.NASA_POWER_VARIABLES
+            + cls.CAMS_VARIABLES
+            + cls.MERRA_2_VARIABLES
+            + cls.MODIS_VARIABLES
+        )
 
     @classmethod
     def for_source(cls, source: Source) -> tuple[VariableSpec, ...]:

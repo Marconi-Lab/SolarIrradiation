@@ -106,6 +106,16 @@ class TableSchemas:
             "hourly-native data, aggregated client-side."
         ),
     )
+    MODIS_OBSERVATIONS: ClassVar[TableSchema] = TableSchema(
+        table_id="modis_observations",
+        merge_keys=("date", "geohash5", "product_id", "band_id", "source"),
+        description=(
+            "MODIS satellite observations from ORNL DAAC. Each row is one "
+            "(date, point, product, band) measurement at the product's "
+            "native composite end-date. Distinguished from the *_long "
+            "tables by carrying product_id and band_id as separate columns."
+        ),
+    )
     IRRADIANCE_DAILY: ClassVar[TableSchema] = TableSchema(
         table_id="irradiance_daily",
         merge_keys=("date", "geohash5", "source"),
@@ -162,6 +172,10 @@ class TableRefs:
     @property
     def merra_daily_vars_long(self) -> str:
         return self.config.fqn(TableSchemas.MERRA_DAILY_VARS_LONG.table_id)
+
+    @property
+    def modis_observations(self) -> str:
+        return self.config.fqn(TableSchemas.MODIS_OBSERVATIONS.table_id)
 
     @property
     def irradiance_daily(self) -> str:

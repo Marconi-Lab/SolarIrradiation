@@ -38,6 +38,7 @@ class Source(StrEnum):
     NASA_POWER = "NASA"
     CAMS = "CAMS"
     MERRA_2 = "MERRA2"
+    MODIS = "MODIS"
 
 
 @dataclass(frozen=True)

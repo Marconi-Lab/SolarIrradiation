@@ -61,8 +61,12 @@ class ModisProductEnum(Enum):
 
     def default_band_name(self) -> Optional[str]:
         return {
-            ModisProductEnum.LAND_SURFACE_TEMPERATURE_DAILY: "LST_Day_1KM",
-            ModisProductEnum.LAND_SURFACE_TEMPERATURE_8DAY: "LST_Day_1KM",
+            # ORNL DAAC's bands endpoint reports lowercase 'km' for the
+            # 1 km LST band on MOD11A1 / MOD11A2; the previous default
+            # ``LST_Day_1KM`` was case-mismatched and silently fell back
+            # to whatever the validator picked.
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE_DAILY: "LST_Day_1km",
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE_8DAY: "LST_Day_1km",
             ModisProductEnum.SURFACE_REFLECTANCE_8DAY: "sur_refl_b01",  # red
             ModisProductEnum.VEGETATION_INDEX_16DAY: "250m_16_days_NDVI",
             ModisProductEnum.NBAR_16DAY: "Nadir_Reflectance_Band1",
