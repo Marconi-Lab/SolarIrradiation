@@ -22,7 +22,7 @@ from typing import Optional
 
 import pandas as pd
 
-from ..datasets import TrainingDataset
+from ..datasets import DatasetManifest, TrainingDataset
 from .derived_features import clear_sky_index, cyclical_day_of_year
 from .feature_spec import FeatureSpec
 
@@ -42,12 +42,11 @@ class PreprocessedDataset:
         feature_spec: The :class:`FeatureSpec` that produced ``df``.
             Persisted so inference can recreate identical
             transformations.
-        source_dataset_name: Name of the source :class:`TrainingDataset`
-            (manifest provenance).
-        source_dataset_version: Version of the source dataset.
-        source_content_hash: Content hash of the source parquet —
-            uniquely identifies which materialisation produced this
-            preprocessed view.
+        source_manifest: The full :class:`DatasetManifest` of the source
+            :class:`TrainingDataset`. Carrying it verbatim (rather than
+            just name + version + hash) lets downstream artifacts
+            (e.g. trained-model bundles in NB 05) be fully self-
+            describing without a separate dataset-resolution step.
         created_at_utc: ISO 8601 timestamp of preprocessing.
     """
 
@@ -55,9 +54,7 @@ class PreprocessedDataset:
     feature_columns: tuple[str, ...]
     target_column: str
     feature_spec: FeatureSpec
-    source_dataset_name: str
-    source_dataset_version: str
-    source_content_hash: str
+    source_manifest: DatasetManifest
     created_at_utc: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -69,6 +66,18 @@ class PreprocessedDataset:
     @property
     def n_features(self) -> int:
         return len(self.feature_columns)
+
+    @property
+    def source_dataset_name(self) -> str:
+        return self.source_manifest.name
+
+    @property
+    def source_dataset_version(self) -> str:
+        return self.source_manifest.version
+
+    @property
+    def source_content_hash(self) -> str:
+        return self.source_manifest.content_hash
 
     def X(self) -> pd.DataFrame:
         """Model-input slice: ``df[feature_columns]`` in the spec's order."""
@@ -146,9 +155,7 @@ class Preprocessor:
             feature_columns=spec.output_feature_names,
             target_column=spec.target_column,
             feature_spec=spec,
-            source_dataset_name=dataset.manifest.name,
-            source_dataset_version=dataset.manifest.version,
-            source_content_hash=dataset.manifest.content_hash,
+            source_manifest=dataset.manifest,
         )
 
     def _validate_columns(self, df: pd.DataFrame) -> None:

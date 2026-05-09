@@ -20,14 +20,14 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import subprocess
 from datetime import date, datetime, timezone
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Optional, Sequence
 
 import pandas as pd
 
+from ..provenance import git_sha as _git_sha
+from ..provenance import susse_version as _susse_version
 from .feature_selection import FeatureSelection
 from .feature_service import FeatureService
 from .manifest import DatasetManifest, TrainingDataset
@@ -201,22 +201,3 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _git_sha() -> Optional[str]:
-    """Best-effort ``git rev-parse HEAD``; returns ``None`` outside a repo."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=5, check=False,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip() or None
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-    return None
-
-
-def _susse_version() -> str:
-    try:
-        return version("SuSSE")
-    except PackageNotFoundError:
-        return "unknown"
