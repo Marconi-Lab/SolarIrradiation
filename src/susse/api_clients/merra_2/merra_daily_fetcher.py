@@ -2,13 +2,26 @@
 
 MERRA-2's native temporal resolution is hourly (or 3-hourly for some
 collections), but the warehouse stores daily values. This fetcher pulls
-the native cadence over OPeNDAP for a single (location, date, variable),
-applies a cosine-zenith-weighted mean to collapse to a single daily
-value, and returns a long-format DataFrame matching the
-:class:`susse.warehouse_ops.population.jobs.satellite_job.BaseSatelliteJob`
-contract.
+the native cadence over OPeNDAP for a region of points + date range +
+variable list, applies a cosine-zenith-weighted mean to collapse to a
+single daily value per (point, date, variable), and returns a long-format
+DataFrame matching the MERRA-region ingest job contract.
 
-Why a fresh fetcher instead of extending :class:`MerraDataStreamFetcher`:
+Region-shaped fetching
+----------------------
+GES DISC OPeNDAP serves region selects (lat-and-lon index ranges) at
+roughly the same wall-clock cost as a single-cell select — server
+overhead dominates the per-cell read cost for any reasonable region.
+This fetcher therefore issues **one OPeNDAP call per (date, variable)**
+covering all points in the request, and slices results client-side.
+Compared to the pre-refactor "one call per (date, variable, point)"
+shape this is ~100× faster for grid-sized requests.
+
+The 1-point case is a degenerate region (1×1 bbox) and is served by the
+same code path; :meth:`fetch_long_for_location` is a thin wrapper that
+projects the region output back to ``(date, variable_id, value)``.
+
+Why this fetcher rather than the legacy ``MerraDataStreamFetcher``:
 
 * The legacy fetcher hard-codes ``[0:1:23]`` for the time slice, which
   works for ``tavg1_*`` collections (24 hourly steps) but fails for
@@ -199,13 +212,43 @@ class _Earthdata:
         return cls(username=username, password=password)
 
 
-class MerraDailyFetcher:
-    """Daily-aggregated MERRA-2 fetcher.
+@dataclass(frozen=True)
+class _Bbox:
+    """MERRA-2 grid-index bounding box (inclusive on all four sides)."""
 
-    Per-(variable, day) OPeNDAP fetches are issued concurrently via a
-    thread pool. NASA's OPeNDAP at goldsmr4.gesdisc.eosdis.nasa.gov is
-    I/O-bound (each request waits ~2.5 s on network round-trip), so
-    threading delivers near-linear speedup until we hit the worker count.
+    lat_idx_lo: int
+    lat_idx_hi: int
+    lon_idx_lo: int
+    lon_idx_hi: int
+
+    @property
+    def n_lat(self) -> int:
+        return self.lat_idx_hi - self.lat_idx_lo + 1
+
+    @property
+    def n_lon(self) -> int:
+        return self.lon_idx_hi - self.lon_idx_lo + 1
+
+    @property
+    def n_cells(self) -> int:
+        return self.n_lat * self.n_lon
+
+
+class MerraDailyFetcher:
+    """Daily-aggregated MERRA-2 fetcher with region-shaped requests.
+
+    The public entry point is :meth:`fetch_region`, which fans out one
+    OPeNDAP call per (date, variable) covering all requested points. Each
+    call's response is sliced client-side and aggregated per point with
+    cosine-zenith weighting. Per-(date, variable) tasks run concurrently
+    via a thread pool — NASA's OPeNDAP at goldsmr4 is I/O-bound (~2.5 s
+    per round-trip), so threading delivers near-linear speedup until we
+    hit the worker count.
+
+    :meth:`fetch_long_for_location` is a 1-point convenience wrapper that
+    drops the lat/lon columns from the region output. The portal inference
+    path (single point, single date) uses this; bulk ingest uses
+    :meth:`fetch_region`.
 
     Authenticated session is created lazily on the first request and
     reused across all worker threads. ``requests.Session`` is documented
@@ -227,6 +270,116 @@ class MerraDailyFetcher:
         self._session_lock = threading.Lock()
         self._max_workers = max_workers
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def fetch_region(
+        self,
+        *,
+        points: tuple[tuple[float, float], ...],
+        date_start: _date,
+        date_end: _date,
+        api_codes: tuple[str, ...],
+    ) -> pd.DataFrame:
+        """Fetch daily values for many points, dates, and variables.
+
+        Issues one OPeNDAP bbox call per (date, variable), covering the
+        smallest grid-index rectangle that encloses all ``points``. Each
+        call's sub-daily data is sliced per point and reduced to a single
+        daily number via cosine-zenith weighting.
+
+        Args:
+            points: tuple of ``(latitude, longitude)`` pairs in degrees.
+                Latitudes in [-90, 90], longitudes in [-180, 180]. A
+                single-point tuple is the degenerate 1×1 case and is
+                served by the same code path.
+            date_start: inclusive UTC date.
+            date_end: inclusive UTC date.
+            api_codes: tuple of MERRA-2 ``product_name`` values (e.g.
+                ``("TOTEXTTAU", "TOTSCATAU")``). Looked up in
+                :class:`MerraProducts`.
+
+        Returns:
+            Long-format DataFrame with columns
+            ``(date, latitude, longitude, variable_id, value)``. One row
+            per (point, date, variable) tuple where the underlying
+            sub-daily data was non-missing. Row order is non-deterministic
+            when ``max_workers > 1``; sort by
+            ``(variable_id, date, latitude, longitude)`` if ordering matters.
+        """
+        if not points:
+            raise ValueError("fetch_region requires at least one point.")
+        if date_start > date_end:
+            raise ValueError(
+                f"date_start ({date_start}) must be <= date_end ({date_end})."
+            )
+        if not api_codes:
+            return self._empty_region_frame()
+
+        point_indices = self._grid_indices_for_points(points)
+        bbox = self._bbox_enclosing(point_indices)
+
+        tasks = self._build_tasks(date_start, date_end, api_codes)
+        if not tasks:
+            return self._empty_region_frame()
+
+        # Pre-authenticate so the first request doesn't race the others
+        # for session creation.
+        first_api_code, first_product, first_cadence, first_day = tasks[0]
+        sample_url = self._build_bbox_url(
+            product_data=first_product,
+            date=first_day,
+            bbox=bbox,
+            cadence=first_cadence,
+        )
+        self._authenticated_session(sample_url)
+
+        rows: list[dict] = []
+        n_total = len(tasks)
+        n_done = 0
+
+        def _run(task: tuple[str, MerraProductData, int, _date]) -> list[dict]:
+            api_code, product_data, cadence, day = task
+            return self._fetch_region_for_task(
+                api_code=api_code,
+                product_data=product_data,
+                cadence=cadence,
+                day=day,
+                points=points,
+                point_indices=point_indices,
+                bbox=bbox,
+            )
+
+        if self._max_workers == 1:
+            iterator = (_run(task) for task in tasks)
+            pool = None
+        else:
+            pool = ThreadPoolExecutor(
+                max_workers=self._max_workers, thread_name_prefix="merra-fetch"
+            )
+            futures = [pool.submit(_run, task) for task in tasks]
+            iterator = (fut.result() for fut in as_completed(futures))
+
+        try:
+            for task_rows in iterator:
+                n_done += 1
+                if task_rows:
+                    rows.extend(task_rows)
+                if n_done % _PROGRESS_LOG_EVERY == 0:
+                    _logger.info(
+                        "MERRA-2 fetcher progress: %d / %d (%.1f%%)",
+                        n_done, n_total, 100.0 * n_done / n_total,
+                    )
+        finally:
+            if pool is not None:
+                pool.shutdown(wait=True)
+
+        return pd.DataFrame(
+            rows,
+            columns=("date", "latitude", "longitude", "variable_id", "value"),
+        )
+
     def fetch_long_for_location(
         self,
         *,
@@ -238,153 +391,106 @@ class MerraDailyFetcher:
     ) -> pd.DataFrame:
         """Fetch daily-aggregated values for one point and date range.
 
-        Args:
-            latitude: degrees, [-90, 90].
-            longitude: degrees, [-180, 180].
-            date_start: inclusive UTC date.
-            date_end: inclusive UTC date.
-            api_codes: tuple of MERRA-2 ``product_name`` values
-                (e.g. ``("TOTEXTTAU", "TOTSCATAU")``). Looked up in
-                :class:`MerraProducts`.
+        Thin 1-point wrapper around :meth:`fetch_region` that drops the
+        lat/lon columns from the output, preserving the legacy contract
+        used by the portal inference path.
 
         Returns:
-            Long-format DataFrame with columns ``(date, variable_id, value)``,
-            where ``variable_id`` echoes the input ``api_code`` (the caller
-            is responsible for any mapping to warehouse variable_ids).
-            Row order is non-deterministic when ``max_workers > 1``; sort
-            by ``(variable_id, date)`` if ordering matters downstream.
+            Long-format DataFrame with columns ``(date, variable_id, value)``.
+            ``variable_id`` echoes the input ``api_code``; the caller is
+            responsible for any mapping to warehouse variable_ids.
         """
-        if date_start > date_end:
-            raise ValueError(
-                f"date_start ({date_start}) must be <= date_end ({date_end})."
-            )
-        merra_lat_idx, merra_lon_idx = self._grid_indices(latitude, longitude)
-
-        # Build the unit-of-work list: one entry per (variable, day).
-        tasks: list[tuple[str, MerraProductData, int, _date]] = []
-        for api_code in api_codes:
-            product_data = self._product_data_for(api_code)
-            cadence = _cadence_for(product_data.database_id)
-            day = date_start
-            while day <= date_end:
-                tasks.append((api_code, product_data, cadence, day))
-                day += timedelta(days=1)
-
-        if not tasks:
-            return pd.DataFrame(columns=("date", "variable_id", "value"))
-
-        # Pre-authenticate so the first request doesn't race the others
-        # for session creation. After this returns, _session is set and
-        # all subsequent _fetch_sub_daily calls reuse it.
-        first_api_code, first_product, first_cadence, first_day = tasks[0]
-        sample_url = self._build_url(
-            product_data=first_product,
-            date=first_day,
-            merra_lat_idx=merra_lat_idx,
-            merra_lon_idx=merra_lon_idx,
-            cadence=first_cadence,
+        df = self.fetch_region(
+            points=((latitude, longitude),),
+            date_start=date_start,
+            date_end=date_end,
+            api_codes=api_codes,
         )
-        self._authenticated_session(sample_url)
+        if df.empty:
+            return pd.DataFrame(columns=("date", "variable_id", "value"))
+        return df[["date", "variable_id", "value"]].reset_index(drop=True)
 
-        rows: list[dict] = []
-        n_total = len(tasks)
-        n_done = 0
+    # ------------------------------------------------------------------
+    # Region task internals
+    # ------------------------------------------------------------------
 
-        def _run(task: tuple[str, MerraProductData, int, _date]) -> dict | None:
-            api_code, product_data, cadence, day = task
-            return self._fetch_one_task(
-                api_code=api_code,
-                product_data=product_data,
-                cadence=cadence,
-                day=day,
-                merra_lat_idx=merra_lat_idx,
-                merra_lon_idx=merra_lon_idx,
-                latitude=latitude,
-                longitude=longitude,
-            )
-
-        if self._max_workers == 1:
-            iterator = (_run(task) for task in tasks)
-        else:
-            pool = ThreadPoolExecutor(
-                max_workers=self._max_workers, thread_name_prefix="merra-fetch"
-            )
-            futures = [pool.submit(_run, task) for task in tasks]
-            iterator = (fut.result() for fut in as_completed(futures))
-
-        try:
-            for row in iterator:
-                n_done += 1
-                if row is not None:
-                    rows.append(row)
-                if n_done % _PROGRESS_LOG_EVERY == 0:
-                    _logger.info(
-                        "MERRA-2 fetcher progress: %d / %d (%.1f%%)",
-                        n_done, n_total, 100.0 * n_done / n_total,
-                    )
-        finally:
-            if self._max_workers > 1:
-                pool.shutdown(wait=True)
-
-        return pd.DataFrame(rows, columns=("date", "variable_id", "value"))
-
-    def _fetch_one_task(
+    def _fetch_region_for_task(
         self,
         *,
         api_code: str,
         product_data: MerraProductData,
         cadence: int,
         day: _date,
-        merra_lat_idx: int,
-        merra_lon_idx: int,
-        latitude: float,
-        longitude: float,
-    ) -> dict | None:
-        """Single (variable, day) work unit: fetch, aggregate, return one row.
+        points: tuple[tuple[float, float], ...],
+        point_indices: tuple[tuple[int, int], ...],
+        bbox: _Bbox,
+    ) -> list[dict]:
+        """One bbox fetch + per-point cosine-zenith aggregation.
 
-        Returns ``None`` when the fetch fails or the day's data is all
-        missing. The caller filters nones out of the row list.
+        Returns a list of row dicts (possibly empty if the fetch failed
+        or every requested point's sub-daily slice is all-NaN).
         """
-        hourly = self._fetch_sub_daily(
+        raw = self._fetch_bbox_raw(
             product_data=product_data,
             date=day,
-            merra_lat_idx=merra_lat_idx,
-            merra_lon_idx=merra_lon_idx,
+            bbox=bbox,
             cadence=cadence,
         )
-        if hourly is None:
-            return None
+        if raw is None:
+            return []
         timestamps = _timestamps_for(day, cadence)
-        daily = cos_zenith_aggregate(hourly, timestamps, latitude, longitude)
-        if not pd.notna(daily):
-            return None
-        return {"date": day, "variable_id": api_code, "value": float(daily)}
+        rows: list[dict] = []
+        for (lat, lon), (lat_idx, lon_idx) in zip(points, point_indices):
+            sub_daily = raw[
+                :,
+                lat_idx - bbox.lat_idx_lo,
+                lon_idx - bbox.lon_idx_lo,
+            ].astype(float)
+            sub_daily = np.where(
+                sub_daily > _FILL_VALUE_THRESHOLD, np.nan, sub_daily
+            )
+            if np.isnan(sub_daily).all():
+                continue
+            daily = cos_zenith_aggregate(sub_daily, timestamps, lat, lon)
+            if not pd.notna(daily):
+                continue
+            rows.append({
+                "date": day,
+                "latitude": lat,
+                "longitude": lon,
+                "variable_id": api_code,
+                "value": float(daily),
+            })
+        return rows
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
-
-    def _fetch_sub_daily(
+    def _fetch_bbox_raw(
         self,
         *,
         product_data: MerraProductData,
         date: _date,
-        merra_lat_idx: int,
-        merra_lon_idx: int,
+        bbox: _Bbox,
         cadence: int,
     ) -> np.ndarray | None:
-        url = self._build_url(
+        """Single OPeNDAP bbox fetch.
+
+        Returns a ``(cadence, n_lat, n_lon)`` float array, or ``None`` on
+        transient failure or shape mismatch. Fill-value masking is applied
+        by the caller (per-point, after slicing).
+        """
+        url = self._build_bbox_url(
             product_data=product_data,
             date=date,
-            merra_lat_idx=merra_lat_idx,
-            merra_lon_idx=merra_lon_idx,
+            bbox=bbox,
             cadence=cadence,
         )
         session = self._authenticated_session(url)
         _logger.info(
-            "MERRA-2 request: %s %s lat_idx=%d lon_idx=%d (cadence=%d/day)",
+            "MERRA-2 region request: %s %s lat_idx=[%d:%d] lon_idx=[%d:%d] "
+            "(cadence=%d/day, %d cells)",
             product_data.product_name, date.isoformat(),
-            merra_lat_idx, merra_lon_idx, cadence,
+            bbox.lat_idx_lo, bbox.lat_idx_hi,
+            bbox.lon_idx_lo, bbox.lon_idx_hi,
+            cadence, bbox.n_cells,
         )
         t0 = _time.monotonic()
         try:
@@ -392,29 +498,76 @@ class MerraDailyFetcher:
             raw = np.array(dataset[product_data.product_name][:])
         except Exception as exc:
             _logger.warning(
-                "MERRA-2 fetch failed for %s %s: %s",
+                "MERRA-2 region fetch failed for %s %s: %s",
                 product_data.product_name, date.isoformat(), exc,
             )
             return None
         elapsed = _time.monotonic() - t0
-        flat = raw.reshape(-1).astype(float)
-        if flat.size != cadence:
+        expected_shape = (cadence, bbox.n_lat, bbox.n_lon)
+        if raw.shape != expected_shape:
             _logger.warning(
-                "Expected %d sub-daily values for %s on %s, got %d. Skipping.",
-                cadence, product_data.product_name, date.isoformat(), flat.size,
-            )
-            return None
-        flat = np.where(flat > _FILL_VALUE_THRESHOLD, np.nan, flat)
-        if np.isnan(flat).all():
-            _logger.warning(
-                "All sub-daily values are missing for %s on %s.",
-                product_data.product_name, date.isoformat(),
+                "Expected shape %s for %s on %s, got %s. Skipping.",
+                expected_shape, product_data.product_name,
+                date.isoformat(), raw.shape,
             )
             return None
         _logger.info(
-            "MERRA-2 response: %d values in %.1fs.", flat.size, elapsed,
+            "MERRA-2 region response: %s shape=%s in %.1fs.",
+            product_data.product_name, raw.shape, elapsed,
         )
-        return flat
+        return raw
+
+    @staticmethod
+    def _build_tasks(
+        date_start: _date,
+        date_end: _date,
+        api_codes: tuple[str, ...],
+    ) -> list[tuple[str, MerraProductData, int, _date]]:
+        """Enumerate (api_code, product_data, cadence, day) work units."""
+        tasks: list[tuple[str, MerraProductData, int, _date]] = []
+        for api_code in api_codes:
+            product_data = MerraDailyFetcher._product_data_for(api_code)
+            cadence = _cadence_for(product_data.database_id)
+            day = date_start
+            while day <= date_end:
+                tasks.append((api_code, product_data, cadence, day))
+                day += timedelta(days=1)
+        return tasks
+
+    @staticmethod
+    def _grid_indices_for_points(
+        points: tuple[tuple[float, float], ...],
+    ) -> tuple[tuple[int, int], ...]:
+        """Return per-point ``(lat_idx, lon_idx)`` MERRA-2 grid indices."""
+        return tuple(
+            MerraDailyFetcher._grid_indices(lat, lon) for lat, lon in points
+        )
+
+    @staticmethod
+    def _bbox_enclosing(
+        point_indices: tuple[tuple[int, int], ...],
+    ) -> _Bbox:
+        """Smallest grid-index bbox enclosing all input points."""
+        if not point_indices:
+            raise ValueError("Cannot compute bbox over zero points.")
+        lat_indices = [p[0] for p in point_indices]
+        lon_indices = [p[1] for p in point_indices]
+        return _Bbox(
+            lat_idx_lo=min(lat_indices),
+            lat_idx_hi=max(lat_indices),
+            lon_idx_lo=min(lon_indices),
+            lon_idx_hi=max(lon_indices),
+        )
+
+    @staticmethod
+    def _empty_region_frame() -> pd.DataFrame:
+        return pd.DataFrame(
+            columns=("date", "latitude", "longitude", "variable_id", "value")
+        )
+
+    # ------------------------------------------------------------------
+    # Auth + URL builder
+    # ------------------------------------------------------------------
 
     def _authenticated_session(self, url: str):
         # Double-checked locking around lazy session creation. Once set,
@@ -475,22 +628,22 @@ class MerraDailyFetcher:
         return merra_lat_idx, merra_lon_idx
 
     @staticmethod
-    def _build_url(
+    def _build_bbox_url(
         *,
         product_data: MerraProductData,
         date: _date,
-        merra_lat_idx: int,
-        merra_lon_idx: int,
+        bbox: _Bbox,
         cadence: int,
     ) -> str:
+        """OPeNDAP DAP4 URL for a region select (1×1 degenerate is fine)."""
         file_name = Merra2Config.create_file_name(date, product_data)
         m_str = str(date.month).zfill(2)
         y_str = str(date.year)
         time_slice = f"[0:1:{cadence - 1}]"
         suffix = (
             f"dap4.ce=/{product_data.product_name}{time_slice}"
-            f"[{merra_lat_idx}:1:{merra_lat_idx}]"
-            f"[{merra_lon_idx}:1:{merra_lon_idx}]"
+            f"[{bbox.lat_idx_lo}:1:{bbox.lat_idx_hi}]"
+            f"[{bbox.lon_idx_lo}:1:{bbox.lon_idx_hi}]"
         )
         return (
             f"{Merra2Config.generate_database_url(product_data)}"

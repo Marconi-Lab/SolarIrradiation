@@ -15,7 +15,6 @@ import pytest
 from susse.warehouse_ops.population.jobs.satellite_job import (
     BaseSatelliteJob,
     CamsSatelliteJob,
-    MerraSatelliteJob,
     NasaPowerSatelliteJob,
     _location_spec_to_geopy,
 )
@@ -313,69 +312,6 @@ class TestCamsUnitConversion:
         df = pd.DataFrame([{"timestamp": "2024-06-15T00:00:00Z", "ghi_clear": 0.0}])
         long = CamsSatelliteJob._cams_dataframe_to_long(df, (cams_var,))
         assert long["value"].iloc[0] == 0.0
-
-
-class TestMerraSatelliteJob:
-    """The MERRA-2 job's only novel logic is api_code → variable_id mapping.
-
-    Coverage / MERGE / idempotency are inherited from BaseSatelliteJob
-    and exercised by the existing TestRunScopesCoverageByLocation test.
-    """
-
-    def _merra_var(self, variable_id: str, api_code: str) -> VariableSpec:
-        return VariableSpec(
-            variable_id=variable_id, source=Source.MERRA_2, api_code=api_code,
-            display_name=variable_id, unit="x", native_unit="x", description="x",
-        )
-
-    def test_fetch_remaps_api_code_to_warehouse_variable_id(self) -> None:
-        # Stub fetcher returns rows keyed by api_code; the job must
-        # remap them to the variable_id declared in the catalog before
-        # the BaseSatelliteJob loader sees the frame.
-        class _StubFetcher:
-            def fetch_long_for_location(self, **kwargs):
-                return pd.DataFrame([
-                    {"date": date(2024, 6, 21), "variable_id": "TOTEXTTAU",
-                     "value": 0.42},
-                    {"date": date(2024, 6, 21), "variable_id": "TOTSCATAU",
-                     "value": 0.13},
-                ])
-
-        job = MerraSatelliteJob(_StubBQ(), fetcher=_StubFetcher())  # type: ignore[arg-type]
-        variables = (
-            self._merra_var("aod_550_extinction", "TOTEXTTAU"),
-            self._merra_var("aod_550_scattering", "TOTSCATAU"),
-        )
-        df = job._fetch_long_for_location(
-            location=LocationSpec(name="kampala", lat=0.333, lon=32.568),
-            date_range=DateRange(start=date(2024, 6, 21), end=date(2024, 6, 21)),
-            variables=variables,
-        )
-        assert set(df["variable_id"]) == {
-            "aod_550_extinction", "aod_550_scattering"
-        }, "the job must translate api codes back to warehouse variable_ids"
-
-    def test_fetch_drops_rows_for_unknown_api_codes(self) -> None:
-        # If the fetcher returns an api_code we didn't ask for (shouldn't
-        # happen in practice but defensive), the row must be dropped
-        # rather than written to the warehouse with a NaN variable_id.
-        class _StubFetcher:
-            def fetch_long_for_location(self, **kwargs):
-                return pd.DataFrame([
-                    {"date": date(2024, 6, 21), "variable_id": "TOTEXTTAU",
-                     "value": 0.42},
-                    {"date": date(2024, 6, 21), "variable_id": "GHOST_VAR",
-                     "value": 999.0},
-                ])
-
-        job = MerraSatelliteJob(_StubBQ(), fetcher=_StubFetcher())  # type: ignore[arg-type]
-        df = job._fetch_long_for_location(
-            location=LocationSpec(name="kampala", lat=0.333, lon=32.568),
-            date_range=DateRange(start=date(2024, 6, 21), end=date(2024, 6, 21)),
-            variables=(self._merra_var("aod_550_extinction", "TOTEXTTAU"),),
-        )
-        assert list(df["variable_id"]) == ["aod_550_extinction"]
-        assert 999.0 not in df["value"].values
 
 
 class TestRunRejectsBadPlan:

@@ -1,38 +1,43 @@
-"""B8 — ingest MERRA-2 for the 28 ground stations and the Uganda 2024 grid.
+"""B9 — region-shaped MERRA-2 ingest for stations + Uganda 2024 grid.
 
-What it changes
----------------
-For each of the 28 distinct locations in ``ground_measurements``, plus
-every point on the existing Uganda 2024 NASA POWER grid (1962 points
-× 366 days), pulls the 4 MERRA-2 catalog variables and lands them in
-``merra_daily_vars_long`` after cosine-zenith-weighted daily aggregation.
+Replaces b8 wholesale. The behaviour is the same set of rows (28 ground
+stations + the Uganda 2024 NASA-POWER-resolution grid, 4 MERRA-2 catalog
+variables) but the fetch pattern is now region-shaped: one OPeNDAP bbox
+call per (date, variable) covering all locations in the plan, instead of
+one call per (date, variable, point). See the b9 design memo and
+:mod:`susse.api_clients.merra_2.merra_daily_fetcher` for the rationale.
 
-Why
----
-This is the Phase-B counterpart of A6: bring MERRA-2 into the warehouse
-for the same training-corpus and inference-cache slices we covered with
-NASA POWER and CAMS. After this run, the bias-correction model has
-access to MERRA-2's aerosol decomposition and direct precipitable water
-fields at every (station, date) and every Uganda 2024 grid point.
+Why a new migration ID rather than editing b8
+----------------------------------------------
+* b8 used :class:`MerraSatelliteJob` (now removed) which fanned out per
+  station with each station's own date range. b9 uses
+  :class:`MerraRegionJob` and bundles all stations into one plan over
+  the union date range.
+* The bundled date range over-fetches some station-date combinations
+  (a station with one year of ground truth gets MERRA rows for the full
+  union range). Storage cost is trivial (~0.5M rows in BQ) and the
+  cached rows accelerate later inference. Net win.
+* Keeping the b8 file around as historical record would be commented-out
+  code; it lives in git history instead.
 
 Expected effect
 ---------------
-* **Per-station-day cost**: 3 OPeNDAP queries (one per MERRA-2 collection
-  — TOTSCATAU and TOTEXTTAU share ``tavg1_2d_aer_Nx``, AODANA is in
-  ``inst3_2d_gas_Nx``, TQV is in ``tavg1_2d_slv_Nx``).
-* Per-station total: ~5 years × 365 days × 3 queries ≈ 5,500 queries.
-* **Total ingest cost**: 28 stations + 1962 grid points ≈ 11M queries
-  cumulative. Slow but bounded; the per-(geohash5, date) coverage check
-  makes interruptions safe — re-running picks up where it left off.
-* Per-row volume: small — one row per (station, day, variable),
-  similarly for grid points.
+* **Per-(date, variable) cost**: 1 OPeNDAP call returning all points'
+  sub-daily values. Wall time ~3 s regardless of point count.
+* **Stations bundle**: 1 plan, union(min_date, max_date) across all 28
+  stations, 4 variables. ~13 yr × 365 d × 4 vars / 8 workers × ~3 s
+  ≈ 2 hours wall time.
+* **Uganda 2024 grid bundle**: 1 plan, 156 points, 4 variables, 366 days.
+  ~10 minutes wall time.
+* Re-runs are cheap: the coverage layer's existing-keys filter spares
+  any (date, geohash, variable_id) tuples already in the warehouse from
+  re-upload, even though every (date, variable) bbox call is still made.
 
 Prerequisites
 -------------
 * ``EARTHDATA_USERNAME`` and ``EARTHDATA_PASSWORD`` in ``.env``. Register
-  at https://urs.earthdata.nasa.gov/ if you don't have an account, then
-  approve the *NASA GESDISC DATA ARCHIVE* application via the Earthdata
-  profile page (one-time, free).
+  at https://urs.earthdata.nasa.gov/ if needed; approve the *NASA GESDISC
+  DATA ARCHIVE* application via the Earthdata profile.
 * B3 (table created) and B7 (catalog populated) must have run first.
 
 Reversal
@@ -54,7 +59,7 @@ from dotenv import load_dotenv
 from susse.warehouse_ops.io.bq import BigQueryClient
 from susse.warehouse_ops.io.config import TableRefs
 from susse.warehouse_ops.population.dim_variable import VariableCatalog
-from susse.warehouse_ops.population.jobs.satellite_job import MerraSatelliteJob
+from susse.warehouse_ops.population.jobs.merra_region_job import MerraRegionJob
 from susse.warehouse_ops.population.types import (
     BoundingBox,
     DateRange,
@@ -68,7 +73,7 @@ from susse.warehouse_ops.population.types import (
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import MigrationResult, run_migration  # noqa: E402
 
-_MIGRATION_ID = "2026-05-08_b8_ingest_merra_stations_and_grid"
+_MIGRATION_ID = "2026-05-10_b9_ingest_merra_region"
 _log = logging.getLogger(_MIGRATION_ID)
 
 # Uganda inference-cache footprint, mirroring the existing NASA POWER /
@@ -114,54 +119,47 @@ def _load_stations(bq: BigQueryClient, refs: TableRefs):
     return df
 
 
-def _run_named_locations(
-    job: MerraSatelliteJob, stations_df, dry_run: bool
-) -> tuple[int, int, int]:
+def _run_stations_bundle(
+    job: MerraRegionJob, stations_df, dry_run: bool
+) -> tuple[int, int]:
+    """One bundled NamedLocationsPlan over all stations × union date range.
+
+    Returns (rows_added, api_calls).
+    """
     catalog_vars = VariableCatalog.for_source(Source.MERRA_2)
     if not catalog_vars:
         raise RuntimeError("Empty MERRA-2 catalog — check VariableCatalog.")
-    rows_added = 0
-    api_calls = 0
-    processed = 0
+    locations = tuple(
+        LocationSpec(name=row.location, lat=float(row.lat), lon=float(row.lon))
+        for row in stations_df.itertuples(index=False)
+    )
+    union_start = min(stations_df["min_date"])
+    union_end = max(stations_df["max_date"])
+    date_range = DateRange(start=union_start, end=union_end)
 
-    for row in stations_df.itertuples(index=False):
-        loc = LocationSpec(
-            name=row.location, lat=float(row.lat), lon=float(row.lon)
-        )
-        date_range = DateRange(start=row.min_date, end=row.max_date)
-        plan = NamedLocationsPlan(
-            source=Source.MERRA_2,
-            date_range=date_range,
-            locations=(loc,),
-            variables=catalog_vars,
-        )
-        _log.info(
-            "[MERRA2] %s — %d days, %d vars",
-            row.location, date_range.n_days, len(catalog_vars),
-        )
-        if dry_run:
-            processed += 1
-            continue
-        try:
-            result = job.run(plan)
-        except Exception:
-            _log.exception(
-                "[MERRA2] %s — fetch failed; continuing with next station.",
-                row.location,
-            )
-            continue
-        rows_added += result.rows_added
-        api_calls += result.api_calls_made
-        processed += 1
-        _log.info(
-            "[MERRA2] %s — rows_added=%d, api_calls=%d",
-            row.location, result.rows_added, result.api_calls_made,
-        )
-    return rows_added, api_calls, processed
+    plan = NamedLocationsPlan(
+        source=Source.MERRA_2,
+        date_range=date_range,
+        locations=locations,
+        variables=catalog_vars,
+    )
+    _log.info(
+        "[MERRA2-stations] %d stations, %d days (union %s..%s), %d vars",
+        len(locations), date_range.n_days,
+        date_range.start, date_range.end, len(catalog_vars),
+    )
+    if dry_run:
+        return 0, 0
+    result = job.run(plan)
+    _log.info(
+        "[MERRA2-stations] rows_added=%d, api_calls=%d, duration=%.0fs",
+        result.rows_added, result.api_calls_made, result.duration_seconds,
+    )
+    return result.rows_added, result.api_calls_made
 
 
 def _run_grid(
-    job: MerraSatelliteJob, dry_run: bool
+    job: MerraRegionJob, dry_run: bool
 ) -> tuple[int, int, int]:
     grid = GridSpec(
         bbox=_UGANDA_BBOX,
@@ -176,15 +174,14 @@ def _run_grid(
     )
     _log.info(
         "[MERRA2-grid] %d points, %d days, %d vars",
-        grid.n_points, _UGANDA_GRID_DATES.n_days,
-        len(plan.variables),
+        grid.n_points, _UGANDA_GRID_DATES.n_days, len(plan.variables),
     )
     if dry_run:
         return 0, 0, grid.n_points
     result = job.run(plan)
     _log.info(
-        "[MERRA2-grid] rows_added=%d, api_calls=%d",
-        result.rows_added, result.api_calls_made,
+        "[MERRA2-grid] rows_added=%d, api_calls=%d, duration=%.0fs",
+        result.rows_added, result.api_calls_made, result.duration_seconds,
     )
     return result.rows_added, result.api_calls_made, grid.n_points
 
@@ -193,10 +190,10 @@ def migrate(bq: BigQueryClient, dry_run: bool) -> MigrationResult:
     refs = TableRefs(config=bq.config)
     if not dry_run:
         _check_credentials_present()
-    job = MerraSatelliteJob(bq, refs=refs)
+    job = MerraRegionJob(bq, refs=refs)
     stations_df = _load_stations(bq, refs)
 
-    station_rows, station_calls, n_stations = _run_named_locations(
+    station_rows, station_calls = _run_stations_bundle(
         job, stations_df, dry_run
     )
     grid_rows, grid_calls, n_grid_points = _run_grid(job, dry_run)
@@ -206,8 +203,8 @@ def migrate(bq: BigQueryClient, dry_run: bool) -> MigrationResult:
             migration_id=_MIGRATION_ID,
             rows_affected=0,
             notes=(
-                f"dry-run; would issue MERRA-2 plans for {n_stations} stations "
-                f"and a {n_grid_points}-point Uganda 2024 grid."
+                f"dry-run; would issue 1 stations plan ({len(stations_df)} "
+                f"stations) and 1 grid plan ({n_grid_points} points)."
             ),
         )
 
@@ -215,9 +212,8 @@ def migrate(bq: BigQueryClient, dry_run: bool) -> MigrationResult:
         migration_id=_MIGRATION_ID,
         rows_affected=station_rows + grid_rows,
         notes=(
-            f"Stations: +{station_rows} rows, {station_calls} api calls, "
-            f"{n_stations} stations. "
-            f"Grid: +{grid_rows} rows, {grid_calls} api calls, "
+            f"Stations: +{station_rows} rows, {station_calls} api call(s). "
+            f"Grid: +{grid_rows} rows, {grid_calls} api call(s), "
             f"{n_grid_points} points."
         ),
     )
@@ -230,7 +226,7 @@ if __name__ == "__main__":
             fn=migrate,
             description=(
                 "Ingest MERRA-2 for the 28 ground stations and the Uganda "
-                "2024 NASA-POWER-resolution grid."
+                "2024 NASA-POWER-resolution grid via region-shaped fetches."
             ),
         )
     )
