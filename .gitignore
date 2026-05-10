@@ -41,11 +41,15 @@ __pycache__/
 /test-results/
 
 version.py
-data/
+
+# Generated artifacts under data/ — reproducible from the warehouse + recipes,
+# kept off git so the repo stays small. data/ground_measurements/ IS tracked
+# (canonical raw inputs).
+/data/bundles/
+/data/training_snapshots/
 
 # Python bytecode files
 .mypy_cache/
 .vscode/
 .idea/
 .venv/
-/data
