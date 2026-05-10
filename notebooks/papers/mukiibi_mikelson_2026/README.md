@@ -27,20 +27,24 @@ mukiibi_mikelson_2026/
 
 The recomputation notebook will:
 
-1. Load the 24 training stations from `ground_measurements`. The paper
-   holds out East Africa Sites A and B as the test set (the remaining 22
-   sites train the model).
-2. Build the 39-predictor `FeatureSpec` matching the paper's Table II.
+1. Load **all 28 training stations** from `ground_measurements`.
+   **Deviation:** the paper held out 2 of 24 stations spatially to
+   produce Table III; we don't, because the deployment bundle going to
+   the portal benefits more from the extra ~7% data than from a
+   paper-internal Table III replica.
+2. Build the `FeatureSpec` matching the paper's Table II predictor set.
    Most predictors come from NASA POWER (which serves CERES SYN1deg +
    GMAO MERRA-2 fields) and CAMS — both already in the warehouse.
    Derived features: `kt_cams` (`ClearSkyIndexFeature`), day-of-year
    sin/cos (`CyclicalDayOfYearFeature`), altitude (`AltitudeFeature`),
    and `LongitudeFeature` (paper-faithful, see its docstring re the
-   ~28-station memorisation risk).
+   ~28-station memorisation risk). Cleaning rules (`>12 kWh/m²/day`
+   upper bound, IQR lower fence, 5% missing-year exclusion, kNN gap
+   imputation) attach as `cleaners` on the same `FeatureSpec`.
 3. Fit `RandomForest` with the paper's hyperparameters
-   (`n_estimators=200, min_samples_leaf=5, random_state=42`) and report
-   the daily-scale held-out test metrics — should match the paper's
-   Table III row.
+   (`n_estimators=200, min_samples_leaf=5, random_state=42`). The
+   `Trainer` uses a small random in-distribution holdout to populate
+   `val_metrics` as a sanity check — the headline validation is §4.
 4. Validate against the 54 Katongole stations in
    `reference_data/katongole_2023_monthly.csv`. Aggregate daily
    predictions to monthly means; compute RMSE / nRMSE / MAE / nMAE / MBE
@@ -73,3 +77,20 @@ from the figures.
 A few of the 55 stations geohash5-collide with our 28 training stations —
 the recomputation notebook flags those and reports metrics with and
 without them.
+
+## Sharing the W&B run
+
+The notebook's `WANDB_PROJECT = "susse-mukiibi-mikelson-2026"` lives
+under Jan's personal entity. The first run with `LOG_TO_WANDB=True`
+creates the project automatically. To share with the co-author:
+
+1. After the first run lands, open the project on wandb.ai.
+2. Go to **Project settings → Privacy** and switch to **Public**.
+3. Send the project URL to the co-author. They get full read access to
+   runs, metrics, charts, system traces, and artifact lineage with no
+   account needed.
+
+A free Team plan would give the co-author parallel write access too,
+but it requires a paid tier in our region — not worth it for an
+academic recomputation. The single-writer / public-reader pattern
+matches our intended workflow (Jan trains, co-author reviews).

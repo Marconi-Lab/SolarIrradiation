@@ -54,6 +54,38 @@ class RandomForestRegressor(BaseRegressor[RandomForestParams]):
         preds = self._estimator.predict(X.values)
         return pd.Series(np.asarray(preds, dtype=float), index=X.index)
 
+    def feature_importances(
+        self, feature_names: tuple[str, ...]
+    ) -> pd.Series:
+        """Return per-feature importance, indexed by feature_names.
+
+        Args:
+            feature_names: Column names of the feature matrix the model
+                was fit on, in fit order. Same as
+                ``PreprocessedDataset.feature_columns``.
+
+        Returns:
+            A :class:`pandas.Series` of impurity-based importances
+            (same as sklearn's ``feature_importances_``), summing to 1.0.
+
+        Raises:
+            RuntimeError: Called before :meth:`fit`.
+            ValueError: If ``feature_names`` length doesn't match the
+                fitted model's expected feature count.
+        """
+        if self._estimator is None:
+            raise RuntimeError(
+                "RandomForestRegressor.feature_importances called before .fit()."
+            )
+        importances = self._estimator.feature_importances_
+        if len(feature_names) != len(importances):
+            raise ValueError(
+                f"feature_names has {len(feature_names)} entries but the "
+                f"fitted model has {len(importances)} features. The names "
+                f"must match what was passed to .fit()."
+            )
+        return pd.Series(importances, index=list(feature_names))
+
     def _state(self) -> object:
         return self._estimator
 
