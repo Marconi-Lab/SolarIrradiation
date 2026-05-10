@@ -13,9 +13,12 @@ from susse.preprocessing import (
     AltitudeFeature,
     ClearSkyIndexFeature,
     CyclicalDayOfYearFeature,
+    DataCleaner,
     FeatureSpec,
+    GhiUpperBoundCleaner,
     Preprocessor,
 )
+from susse.preprocessing.cleaning import CleanerKind
 
 
 def _toy_dataset(*, with_coords: bool = False) -> TrainingDataset:
@@ -222,3 +225,124 @@ class TestStateless:
         a = pre.apply(_toy_dataset())
         b = pre.apply(_toy_dataset())
         pd.testing.assert_frame_equal(a.df, b.df)
+
+
+class _RecordingCleaner(DataCleaner):
+    """Pass-through cleaner that records the order it ran in.
+
+    Used by :class:`TestCleanerOrdering` to pin the contract that
+    cleaners run in declared order *and* before any DerivedFeature.
+    """
+
+    _calls: list[str]
+    _name: str
+
+    def __init__(self, name: str, calls: list[str]) -> None:
+        # Not a frozen dataclass — this stub mutates ``calls`` to record
+        # invocation order, which a frozen-dataclass cleaner couldn't.
+        self._name = name
+        self._calls = calls
+
+    @property
+    def kind(self) -> CleanerKind:
+        return CleanerKind.GHI_UPPER_BOUND  # arbitrary — only used for repr
+
+    @property
+    def required_input_columns(self) -> tuple[str, ...]:
+        return ()
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        self._calls.append(self._name)
+        return df
+
+    def to_dict(self) -> dict:
+        return {"kind": self.kind.value, "name": self._name}
+
+
+class _RecordingFeature(ClearSkyIndexFeature):
+    """ClearSkyIndexFeature that records when it ran. Subclassing keeps
+    the existing input/output contract intact while the test only cares
+    about ordering."""
+
+    _calls: list[str]
+
+    def __init__(self, name: str, calls: list[str], **kwargs):
+        super().__init__(**kwargs)
+        # Frozen dataclasses don't permit normal attribute assignment;
+        # use object.__setattr__ to attach the ordering hooks.
+        object.__setattr__(self, "_calls", calls)
+        object.__setattr__(self, "_name", name)
+
+    def compute(self, df):
+        self._calls.append(self._name)
+        return super().compute(df)
+
+
+class TestCleanerOrdering:
+    """Cleaners run in declared order, *before* any derived feature.
+
+    Pinning this contract guards the speedup-from-skipping invariant
+    (a feature shouldn't be computed on rows a downstream cleaner
+    drops) and the "no flag-based dispatch in Preprocessor" invariant
+    (the order is encoded in the spec, not in if-branches in apply()).
+    """
+
+    def test_cleaners_run_before_features_and_in_order(self) -> None:
+        calls: list[str] = []
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            cleaners=(
+                _RecordingCleaner("clean_a", calls),
+                _RecordingCleaner("clean_b", calls),
+            ),
+            derived_features=(
+                _RecordingFeature(
+                    "derive_kt", calls,
+                    ghi_column="sat_ghi_nasa_kwh_m2_day",
+                    ghi_clear_column="nasa_ghi_clear",
+                    output_column="kt_nasa",
+                ),
+            ),
+        )
+        Preprocessor(spec).apply(_toy_dataset())
+        assert calls == ["clean_a", "clean_b", "derive_kt"]
+
+    def test_cleaner_filters_rows_before_feature_computes(self) -> None:
+        # A cleaner that drops rows above sat_ghi=5.0 leaves 2 of 3 rows
+        # (toy dataset has [4.5, 5.5, 3.5]). The downstream kt feature
+        # therefore computes on 2 rows, and the preprocessed output
+        # carries only those two — pinning that the cleaner's effect
+        # propagates through to feature computation, not just to the
+        # frame that the cleaner returned.
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            cleaners=(
+                GhiUpperBoundCleaner(
+                    column="sat_ghi_nasa_kwh_m2_day", threshold=5.0,
+                ),
+            ),
+            derived_features=(_kt(),),
+        )
+        result = Preprocessor(spec).apply(_toy_dataset())
+        assert len(result.df) == 2
+        # kt = sat_ghi / ghi_clear; the surviving rows had sat_ghi 4.5 and 3.5
+        # against ghi_clear=6.0 → kt ∈ {0.75, 0.583...}. Pin the kt values
+        # so a regression in the cleaner-then-feature ordering is caught.
+        kt_values = sorted(result.df["kt_nasa"].round(4).tolist())
+        assert kt_values == [pytest.approx(0.5833, abs=1e-4),
+                             pytest.approx(0.75, abs=1e-4)]
+
+    def test_validate_columns_catches_cleaner_input_missing(self) -> None:
+        # If a cleaner needs a column that's not in the input frame,
+        # the up-front validation must surface it before any cleaner runs.
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            cleaners=(
+                GhiUpperBoundCleaner(
+                    column="not_in_frame", threshold=5.0,
+                ),
+            ),
+            derived_features=(_kt(),),
+        )
+        with pytest.raises(ValueError, match="not_in_frame"):
+            Preprocessor(spec).apply(_toy_dataset())

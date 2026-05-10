@@ -9,6 +9,8 @@ from susse.preprocessing import (
     ClearSkyIndexFeature,
     CyclicalDayOfYearFeature,
     FeatureSpec,
+    GhiUpperBoundCleaner,
+    HighMissingYearExcluder,
 )
 
 
@@ -127,4 +129,21 @@ class TestJsonRoundtrip:
             FeatureSpec.from_json(s)
         # With the provider re-injected, the roundtrip succeeds.
         roundtripped = FeatureSpec.from_json(s, providers={"altitude": provider})
+        assert roundtripped == spec
+
+    def test_cleaners_roundtrip(self) -> None:
+        # Cleaners must serialise to JSON and reconstruct via the same
+        # `from_dict` dispatch as derived features. Pinning this at the
+        # FeatureSpec level — not just in test_cleaning.py — guards
+        # against the spec forgetting to include them in to_dict().
+        spec = FeatureSpec(
+            target_column="y_ghi_kwh_m2_day",
+            feature_columns=("nasa_aod_550",),
+            cleaners=(
+                GhiUpperBoundCleaner(threshold=11.0),
+                HighMissingYearExcluder(missing_fraction_threshold=0.1),
+            ),
+            derived_features=(_kt("kt_nasa"),),
+        )
+        roundtripped = FeatureSpec.from_json(spec.to_json())
         assert roundtripped == spec

@@ -118,6 +118,12 @@ class Preprocessor:
         df = dataset.df
         self._validate_columns(df)
 
+        # Cleaners first — row-level filtering / imputation. Each cleaner
+        # gets the *current* frame, so a cleaner downstream of another
+        # one sees the previous one's filtered output.
+        for cleaner in spec.cleaners:
+            df = cleaner.apply(df)
+
         out = pd.DataFrame(index=df.index)
 
         # Pass-through id columns (kept for traceability, never given to model).
@@ -173,6 +179,14 @@ class Preprocessor:
         for col in spec.feature_columns:
             if col not in df.columns:
                 missing.append((col, "feature_columns"))
+        for cleaner in spec.cleaners:
+            for col in cleaner.required_input_columns:
+                if col not in df.columns:
+                    missing.append(
+                        (col,
+                         f"cleaners[{cleaner.kind.value}]"
+                         f".required_input_columns"),
+                    )
         for derived in spec.derived_features:
             for col in derived.required_input_columns:
                 if col not in df.columns:

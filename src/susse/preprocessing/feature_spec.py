@@ -16,6 +16,10 @@ Two ways to add a feature:
   itself. Adding a new derived-feature type is one new ``DerivedFeature``
   subclass; this dataclass and the :class:`Preprocessor` do not change.
 
+Row-level data cleaning (filter, impute) is configured through
+:attr:`cleaners`, applied **before** any derived-feature computation.
+See :class:`~susse.preprocessing.DataCleaner`.
+
 Validation against a concrete :class:`~susse.datasets.TrainingDataset`
 happens at apply time (in :class:`Preprocessor`), not at construction.
 That way the same spec can be reused across multiple compatible
@@ -28,6 +32,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .cleaning import DataCleaner, data_cleaner_from_dict
 from .derived import DerivedFeature, derived_feature_from_dict
 
 
@@ -42,6 +47,11 @@ class FeatureSpec:
         feature_columns: Pass-through columns from the input dataset to
             keep verbatim as model inputs. Validated to exist in the
             input at apply time.
+        cleaners: Tuple of :class:`~susse.preprocessing.DataCleaner`
+            instances applied to the input frame *before* feature
+            computation. Each may filter rows or impute values; column
+            schema is preserved. Default ``()`` is the historical
+            behaviour (no row-level cleaning).
         derived_features: Tuple of
             :class:`~susse.preprocessing.DerivedFeature` instances.
             Each declares its own output columns, required input
@@ -50,7 +60,8 @@ class FeatureSpec:
             unchanged. Concrete subclasses today:
             :class:`~susse.preprocessing.ClearSkyIndexFeature`,
             :class:`~susse.preprocessing.CyclicalDayOfYearFeature`,
-            :class:`~susse.preprocessing.AltitudeFeature`.
+            :class:`~susse.preprocessing.AltitudeFeature`,
+            :class:`~susse.preprocessing.LongitudeFeature`.
         id_columns: Non-feature, non-target columns to keep in the
             output DataFrame for traceability (e.g. ``date``,
             ``location``, ``geohash5``). The model never sees these;
@@ -65,6 +76,7 @@ class FeatureSpec:
 
     target_column: str = "y_ghi_kwh_m2_day"
     feature_columns: tuple[str, ...] = ()
+    cleaners: tuple[DataCleaner, ...] = ()
     derived_features: tuple[DerivedFeature, ...] = ()
     id_columns: tuple[str, ...] = ("date", "location", "geohash5")
     dropna_target: bool = True
@@ -113,6 +125,7 @@ class FeatureSpec:
         return {
             "target_column": self.target_column,
             "feature_columns": list(self.feature_columns),
+            "cleaners": [c.to_dict() for c in self.cleaners],
             "derived_features": [f.to_dict() for f in self.derived_features],
             "id_columns": list(self.id_columns),
             "dropna_target": self.dropna_target,
@@ -142,6 +155,10 @@ class FeatureSpec:
         return cls(
             target_column=d.get("target_column", "y_ghi_kwh_m2_day"),
             feature_columns=tuple(d.get("feature_columns", ())),
+            cleaners=tuple(
+                data_cleaner_from_dict(c, providers=providers)
+                for c in d.get("cleaners", ())
+            ),
             derived_features=tuple(
                 derived_feature_from_dict(f, providers=providers)
                 for f in d.get("derived_features", ())
