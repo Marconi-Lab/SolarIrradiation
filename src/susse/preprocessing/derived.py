@@ -52,6 +52,7 @@ class FeatureKind(StrEnum):
     CLEAR_SKY_INDEX = "clear_sky_index"
     CYCLICAL_DOY = "cyclical_doy"
     ALTITUDE = "altitude"
+    LONGITUDE = "longitude"
 
     def feature_class(self) -> type["DerivedFeature"]:
         """Return the concrete :class:`DerivedFeature` subclass for this kind."""
@@ -63,6 +64,8 @@ class FeatureKind(StrEnum):
             return CyclicalDayOfYearFeature
         if self is FeatureKind.ALTITUDE:
             return AltitudeFeature
+        if self is FeatureKind.LONGITUDE:
+            return LongitudeFeature
         raise AssertionError(f"Unhandled FeatureKind: {self!r}")  # pragma: no cover
 
 
@@ -331,3 +334,67 @@ class AltitudeFeature(DerivedFeature):
             provider=providers[ALTITUDE_PROVIDER_KEY],
             output_column=d.get("output_column", "altitude_m"),
         )
+
+
+@dataclass(frozen=True)
+class LongitudeFeature(DerivedFeature):
+    """Pass-through of the input frame's ``lon`` column as a model feature.
+
+    KNOWN ANTI-PATTERN — included only for reproducing published baselines
+    that used longitude as a predictor. New training pipelines should NOT
+    use it.
+
+    Why this is bad: with ~28 ground-truth stations spread across SSA, a
+    Random Forest can memorise coordinate-to-target associations, which
+    destroys generalisation to held-out stations and to off-station grid
+    points. Geographical signal should enter the model via continuous
+    physical properties (altitude, distance-to-coast, terrain ruggedness,
+    …), not raw coordinates. See ``feedback_no_lat_lon_features`` in the
+    project memory for the full rationale.
+
+    Why it nonetheless exists: Mukiibi & Mikelson (2026) used longitude as
+    a predictor (Table II of the paper). Faithful recomputation of those
+    headline metrics requires the same predictor set. The
+    ``notebooks/papers/mukiibi_mikelson_2026/`` recomputation notebook is
+    the only legitimate consumer.
+    """
+
+    output_column: str = "longitude"
+
+    def __post_init__(self) -> None:
+        if not self.output_column:
+            raise ValueError("LongitudeFeature.output_column must be non-empty.")
+
+    @property
+    def kind(self) -> FeatureKind:
+        return FeatureKind.LONGITUDE
+
+    @property
+    def output_columns(self) -> tuple[str, ...]:
+        return (self.output_column,)
+
+    @property
+    def required_input_columns(self) -> tuple[str, ...]:
+        return ("lon",)
+
+    def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame(
+            {self.output_column: df["lon"].astype(float).to_numpy()},
+            index=df.index,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind.value,
+            "output_column": self.output_column,
+        }
+
+    @classmethod
+    def _from_dict(
+        cls,
+        d: dict[str, Any],
+        *,
+        providers: dict[str, Any],
+    ) -> "LongitudeFeature":
+        del providers
+        return cls(output_column=d.get("output_column", "longitude"))

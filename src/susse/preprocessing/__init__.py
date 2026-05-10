@@ -6,7 +6,8 @@ Public surface:
   a tuple of :class:`DerivedFeature` instances.
 * :class:`DerivedFeature` — ABC for one named, computed model input.
   Concrete subclasses today: :class:`ClearSkyIndexFeature`,
-  :class:`CyclicalDayOfYearFeature`, :class:`AltitudeFeature`.
+  :class:`CyclicalDayOfYearFeature`, :class:`AltitudeFeature`, and
+  :class:`LongitudeFeature` (paper-faithful only — see its docstring).
 * :class:`FeatureKind` — persistence + dispatch tag.
 * :func:`derived_feature_from_dict` — JSON → :class:`DerivedFeature`,
   with provider re-injection.
@@ -30,6 +31,7 @@ from .derived import (
     CyclicalDayOfYearFeature,
     DerivedFeature,
     FeatureKind,
+    LongitudeFeature,
     derived_feature_from_dict,
 )
 from .derived_features import clear_sky_index, cyclical_day_of_year
@@ -45,6 +47,7 @@ __all__ = [
     "ElevationProvider",
     "FeatureKind",
     "FeatureSpec",
+    "LongitudeFeature",
     "PreprocessedDataset",
     "Preprocessor",
     "PvlibElevationProvider",

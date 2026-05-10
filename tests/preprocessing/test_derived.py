@@ -19,6 +19,7 @@ from susse.preprocessing import (
     CyclicalDayOfYearFeature,
     DerivedFeature,
     FeatureKind,
+    LongitudeFeature,
     derived_feature_from_dict,
 )
 
@@ -147,6 +148,57 @@ class TestAltitudeFeature:
         assert f.provider is provider
 
 
+class TestLongitudeFeature:
+    """Paper-faithful escape hatch for the Mukiibi & Mikelson (2026) re-run.
+
+    The feature is a known anti-pattern (see its docstring); these tests
+    pin its mechanical behaviour rather than endorsing the design.
+    """
+
+    def test_compute_passes_through_lon_column(self) -> None:
+        f = LongitudeFeature()
+        df = _frame_with_coords()
+        out = f.compute(df)
+        assert list(out.columns) == ["longitude"]
+        # Pass-through is exact (not rounded / not coerced through string).
+        assert out["longitude"].tolist() == df["lon"].astype(float).tolist()
+
+    def test_required_inputs_and_outputs(self) -> None:
+        f = LongitudeFeature()
+        assert f.required_input_columns == ("lon",)
+        assert f.output_columns == ("longitude",)
+
+    def test_custom_output_column(self) -> None:
+        # Allow notebooks to rename the column if a downstream feature
+        # collides — the recomputation notebook uses the default but a
+        # future re-run might not.
+        f = LongitudeFeature(output_column="lon_feature")
+        df = _frame_with_coords()
+        out = f.compute(df)
+        assert list(out.columns) == ["lon_feature"]
+
+    def test_empty_output_column_raises(self) -> None:
+        with pytest.raises(ValueError, match="output_column"):
+            LongitudeFeature(output_column="")
+
+    def test_to_dict_roundtrip(self) -> None:
+        f = LongitudeFeature(output_column="longitude")
+        d = f.to_dict()
+        assert d == {
+            "kind": FeatureKind.LONGITUDE.value,
+            "output_column": "longitude",
+        }
+        rebuilt = derived_feature_from_dict(d)
+        assert isinstance(rebuilt, LongitudeFeature)
+        assert rebuilt.output_column == "longitude"
+
+    def test_kind_dispatches_to_longitude_feature(self) -> None:
+        # Pins that adding LONGITUDE to FeatureKind also wired up the
+        # feature_class() lookup. Otherwise from_dict would silently
+        # return the wrong subclass.
+        assert FeatureKind.LONGITUDE.feature_class() is LongitudeFeature
+
+
 class TestDispatchByKind:
     def test_unknown_kind_raises(self) -> None:
         with pytest.raises(ValueError):
@@ -167,6 +219,7 @@ class TestProtocolCompliance:
             ),
             CyclicalDayOfYearFeature(),
             AltitudeFeature(provider=_StubProvider()),
+            LongitudeFeature(),
         ]
         for f in instances:
             assert isinstance(f.kind, FeatureKind)
