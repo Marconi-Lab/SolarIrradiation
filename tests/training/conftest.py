@@ -64,8 +64,7 @@ def toy_processed(toy_manifest: DatasetManifest) -> PreprocessedDataset:
     spec = FeatureSpec(
         target_column="y_ghi_kwh_m2_day",
         feature_columns=("feat_a", "feat_b"),
-        clear_sky_index_specs=(),
-        include_cyclical_doy=False,
+        derived_features=(),
         id_columns=("date", "location", "geohash5"),
     )
     return PreprocessedDataset(

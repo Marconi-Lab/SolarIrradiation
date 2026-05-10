@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Optional
 
 from ..datasets import DatasetManifest
 from ..models import BaseRegressor, load_regressor
@@ -75,17 +76,35 @@ class TrainedBundle:
         )
 
 
-def load_bundle(src: Path) -> TrainedBundle:
+def load_bundle(
+    src: Path,
+    *,
+    providers: Optional[dict[str, Any]] = None,
+) -> TrainedBundle:
     """Inverse of :meth:`TrainedBundle.save`.
 
     Reads the four bundle files, dispatches the regressor via its
     persisted ``model_kind.txt`` (no caller-side knowledge of which
     flavour was trained), and returns the fully reconstructed bundle.
 
+    Args:
+        src: Bundle directory.
+        providers: Map of provider-key → provider for any
+            :class:`~susse.preprocessing.DerivedFeature` that needs
+            runtime injection at deserialisation time. Today the only
+            one is altitude:
+            ``providers={"altitude": PvlibElevationProvider()}``.
+            Bundles whose ``feature_spec.json`` doesn't declare such a
+            feature can pass ``providers=None``.
+
     Raises:
         FileNotFoundError: If any of the four pieces is missing. The
             message names the missing file so the caller can spot
             partial / corrupted bundles before they reach inference.
+        ValueError: If the loaded ``feature_spec.json`` declares a
+            :class:`DerivedFeature` whose required provider is absent
+            from ``providers``. The error message names the expected
+            provider key.
     """
     src = Path(src)
     for required in (
@@ -103,7 +122,8 @@ def load_bundle(src: Path) -> TrainedBundle:
             )
     regressor = load_regressor(src / _MODEL_SUBDIR)
     feature_spec = FeatureSpec.from_json(
-        (src / _FEATURE_SPEC_FILENAME).read_text()
+        (src / _FEATURE_SPEC_FILENAME).read_text(),
+        providers=providers,
     )
     metadata = TrainingMetadata.from_json(
         (src / _METADATA_FILENAME).read_text()

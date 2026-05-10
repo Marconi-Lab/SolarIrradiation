@@ -6,6 +6,12 @@ of :class:`susse.datasets.FeatureService` and produces a
 transformations are deterministic given the inputs — no fit/transform
 asymmetry, no internal state to worry about leaking across folds.
 
+The transform pipeline is **single-loop over
+``spec.derived_features``**: each :class:`DerivedFeature` declares
+its own output columns and computes them. The preprocessor itself
+knows nothing about kt vs cyclical-doy vs altitude — adding a new
+feature type is a new ``DerivedFeature`` subclass, with no edits here.
+
 Scaling deliberately lives in the model wrapper, not here: tree-based
 models (RF / XGBoost) don't need it; neural-network models do, and only
 they know which columns to scale + on which fold to fit. Keeping the
@@ -18,12 +24,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
 
 import pandas as pd
 
 from ..datasets import DatasetManifest, TrainingDataset
-from .derived_features import clear_sky_index, cyclical_day_of_year
 from .feature_spec import FeatureSpec
 
 
@@ -94,6 +98,11 @@ class Preprocessor:
     Construct once with a spec; call :meth:`apply` per dataset. Stateless
     between calls — the same instance can transform train, val, and test
     folds without fit-time data leakage (because there is no fit time).
+
+    Provider-style runtime dependencies (e.g. an elevation lookup
+    service) are captured by individual :class:`DerivedFeature`
+    instances at *their* construction. The preprocessor knows nothing
+    about provider wiring; that's a concern of the spec's authors.
     """
 
     def __init__(self, spec: FeatureSpec) -> None:
@@ -122,17 +131,11 @@ class Preprocessor:
         for col in spec.feature_columns:
             out[col] = df[col]
 
-        # Derived: clear-sky index features.
-        for kt_spec in spec.clear_sky_index_specs:
-            out[kt_spec.output_column] = clear_sky_index(
-                df[kt_spec.ghi_column], df[kt_spec.ghi_clear_column]
-            )
-
-        # Derived: cyclical day-of-year.
-        if spec.include_cyclical_doy:
-            doy = cyclical_day_of_year(df["date"])
-            out["doy_sin"] = doy["doy_sin"]
-            out["doy_cos"] = doy["doy_cos"]
+        # Derived features — each computes its own output columns.
+        for derived in spec.derived_features:
+            result = derived.compute(df)
+            for col in result.columns:
+                out[col] = result[col]
 
         # Target.
         if spec.target_column in df.columns:
@@ -163,26 +166,21 @@ class Preprocessor:
 
         Validation is up-front so a misconfigured spec fails before any
         transforms run, with a message naming the missing column and
-        the field of :class:`FeatureSpec` that referenced it.
+        which part of the :class:`FeatureSpec` referenced it.
         """
         spec = self._spec
         missing: list[tuple[str, str]] = []  # (column, source_field)
         for col in spec.feature_columns:
             if col not in df.columns:
                 missing.append((col, "feature_columns"))
-        for kt_spec in spec.clear_sky_index_specs:
-            if kt_spec.ghi_column not in df.columns:
-                missing.append(
-                    (kt_spec.ghi_column,
-                     f"clear_sky_index_specs[{kt_spec.output_column}].ghi_column"),
-                )
-            if kt_spec.ghi_clear_column not in df.columns:
-                missing.append(
-                    (kt_spec.ghi_clear_column,
-                     f"clear_sky_index_specs[{kt_spec.output_column}].ghi_clear_column"),
-                )
-        if spec.include_cyclical_doy and "date" not in df.columns:
-            missing.append(("date", "include_cyclical_doy=True requires `date`"))
+        for derived in spec.derived_features:
+            for col in derived.required_input_columns:
+                if col not in df.columns:
+                    missing.append(
+                        (col,
+                         f"derived_features[{derived.kind.value}]"
+                         f".required_input_columns"),
+                    )
         # The target may legitimately be missing for inference frames; a
         # missing target is only an error if dropna_target is True
         # (which forces the column to exist).
