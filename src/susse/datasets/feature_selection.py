@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..warehouse_ops.population.dim_variable import VariableCatalog
-from ..warehouse_ops.population.types import Source
+from ..warehouse_ops.population.types import PhysicalStorage, Source
 
 
 @dataclass(frozen=True)
@@ -57,17 +57,31 @@ class FeatureSelection:
     qc_levels: tuple[str, ...] = ("pass",)
 
     def __post_init__(self) -> None:
+        # Each <source>_variable_ids field is wired to a specific physical
+        # storage backend in the warehouse: long-format pivots for the
+        # aux tables, the modis_observations table for MODIS. Validation
+        # enforces that mapping so a request for an irradiance_wide
+        # variable through a long-table field is rejected at construction
+        # rather than silently producing a 100%-NaN column at fetch time.
         self._validate_against_catalog(
-            self.nasa_variable_ids, Source.NASA_POWER, field="nasa_variable_ids",
+            self.nasa_variable_ids, Source.NASA_POWER,
+            field="nasa_variable_ids",
+            expected_storage=PhysicalStorage.LONG_FORMAT,
         )
         self._validate_against_catalog(
-            self.cams_variable_ids, Source.CAMS, field="cams_variable_ids",
+            self.cams_variable_ids, Source.CAMS,
+            field="cams_variable_ids",
+            expected_storage=PhysicalStorage.LONG_FORMAT,
         )
         self._validate_against_catalog(
-            self.merra_variable_ids, Source.MERRA_2, field="merra_variable_ids",
+            self.merra_variable_ids, Source.MERRA_2,
+            field="merra_variable_ids",
+            expected_storage=PhysicalStorage.LONG_FORMAT,
         )
         self._validate_against_catalog(
-            self.modis_variable_ids, Source.MODIS, field="modis_variable_ids",
+            self.modis_variable_ids, Source.MODIS,
+            field="modis_variable_ids",
+            expected_storage=PhysicalStorage.MODIS_OBSERVATIONS,
         )
         for src in self.include_satellite_irradiance:
             if src not in (Source.NASA_POWER, Source.CAMS):
@@ -88,24 +102,35 @@ class FeatureSelection:
 
     @staticmethod
     def _validate_against_catalog(
-        ids: tuple[str, ...], source: Source, *, field: str
+        ids: tuple[str, ...],
+        source: Source,
+        *,
+        field: str,
+        expected_storage: PhysicalStorage,
     ) -> None:
         if not ids:
             return
-        valid = {v.variable_id for v in VariableCatalog.for_source(source)}
-        if not valid:
+        catalog = {
+            v.variable_id: v for v in VariableCatalog.for_source(source)
+        }
+        if not catalog:
             raise ValueError(
                 f"FeatureSelection.{field} = {list(ids)} but the catalog has "
                 f"no variables registered for source {source.value}. Either "
                 f"the source isn't ingested yet, or the catalog has not been "
                 f"populated."
             )
-        unknown = [vid for vid in ids if vid not in valid]
+        unknown = [vid for vid in ids if vid not in catalog]
         if unknown:
+            valid = sorted(
+                vid for vid, v in catalog.items()
+                if v.physical_storage is expected_storage
+            )
             raise ValueError(
                 f"FeatureSelection.{field} contains unknown variable_id(s) "
                 f"for source {source.value}: {unknown}. "
-                f"Known {source.value} variables: {sorted(valid)}."
+                f"Known {source.value} variables with "
+                f"physical_storage={expected_storage.value}: {valid}."
             )
         # Detect duplicates within this source's list.
         if len(set(ids)) != len(ids):
@@ -114,6 +139,29 @@ class FeatureSelection:
             raise ValueError(
                 f"FeatureSelection.{field} contains duplicate variable_id(s): "
                 f"{sorted(set(dups))}. Each variable should be listed at most once."
+            )
+        # Reject catalog entries that exist but live in a different
+        # physical storage than this field's pivot reads from.
+        wrong_storage = [
+            vid for vid in ids
+            if catalog[vid].physical_storage is not expected_storage
+        ]
+        if wrong_storage:
+            actual = {vid: catalog[vid].physical_storage.value for vid in wrong_storage}
+            remediation = (
+                "Use `include_satellite_irradiance` for irradiance series."
+                if expected_storage is PhysicalStorage.LONG_FORMAT
+                and any(
+                    catalog[vid].physical_storage is PhysicalStorage.IRRADIANCE_WIDE
+                    for vid in wrong_storage
+                )
+                else f"Move these IDs to the field whose physical_storage matches."
+            )
+            raise ValueError(
+                f"FeatureSelection.{field} expects "
+                f"physical_storage={expected_storage.value} but received "
+                f"variable_id(s) with mismatching storage: {actual}. "
+                f"{remediation}"
             )
 
     @property

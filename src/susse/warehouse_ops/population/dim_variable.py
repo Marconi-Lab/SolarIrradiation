@@ -23,7 +23,7 @@ from typing import ClassVar
 
 import pandas as pd
 
-from .types import Source, VariableSpec
+from .types import PhysicalStorage, Source, VariableSpec
 from ..io.bq import BigQueryClient
 from ..io.config import TableSchemas
 
@@ -70,6 +70,7 @@ class VariableCatalog:
             native_unit="kWh/m^2/day",
             description="All-sky surface shortwave downward irradiance.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
+            physical_storage=PhysicalStorage.IRRADIANCE_WIDE,
         ),
         VariableSpec(
             variable_id="dhi",
@@ -80,6 +81,7 @@ class VariableCatalog:
             native_unit="kWh/m^2/day",
             description="All-sky diffuse horizontal irradiance.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
+            physical_storage=PhysicalStorage.IRRADIANCE_WIDE,
         ),
         VariableSpec(
             variable_id="dni",
@@ -90,6 +92,7 @@ class VariableCatalog:
             native_unit="kWh/m^2/day",
             description="All-sky direct normal irradiance.",
             spatial_resolution_km=_NASA_POWER_RESOLUTION_KM,
+            physical_storage=PhysicalStorage.IRRADIANCE_WIDE,
         ),
         # Auxiliary — go to nasa_daily_vars_long.
         VariableSpec(
@@ -407,6 +410,7 @@ class VariableCatalog:
             native_unit="Wh/m^2 (period)",
             description="All-sky global horizontal irradiance, daily total.",
             spatial_resolution_km=_CAMS_RESOLUTION_KM,
+            physical_storage=PhysicalStorage.IRRADIANCE_WIDE,
         ),
         VariableSpec(
             variable_id="dhi",
@@ -417,6 +421,7 @@ class VariableCatalog:
             native_unit="Wh/m^2 (period)",
             description="All-sky diffuse horizontal irradiance, daily total.",
             spatial_resolution_km=_CAMS_RESOLUTION_KM,
+            physical_storage=PhysicalStorage.IRRADIANCE_WIDE,
         ),
         VariableSpec(
             variable_id="dni",
@@ -427,6 +432,7 @@ class VariableCatalog:
             native_unit="Wh/m^2 (period)",
             description="All-sky direct normal irradiance, daily total.",
             spatial_resolution_km=_CAMS_RESOLUTION_KM,
+            physical_storage=PhysicalStorage.IRRADIANCE_WIDE,
         ),
         # Auxiliary — go to cams_daily_vars_long.
         VariableSpec(
@@ -595,6 +601,7 @@ class VariableCatalog:
             spatial_resolution_km=_MODIS_ALBEDO_RESOLUTION_KM,
             valid_min=0.0,
             valid_max=1.0,
+            physical_storage=PhysicalStorage.MODIS_OBSERVATIONS,
         ),
         VariableSpec(
             variable_id="MOD11A2_LST_Day_1km",
@@ -612,6 +619,7 @@ class VariableCatalog:
             spatial_resolution_km=_MODIS_LST_RESOLUTION_KM,
             valid_min=0.0,
             valid_max=400.0,
+            physical_storage=PhysicalStorage.MODIS_OBSERVATIONS,
         ),
         VariableSpec(
             variable_id="MOD13Q1_250m_16_days_NDVI",
@@ -628,6 +636,7 @@ class VariableCatalog:
             spatial_resolution_km=_MODIS_NDVI_RESOLUTION_KM,
             valid_min=-0.2,
             valid_max=1.0,
+            physical_storage=PhysicalStorage.MODIS_OBSERVATIONS,
         ),
     )
 
@@ -686,6 +695,7 @@ def variables_to_dataframe(variables: tuple[VariableSpec, ...]) -> pd.DataFrame:
                 "spatial_resolution_km": v.spatial_resolution_km,
                 "valid_min": v.valid_min,
                 "valid_max": v.valid_max,
+                "physical_storage": v.physical_storage.value,
             }
             for v in variables
         ]

@@ -41,6 +41,35 @@ class Source(StrEnum):
     MODIS = "MODIS"
 
 
+class PhysicalStorage(StrEnum):
+    """Where a catalog variable's values are physically stored in the warehouse.
+
+    The catalog enumerates *every* variable the warehouse touches,
+    regardless of which table holds it. This tag tells consumers (most
+    importantly :class:`FeatureSelection.__post_init__`) which storage
+    backend a given ``variable_id`` lives in, so requests for a
+    wide-table variable through a long-table-only field can be rejected
+    at construction with a clear remediation message.
+
+    The three values mirror the warehouse's three storage shapes:
+
+    * ``LONG_FORMAT`` — pivoted from one of the ``<source>_daily_vars_long``
+      tables. The default for catalog entries — most variables are aux.
+    * ``IRRADIANCE_WIDE`` — stored as named columns
+      (``ghi_kwh_m2_day`` / ``dhi_kwh_m2_day`` / ``dni_kwh_m2_day``) in
+      the wide ``irradiance_daily`` table. Requested through
+      :attr:`FeatureSelection.include_satellite_irradiance`, **not**
+      ``<source>_variable_ids``.
+    * ``MODIS_OBSERVATIONS`` — stored in ``modis_observations`` keyed by
+      ``(product_id, band_id)``. Requested through
+      :attr:`FeatureSelection.modis_variable_ids`.
+    """
+
+    LONG_FORMAT = "long_format"
+    IRRADIANCE_WIDE = "irradiance_wide"
+    MODIS_OBSERVATIONS = "modis_observations"
+
+
 @dataclass(frozen=True)
 class DateRange:
     """Inclusive [start, end] date range.
@@ -178,6 +207,11 @@ class VariableSpec:
     spatial_resolution_km: float | None = None
     valid_min: float | None = None
     valid_max: float | None = None
+    # Default LONG_FORMAT covers the common case (~80% of the catalog);
+    # the ~9 exceptions (NASA + CAMS all-sky irradiance, MODIS) override
+    # this explicitly with `physical_storage=PhysicalStorage.IRRADIANCE_WIDE`
+    # or `PhysicalStorage.MODIS_OBSERVATIONS`. See `PhysicalStorage`.
+    physical_storage: PhysicalStorage = PhysicalStorage.LONG_FORMAT
 
 
 # ---------------------------------------------------------------------------

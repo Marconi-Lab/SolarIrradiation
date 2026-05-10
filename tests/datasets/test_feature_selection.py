@@ -6,19 +6,31 @@ import pytest
 
 from susse.datasets import FeatureSelection
 from susse.warehouse_ops.population.dim_variable import VariableCatalog
-from susse.warehouse_ops.population.types import Source
+from susse.warehouse_ops.population.types import PhysicalStorage, Source
+
+
+def _first_long_format(variables) -> str:
+    """Pick a representative LONG_FORMAT variable_id from a catalog tuple.
+
+    Helpers use this rather than ``[0]`` so they don't accidentally pick
+    an irradiance_wide entry (which the long-table fields reject).
+    """
+    return next(
+        v.variable_id for v in variables
+        if v.physical_storage is PhysicalStorage.LONG_FORMAT
+    )
 
 
 def _first_nasa_id() -> str:
-    return VariableCatalog.NASA_POWER_VARIABLES[0].variable_id
+    return _first_long_format(VariableCatalog.NASA_POWER_VARIABLES)
 
 
 def _first_cams_id() -> str:
-    return VariableCatalog.CAMS_VARIABLES[0].variable_id
+    return _first_long_format(VariableCatalog.CAMS_VARIABLES)
 
 
 def _first_merra_id() -> str:
-    return VariableCatalog.MERRA_2_VARIABLES[0].variable_id
+    return _first_long_format(VariableCatalog.MERRA_2_VARIABLES)
 
 
 class TestCatalogValidation:
@@ -48,6 +60,29 @@ class TestCatalogValidation:
         nid = _first_nasa_id()
         with pytest.raises(ValueError, match="duplicate"):
             FeatureSelection(nasa_variable_ids=(nid, nid))
+
+    def test_irradiance_wide_variable_rejected_in_long_field(self) -> None:
+        # `ghi`/`dhi`/`dni` exist in the NASA + CAMS catalog but live in
+        # `irradiance_daily` (physical_storage=IRRADIANCE_WIDE), not in
+        # the long-format aux table that `nasa_variable_ids` pivots
+        # from. Requesting them through `nasa_variable_ids` would produce
+        # 100%-NaN columns at fetch time — surface that as a clear
+        # construction-time error pointing to the right field.
+        with pytest.raises(ValueError, match="include_satellite_irradiance"):
+            FeatureSelection(nasa_variable_ids=("ghi",))
+        with pytest.raises(ValueError, match="include_satellite_irradiance"):
+            FeatureSelection(cams_variable_ids=("dhi",))
+
+    def test_storage_mismatch_error_names_actual_and_expected_storage(self) -> None:
+        # Remediation message must be specific enough that the user can
+        # both diagnose the problem (their variable's actual storage) and
+        # fix it (the field that does match).
+        with pytest.raises(ValueError) as exc:
+            FeatureSelection(nasa_variable_ids=("ghi",))
+        msg = str(exc.value)
+        assert "physical_storage=long_format" in msg
+        assert "irradiance_wide" in msg
+        assert "include_satellite_irradiance" in msg
 
 
 class TestIrradianceSourceRestriction:

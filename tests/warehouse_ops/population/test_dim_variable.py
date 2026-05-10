@@ -69,7 +69,7 @@ class TestVariablesToDataframe:
         expected = {
             "variable_id", "source", "display_name", "unit", "native_unit",
             "description", "temporal_granularity", "spatial_resolution_km",
-            "valid_min", "valid_max",
+            "valid_min", "valid_max", "physical_storage",
         }
         assert set(df.columns) == expected
 
