@@ -45,12 +45,8 @@ class MeanBaselineRegressor(BaseRegressor[MeanBaselineParams]):
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
         if self._prediction is None:
-            raise RuntimeError(
-                "MeanBaselineRegressor.predict called before .fit()."
-            )
-        return pd.Series(
-            np.full(len(X), self._prediction, dtype=float), index=X.index
-        )
+            raise RuntimeError("MeanBaselineRegressor.predict called before .fit().")
+        return pd.Series(np.full(len(X), self._prediction, dtype=float), index=X.index)
 
     def _state(self) -> object:
         return {"prediction": self._prediction}

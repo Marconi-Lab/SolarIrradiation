@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .types import FetchPlan
 from ..io.bq import BigQueryClient
+from .types import FetchPlan
 
 
 @dataclass(frozen=True)

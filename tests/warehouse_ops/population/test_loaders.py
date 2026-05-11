@@ -12,13 +12,13 @@ from datetime import date
 import pandas as pd
 import pytest
 
+from susse.warehouse_ops.io.config import TableSchemas
 from susse.warehouse_ops.population.loaders import (
     DerivedColumn,
     MergeLoader,
     MergeSpec,
     _date_chunks,
 )
-from susse.warehouse_ops.io.config import TableSchemas
 
 
 class _FakeBQ:
@@ -95,9 +95,15 @@ class TestMergeLoaderValidation:
                 ),
             ),
         )
-        df = pd.DataFrame([{
-            "date": date(2024, 1, 1), "location": "x", "geog": "POINT(0 0)",
-        }])
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date(2024, 1, 1),
+                    "location": "x",
+                    "geog": "POINT(0 0)",
+                }
+            ]
+        )
         with pytest.raises(ValueError, match="would derive server-side"):
             loader.load(df)
 
@@ -115,12 +121,16 @@ class TestMergeLoaderSql:
                 ),
             ),
         )
-        df = pd.DataFrame([{
-            "date": date(2024, 1, 1),
-            "location": "kampala",
-            "lat": 0.333542,
-            "lon": 32.56863,
-        }])
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date(2024, 1, 1),
+                    "location": "kampala",
+                    "lat": 0.333542,
+                    "lon": 32.56863,
+                }
+            ]
+        )
         loader.load(df)
 
         # Staging load happened, then create / merge / drop as three
@@ -161,6 +171,7 @@ class TestDateChunks:
         assert chunks[-1][1] == end
         for prev, curr in zip(chunks, chunks[1:]):
             from datetime import timedelta
+
             assert curr[0] == prev[1] + timedelta(days=1)
         # 4310 days / 3500 max → 2 chunks.
         assert len(chunks) == 2
@@ -189,9 +200,15 @@ class TestMergeChunkingByPartition:
         """
         return pd.DataFrame(
             [
-                {"date": d, "geohash5": "s8p1v", "variable_id": "ghi",
-                 "value": 5.0, "source": "NASA",
-                 "latitude": 0.33, "longitude": 32.57}
+                {
+                    "date": d,
+                    "geohash5": "s8p1v",
+                    "variable_id": "ghi",
+                    "value": 5.0,
+                    "source": "NASA",
+                    "latitude": 0.33,
+                    "longitude": 32.57,
+                }
                 for d in (start, end)
             ]
         )
@@ -203,13 +220,16 @@ class TestMergeChunkingByPartition:
             table_fqn="x.y.nasa_long",
             spec=MergeSpec(schema=TableSchemas.NASA_DAILY_VARS_LONG),
         )
-        loader.load(self._make_long_span_df(
-            start=date(2024, 1, 1), end=date(2024, 6, 30),
-        ))
-        merge_statements = [s for s in bq.ddl_statements if "MERGE" in s]
-        assert len(merge_statements) == 1, (
-            "spans below the partition cap should issue a single MERGE"
+        loader.load(
+            self._make_long_span_df(
+                start=date(2024, 1, 1),
+                end=date(2024, 6, 30),
+            )
         )
+        merge_statements = [s for s in bq.ddl_statements if "MERGE" in s]
+        assert (
+            len(merge_statements) == 1
+        ), "spans below the partition cap should issue a single MERGE"
 
     def test_kampala_span_splits_into_multiple_merges(self) -> None:
         bq = _FakeBQ()
@@ -220,9 +240,12 @@ class TestMergeChunkingByPartition:
         )
         # 4310 days — the exact span that originally tripped BQ's
         # 4000-partition-per-DML limit on irradiance_daily.
-        loader.load(self._make_long_span_df(
-            start=date(2011, 4, 6), end=date(2023, 1, 22),
-        ))
+        loader.load(
+            self._make_long_span_df(
+                start=date(2011, 4, 6),
+                end=date(2023, 1, 22),
+            )
+        )
         merge_statements = [s for s in bq.ddl_statements if "MERGE" in s]
         assert len(merge_statements) >= 2, (
             "spans above the partition cap must be split into multiple "
@@ -231,6 +254,6 @@ class TestMergeChunkingByPartition:
         # Every chunked MERGE must filter by date BETWEEN ... so each
         # statement only touches the partitions in its own chunk.
         for sql in merge_statements:
-            assert "date BETWEEN DATE(" in sql, (
-                f"chunked MERGE missing date filter: {sql!r}"
-            )
+            assert (
+                "date BETWEEN DATE(" in sql
+            ), f"chunked MERGE missing date filter: {sql!r}"

@@ -13,9 +13,9 @@ import logging
 from datetime import date
 from typing import Sequence
 
-from .types import DateRange, Source
 from ..io.bq import BigQueryClient
 from ..io.config import TableSchemas
+from .types import DateRange, Source
 
 _logger = logging.getLogger(__name__)
 
@@ -57,7 +57,10 @@ class CoverageRepository:
             filters.append(f"geohash5 IN ({gh_list})")
         _logger.info(
             "coverage: scanning %s for date %s..%s, source=%s, %d vars%s",
-            table_fqn, date_range.start, date_range.end, source.value,
+            table_fqn,
+            date_range.start,
+            date_range.end,
+            source.value,
             len(variable_ids),
             f", {len(geohash5s)} geohash(es)" if geohash5s is not None else "",
         )
@@ -92,7 +95,10 @@ class CoverageRepository:
             filters.append(f"geohash5 IN ({gh_list})")
         _logger.info(
             "coverage: scanning %s for date %s..%s, source=%s%s",
-            table_fqn, date_range.start, date_range.end, source.value,
+            table_fqn,
+            date_range.start,
+            date_range.end,
+            source.value,
             f", {len(geohash5s)} geohash(es)" if geohash5s is not None else "",
         )
         result = self._bq.existing_keys(
@@ -120,9 +126,7 @@ class CoverageRepository:
         if not product_band_pairs:
             return set()
         # Build a tuple-IN filter: WHERE (product_id, band_id) IN (('p1','b1'), ('p2','b2'))
-        pb_tuples = ", ".join(
-            f"('{p}', '{b}')" for p, b in product_band_pairs
-        )
+        pb_tuples = ", ".join(f"('{p}', '{b}')" for p, b in product_band_pairs)
         filters = [
             f"date BETWEEN DATE('{date_range.start}') AND DATE('{date_range.end}')",
             f"source = '{Source.MODIS.value}'",
@@ -135,7 +139,10 @@ class CoverageRepository:
             filters.append(f"geohash5 IN ({gh_list})")
         _logger.info(
             "coverage: scanning %s for date %s..%s, %d (product, band) pairs%s",
-            table_fqn, date_range.start, date_range.end, len(product_band_pairs),
+            table_fqn,
+            date_range.start,
+            date_range.end,
+            len(product_band_pairs),
             f", {len(geohash5s)} geohash(es)" if geohash5s is not None else "",
         )
         result = self._bq.existing_keys(

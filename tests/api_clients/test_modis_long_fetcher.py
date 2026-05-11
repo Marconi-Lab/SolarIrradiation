@@ -39,6 +39,7 @@ class TestProductCadenceDays:
         # Unknown products should not crash (callers may carry historical
         # ids), but they must log a warning so the typo is visible.
         import logging
+
         with caplog.at_level(logging.WARNING):
             assert product_cadence_days("NOT_A_PRODUCT") == 1
         assert any("PRODUCT_CADENCE_DAYS" in r.message for r in caplog.records)
@@ -81,9 +82,9 @@ class TestDateChunks:
         for chunk_start, chunk_end in chunks:
             assert chunk_start <= chunk_end
             for d in pd.date_range(chunk_start, chunk_end, freq="D"):
-                assert d.date() not in days_seen, (
-                    f"chunk overlap at {d.date()}: chunks={chunks}"
-                )
+                assert (
+                    d.date() not in days_seen
+                ), f"chunk overlap at {d.date()}: chunks={chunks}"
                 days_seen.add(d.date())
         all_days = {d.date() for d in pd.date_range(start, end, freq="D")}
         assert days_seen == all_days
@@ -110,20 +111,28 @@ class TestFetchLongForLocation:
 
         captured: list[tuple] = []
 
-        def _fake_fetch_one(self, product_id, band_id, chunk_start, chunk_end, location):
+        def _fake_fetch_one(
+            self, product_id, band_id, chunk_start, chunk_end, location
+        ):
             captured.append((product_id, band_id, chunk_start, chunk_end))
-            return [{
-                "date": chunk_start, "product_id": product_id,
-                "band_id": band_id, "value": 0.5,
-            }]
+            return [
+                {
+                    "date": chunk_start,
+                    "product_id": product_id,
+                    "band_id": band_id,
+                    "value": 0.5,
+                }
+            ]
 
         # Skip the network warm-up; it would hit ORNL DAAC.
         monkeypatch.setattr(ModisLongFetcher, "_warm_up", lambda self: None)
         monkeypatch.setattr(ModisLongFetcher, "_fetch_one", _fake_fetch_one)
 
         df = fetcher.fetch_long_for_location(
-            latitude=0.333, longitude=32.568,
-            date_start=date(2024, 6, 1), date_end=date(2024, 8, 29),  # 90 days
+            latitude=0.333,
+            longitude=32.568,
+            date_start=date(2024, 6, 1),
+            date_end=date(2024, 8, 29),  # 90 days
             products_and_bands=(
                 ("MCD43A4", "Nadir_Reflectance_Band1"),
                 ("MOD13Q1", "250m_16_days_NDVI"),
@@ -132,8 +141,12 @@ class TestFetchLongForLocation:
 
         mcd_calls = [c for c in captured if c[0] == "MCD43A4"]
         ndvi_calls = [c for c in captured if c[0] == "MOD13Q1"]
-        assert len(mcd_calls) == 9, f"expected 9 daily-cadence chunks, got {mcd_calls!r}"
-        assert len(ndvi_calls) == 1, f"expected 1 16-day-cadence chunk, got {ndvi_calls!r}"
+        assert (
+            len(mcd_calls) == 9
+        ), f"expected 9 daily-cadence chunks, got {mcd_calls!r}"
+        assert (
+            len(ndvi_calls) == 1
+        ), f"expected 1 16-day-cadence chunk, got {ndvi_calls!r}"
         assert list(df.columns) == ["date", "product_id", "band_id", "value"]
         assert len(df) == 10  # one row per chunk in the stub
 
@@ -143,8 +156,10 @@ class TestFetchLongForLocation:
         # doesn't crash on a missing column.
         fetcher = ModisLongFetcher(max_workers=1)
         df = fetcher.fetch_long_for_location(
-            latitude=0.0, longitude=0.0,
-            date_start=date(2024, 1, 1), date_end=date(2024, 1, 31),
+            latitude=0.0,
+            longitude=0.0,
+            date_start=date(2024, 1, 1),
+            date_end=date(2024, 1, 31),
             products_and_bands=(),
         )
         assert df.empty
@@ -154,8 +169,10 @@ class TestFetchLongForLocation:
         fetcher = ModisLongFetcher(max_workers=1)
         with pytest.raises(ValueError, match="date_start"):
             fetcher.fetch_long_for_location(
-                latitude=0.0, longitude=0.0,
-                date_start=date(2024, 2, 1), date_end=date(2024, 1, 1),
+                latitude=0.0,
+                longitude=0.0,
+                date_start=date(2024, 2, 1),
+                date_end=date(2024, 1, 1),
                 products_and_bands=(("MOD13Q1", "250m_16_days_NDVI"),),
             )
 

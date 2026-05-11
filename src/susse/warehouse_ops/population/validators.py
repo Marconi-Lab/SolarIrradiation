@@ -57,9 +57,7 @@ def validate_long_format(df: pd.DataFrame, *, context: str = "long-format") -> N
         )
 
 
-def validate_ground_raw(
-    df: pd.DataFrame, *, context: str = "ground-raw"
-) -> None:
+def validate_ground_raw(df: pd.DataFrame, *, context: str = "ground-raw") -> None:
     """Validate the raw ground-measurement schema.
 
     Required columns: ``datetime, ghi, location, latitude, longitude``.

@@ -16,7 +16,8 @@ def _first_long_format(variables) -> str:
     an irradiance_wide entry (which the long-table fields reject).
     """
     return next(
-        v.variable_id for v in variables
+        v.variable_id
+        for v in variables
         if v.physical_storage is PhysicalStorage.LONG_FORMAT
     )
 
@@ -50,7 +51,8 @@ class TestCatalogValidation:
         # in the catalog; we deliberately pick an id that is CAMS-only.)
         nasa_ids = {v.variable_id for v in VariableCatalog.NASA_POWER_VARIABLES}
         cams_only = next(
-            v.variable_id for v in VariableCatalog.CAMS_VARIABLES
+            v.variable_id
+            for v in VariableCatalog.CAMS_VARIABLES
             if v.variable_id not in nasa_ids
         )
         with pytest.raises(ValueError, match="unknown variable_id"):
@@ -162,9 +164,12 @@ class TestAuxColumns:
         assert any(c.startswith("merra_") for c in cols)
 
     def test_empty_selection_aux_columns_empty(self) -> None:
-        assert FeatureSelection(
-            include_satellite_irradiance=(),
-        ).aux_columns == ()
+        assert (
+            FeatureSelection(
+                include_satellite_irradiance=(),
+            ).aux_columns
+            == ()
+        )
 
 
 class TestJsonRoundtrip:

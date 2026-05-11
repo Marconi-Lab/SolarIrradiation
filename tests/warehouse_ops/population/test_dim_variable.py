@@ -67,9 +67,17 @@ class TestVariablesToDataframe:
     def test_columns_match_dim_variable_schema(self) -> None:
         df = variables_to_dataframe(VariableCatalog.all_variables())
         expected = {
-            "variable_id", "source", "display_name", "unit", "native_unit",
-            "description", "temporal_granularity", "spatial_resolution_km",
-            "valid_min", "valid_max", "physical_storage",
+            "variable_id",
+            "source",
+            "display_name",
+            "unit",
+            "native_unit",
+            "description",
+            "temporal_granularity",
+            "spatial_resolution_km",
+            "valid_min",
+            "valid_max",
+            "physical_storage",
         }
         assert set(df.columns) == expected
 

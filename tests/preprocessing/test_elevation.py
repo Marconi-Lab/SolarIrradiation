@@ -32,7 +32,8 @@ class TestPvlibElevationProvider:
         assert provider.cache_size == 1
 
     def test_distinct_points_each_hit_pvlib_once(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         calls: list[tuple[float, float]] = []
 
@@ -49,7 +50,8 @@ class TestPvlibElevationProvider:
         assert provider.cache_size == 2
 
     def test_subdecimal_coordinates_round_to_same_cache_key(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # 4-decimal rounding (~10 m at the equator) is below any free DEM's
         # spatial resolution, so two near-identical lookups must coalesce
@@ -67,7 +69,8 @@ class TestPvlibElevationProvider:
         assert len(calls) == 1
 
     def test_pvlib_failure_propagates(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # No silent fallback to NaN / 0 — a misconfigured network must
         # surface as a clear error rather than poison a feature column.

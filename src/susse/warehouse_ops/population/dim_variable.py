@@ -23,9 +23,9 @@ from typing import ClassVar
 
 import pandas as pd
 
-from .types import PhysicalStorage, Source, VariableSpec
 from ..io.bq import BigQueryClient
 from ..io.config import TableSchemas
+from .types import PhysicalStorage, Source, VariableSpec
 
 _logger = logging.getLogger(__name__)
 
@@ -703,7 +703,10 @@ def variables_to_dataframe(variables: tuple[VariableSpec, ...]) -> pd.DataFrame:
 
 
 def populate_dim_variable(
-    bq: BigQueryClient, *, table_fqn: str, variables: tuple[VariableSpec, ...] | None = None
+    bq: BigQueryClient,
+    *,
+    table_fqn: str,
+    variables: tuple[VariableSpec, ...] | None = None,
 ) -> int:
     """Upsert variable catalogue rows into the ``dim_variable`` table.
 
@@ -726,5 +729,7 @@ def populate_dim_variable(
         spec=MergeSpec(schema=TableSchemas.DIM_VARIABLE),
     )
     written = loader.load(df)
-    _logger.info("populate_dim_variable: upserted %d row(s) into %s.", written, table_fqn)
+    _logger.info(
+        "populate_dim_variable: upserted %d row(s) into %s.", written, table_fqn
+    )
     return written

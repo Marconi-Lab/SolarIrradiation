@@ -2,9 +2,8 @@ from datetime import datetime
 from typing import List, Optional
 
 import numpy as np
-from numpy import number
-
 import pandas as pd
+from numpy import number
 
 from .modis_product import ModisBand
 
@@ -152,4 +151,3 @@ class ModisDataResult:
 
         df = pd.DataFrame(vals, index=time_pts, columns=[self.data_points[0].band])
         return df
-

@@ -41,7 +41,8 @@ import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import date as _date, datetime, timedelta, timezone
+from datetime import date as _date
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -143,9 +144,7 @@ def _timestamps_for(date: _date, n_timesteps: int) -> pd.DatetimeIndex:
             [base + timedelta(hours=h, minutes=30) for h in range(24)]
         )
     if n_timesteps == 8:
-        return pd.DatetimeIndex(
-            [base + timedelta(hours=h * 3) for h in range(8)]
-        )
+        return pd.DatetimeIndex([base + timedelta(hours=h * 3) for h in range(8)])
     if n_timesteps == 1:
         return pd.DatetimeIndex([base + timedelta(hours=12)])
     raise ValueError(
@@ -369,7 +368,9 @@ class MerraDailyFetcher:
                 if n_done % _PROGRESS_LOG_EVERY == 0:
                     _logger.info(
                         "MERRA-2 fetcher progress: %d / %d (%.1f%%)",
-                        n_done, n_total, 100.0 * n_done / n_total,
+                        n_done,
+                        n_total,
+                        100.0 * n_done / n_total,
                     )
         finally:
             if pool is not None:
@@ -446,21 +447,21 @@ class MerraDailyFetcher:
                 lat_idx - bbox.lat_idx_lo,
                 lon_idx - bbox.lon_idx_lo,
             ].astype(float)
-            sub_daily = np.where(
-                sub_daily > _FILL_VALUE_THRESHOLD, np.nan, sub_daily
-            )
+            sub_daily = np.where(sub_daily > _FILL_VALUE_THRESHOLD, np.nan, sub_daily)
             if np.isnan(sub_daily).all():
                 continue
             daily = cos_zenith_aggregate(sub_daily, timestamps, lat, lon)
             if not pd.notna(daily):
                 continue
-            rows.append({
-                "date": day,
-                "latitude": lat,
-                "longitude": lon,
-                "variable_id": api_code,
-                "value": float(daily),
-            })
+            rows.append(
+                {
+                    "date": day,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "variable_id": api_code,
+                    "value": float(daily),
+                }
+            )
         return rows
 
     def _fetch_bbox_raw(
@@ -487,10 +488,14 @@ class MerraDailyFetcher:
         _logger.info(
             "MERRA-2 region request: %s %s lat_idx=[%d:%d] lon_idx=[%d:%d] "
             "(cadence=%d/day, %d cells)",
-            product_data.product_name, date.isoformat(),
-            bbox.lat_idx_lo, bbox.lat_idx_hi,
-            bbox.lon_idx_lo, bbox.lon_idx_hi,
-            cadence, bbox.n_cells,
+            product_data.product_name,
+            date.isoformat(),
+            bbox.lat_idx_lo,
+            bbox.lat_idx_hi,
+            bbox.lon_idx_lo,
+            bbox.lon_idx_hi,
+            cadence,
+            bbox.n_cells,
         )
         t0 = _time.monotonic()
         try:
@@ -499,7 +504,9 @@ class MerraDailyFetcher:
         except Exception as exc:
             _logger.warning(
                 "MERRA-2 region fetch failed for %s %s: %s",
-                product_data.product_name, date.isoformat(), exc,
+                product_data.product_name,
+                date.isoformat(),
+                exc,
             )
             return None
         elapsed = _time.monotonic() - t0
@@ -507,13 +514,17 @@ class MerraDailyFetcher:
         if raw.shape != expected_shape:
             _logger.warning(
                 "Expected shape %s for %s on %s, got %s. Skipping.",
-                expected_shape, product_data.product_name,
-                date.isoformat(), raw.shape,
+                expected_shape,
+                product_data.product_name,
+                date.isoformat(),
+                raw.shape,
             )
             return None
         _logger.info(
             "MERRA-2 region response: %s shape=%s in %.1fs.",
-            product_data.product_name, raw.shape, elapsed,
+            product_data.product_name,
+            raw.shape,
+            elapsed,
         )
         return raw
 
@@ -539,9 +550,7 @@ class MerraDailyFetcher:
         points: tuple[tuple[float, float], ...],
     ) -> tuple[tuple[int, int], ...]:
         """Return per-point ``(lat_idx, lon_idx)`` MERRA-2 grid indices."""
-        return tuple(
-            MerraDailyFetcher._grid_indices(lat, lon) for lat, lon in points
-        )
+        return tuple(MerraDailyFetcher._grid_indices(lat, lon) for lat, lon in points)
 
     @staticmethod
     def _bbox_enclosing(
@@ -598,6 +607,7 @@ class MerraDailyFetcher:
                 # auth on first use.
                 if session is None:
                     import requests
+
                     _logger.warning(
                         "pydap.setup_session returned None (check_url probe "
                         "failed). Falling back to a plain requests.Session "
@@ -619,12 +629,16 @@ class MerraDailyFetcher:
     def _grid_indices(latitude: float, longitude: float) -> tuple[int, int]:
         lat_geos5 = Merra2Config._translate_lat_to_geos5_native(latitude)
         lon_geos5 = Merra2Config._translate_lon_to_geos5_native(longitude)
-        merra_lat_idx = int(Merra2Config._find_closest_merra_coordinate(
-            lat_geos5, Merra2Config.MERRA_LAT_COORDS
-        ))
-        merra_lon_idx = int(Merra2Config._find_closest_merra_coordinate(
-            lon_geos5, Merra2Config.MERRA_LON_COORDS
-        ))
+        merra_lat_idx = int(
+            Merra2Config._find_closest_merra_coordinate(
+                lat_geos5, Merra2Config.MERRA_LAT_COORDS
+            )
+        )
+        merra_lon_idx = int(
+            Merra2Config._find_closest_merra_coordinate(
+                lon_geos5, Merra2Config.MERRA_LON_COORDS
+            )
+        )
         return merra_lat_idx, merra_lon_idx
 
     @staticmethod

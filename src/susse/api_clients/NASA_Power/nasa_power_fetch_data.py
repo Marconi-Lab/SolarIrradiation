@@ -64,7 +64,10 @@ class NASAPowerFetchData:
         n_days = (end_date - start_date).days + 1
         _logger.info(
             "NASA POWER request: lat=%.4f lon=%.4f n_vars=%d n_days=%d",
-            location.latitude, location.longitude, len(products), n_days,
+            location.latitude,
+            location.longitude,
+            len(products),
+            n_days,
         )
         t0 = time.monotonic()
         response = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
@@ -72,7 +75,8 @@ class NASAPowerFetchData:
         response.raise_for_status()
         _logger.info(
             "NASA POWER response: %d bytes in %.1fs.",
-            len(response.content), elapsed,
+            len(response.content),
+            elapsed,
         )
         json_data = response.json()
         return json_data["properties"]["parameter"]

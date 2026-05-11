@@ -93,7 +93,10 @@ class CAMSClient:
         n_days = (end - start).days + 1
         _logger.info(
             "CAMS request: lat=%.4f lon=%.4f step=%s n_days=%d",
-            latitude, longitude, time_step, n_days,
+            latitude,
+            longitude,
+            time_step,
+            n_days,
         )
         t0 = time.monotonic()
         try:

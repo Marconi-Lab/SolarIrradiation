@@ -22,28 +22,35 @@ from susse.preprocessing.cleaning import CleanerKind
 
 
 def _toy_dataset(*, with_coords: bool = False) -> TrainingDataset:
-    df = pd.DataFrame({
-        "date": [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)],
-        "location": ["a", "a", "a"],
-        "geohash5": ["s8p1v", "s8p1v", "s8p1v"],
-        "y_ghi_kwh_m2_day": [5.0, 6.0, 4.0],
-        "sat_ghi_nasa_kwh_m2_day": [4.5, 5.5, 3.5],
-        "nasa_ghi_clear": [6.0, 6.0, 6.0],
-        "nasa_aod_550": [0.3, 0.25, 0.5],
-    })
+    df = pd.DataFrame(
+        {
+            "date": [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)],
+            "location": ["a", "a", "a"],
+            "geohash5": ["s8p1v", "s8p1v", "s8p1v"],
+            "y_ghi_kwh_m2_day": [5.0, 6.0, 4.0],
+            "sat_ghi_nasa_kwh_m2_day": [4.5, 5.5, 3.5],
+            "nasa_ghi_clear": [6.0, 6.0, 6.0],
+            "nasa_aod_550": [0.3, 0.25, 0.5],
+        }
+    )
     if with_coords:
         df["lat"] = 0.5179
         df["lon"] = 32.4715
     manifest = DatasetManifest(
-        name="toy", version="v0",
+        name="toy",
+        version="v0",
         created_at_utc=datetime(2026, 5, 9, tzinfo=timezone.utc).isoformat(),
-        susse_version="test", git_sha=None,
+        susse_version="test",
+        git_sha=None,
         feature_selection=FeatureSelection(),
-        date_start=date(2024, 1, 1), date_end=date(2024, 1, 3),
+        date_start=date(2024, 1, 1),
+        date_end=date(2024, 1, 3),
         location_filter=None,
-        warehouse_project="test", warehouse_dataset="test",
+        warehouse_project="test",
+        warehouse_dataset="test",
         warehouse_table_mods={},
-        n_rows=3, n_cols=len(df.columns),
+        n_rows=3,
+        n_cols=len(df.columns),
         column_names=tuple(df.columns),
         content_hash="dummy_hash",
     )
@@ -66,7 +73,10 @@ class TestApplyHappyPath:
         )
         result = Preprocessor(spec).apply(_toy_dataset())
         assert result.feature_columns == (
-            "nasa_aod_550", "kt_nasa", "doy_sin", "doy_cos",
+            "nasa_aod_550",
+            "kt_nasa",
+            "doy_sin",
+            "doy_cos",
         )
         # kt = 4.5/6.0 = 0.75 for the first row.
         assert result.df["kt_nasa"].iloc[0] == pytest.approx(0.75)
@@ -149,9 +159,7 @@ class TestColumnValidation:
         # Preprocessor's column validation must surface that with a
         # clear error rather than letting compute() fail with a KeyError.
         spec = FeatureSpec(
-            derived_features=(
-                AltitudeFeature(provider=lambda lat, lon: 1000.0),
-            ),
+            derived_features=(AltitudeFeature(provider=lambda lat, lon: 1000.0),),
         )
         with pytest.raises(ValueError, match="lat"):
             Preprocessor(spec).apply(_toy_dataset(with_coords=False))
@@ -167,9 +175,7 @@ class TestDerivedFeaturesIntegration:
     def test_altitude_feature_emits_column(self) -> None:
         spec = FeatureSpec(
             feature_columns=("nasa_aod_550",),
-            derived_features=(
-                AltitudeFeature(provider=lambda lat, lon: 1200.0),
-            ),
+            derived_features=(AltitudeFeature(provider=lambda lat, lon: 1200.0),),
         )
         result = Preprocessor(spec).apply(_toy_dataset(with_coords=True))
         assert "altitude_m" in result.df.columns
@@ -188,9 +194,7 @@ class TestDerivedFeaturesIntegration:
 
         spec = FeatureSpec(
             feature_columns=("nasa_aod_550",),
-            derived_features=(
-                AltitudeFeature(provider=counting_provider),
-            ),
+            derived_features=(AltitudeFeature(provider=counting_provider),),
         )
         Preprocessor(spec).apply(_toy_dataset(with_coords=True))
         assert len(calls) == 1
@@ -209,7 +213,11 @@ class TestDerivedFeaturesIntegration:
         )
         result = Preprocessor(spec).apply(_toy_dataset(with_coords=True))
         assert result.feature_columns == (
-            "nasa_aod_550", "kt_nasa", "doy_sin", "doy_cos", "altitude_m",
+            "nasa_aod_550",
+            "kt_nasa",
+            "doy_sin",
+            "doy_cos",
+            "altitude_m",
         )
 
 
@@ -258,6 +266,13 @@ class _RecordingCleaner(DataCleaner):
     def to_dict(self) -> dict:
         return {"kind": self.kind.value, "name": self._name}
 
+    @classmethod
+    def _from_dict(cls, d: dict, *, providers: dict) -> "_RecordingCleaner":
+        # Test stub — never round-tripped through JSON in this suite.
+        raise NotImplementedError(
+            "_RecordingCleaner is a test stub; JSON roundtrip is out of scope."
+        )
+
 
 class _RecordingFeature(ClearSkyIndexFeature):
     """ClearSkyIndexFeature that records when it ran. Subclassing keeps
@@ -297,7 +312,8 @@ class TestCleanerOrdering:
             ),
             derived_features=(
                 _RecordingFeature(
-                    "derive_kt", calls,
+                    "derive_kt",
+                    calls,
                     ghi_column="sat_ghi_nasa_kwh_m2_day",
                     ghi_clear_column="nasa_ghi_clear",
                     output_column="kt_nasa",
@@ -318,7 +334,8 @@ class TestCleanerOrdering:
             feature_columns=("nasa_aod_550",),
             cleaners=(
                 GhiUpperBoundCleaner(
-                    column="sat_ghi_nasa_kwh_m2_day", threshold=5.0,
+                    column="sat_ghi_nasa_kwh_m2_day",
+                    threshold=5.0,
                 ),
             ),
             derived_features=(_kt(),),
@@ -329,8 +346,10 @@ class TestCleanerOrdering:
         # against ghi_clear=6.0 → kt ∈ {0.75, 0.583...}. Pin the kt values
         # so a regression in the cleaner-then-feature ordering is caught.
         kt_values = sorted(result.df["kt_nasa"].round(4).tolist())
-        assert kt_values == [pytest.approx(0.5833, abs=1e-4),
-                             pytest.approx(0.75, abs=1e-4)]
+        assert kt_values == [
+            pytest.approx(0.5833, abs=1e-4),
+            pytest.approx(0.75, abs=1e-4),
+        ]
 
     def test_validate_columns_catches_cleaner_input_missing(self) -> None:
         # If a cleaner needs a column that's not in the input frame,
@@ -339,7 +358,8 @@ class TestCleanerOrdering:
             feature_columns=("nasa_aod_550",),
             cleaners=(
                 GhiUpperBoundCleaner(
-                    column="not_in_frame", threshold=5.0,
+                    column="not_in_frame",
+                    threshold=5.0,
                 ),
             ),
             derived_features=(_kt(),),

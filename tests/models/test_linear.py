@@ -8,18 +8,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from susse.models import (
-    LinearParams, LinearRegressor, ModelFactory, load_regressor,
-)
+from susse.models import LinearParams, LinearRegressor, ModelFactory, load_regressor
 
 
 def _learnable_data(n: int = 200) -> tuple[pd.DataFrame, pd.Series]:
     """y = 2a - 3b + noise. Linear is the right model class here."""
     rng = np.random.default_rng(0)
-    X = pd.DataFrame({
-        "a": rng.uniform(-1, 1, n),
-        "b": rng.uniform(-10, 10, n),  # very different scale from `a`
-    })
+    X = pd.DataFrame(
+        {
+            "a": rng.uniform(-1, 1, n),
+            "b": rng.uniform(-10, 10, n),  # very different scale from `a`
+        }
+    )
     y = pd.Series(2.0 * X["a"] - 3.0 * X["b"] + rng.normal(scale=0.1, size=n))
     return X, y
 
@@ -54,18 +54,18 @@ class TestScalingContract:
         # values would be near-standard-normal, defeating the purpose.
         # Instead, B's scaling must reflect A's mean/std.
         rng = np.random.default_rng(42)
-        X_train = pd.DataFrame({
-            "a": rng.normal(loc=0.0, scale=1.0, size=200),
-        })
+        X_train = pd.DataFrame(
+            {
+                "a": rng.normal(loc=0.0, scale=1.0, size=200),
+            }
+        )
         y_train = pd.Series(2.0 * X_train["a"] + rng.normal(scale=0.05, size=200))
 
         # B has a wildly shifted mean — if scaler refit on B, predictions
         # would be biased toward the mean of y_train.
         X_test = pd.DataFrame({"a": [100.0]})
 
-        model = LinearRegressor(LinearParams(with_scaling=True)).fit(
-            X_train, y_train
-        )
+        model = LinearRegressor(LinearParams(with_scaling=True)).fit(X_train, y_train)
         prediction = model.predict(X_test).iloc[0]
 
         # With scaler fitted on A: a=100 is ~100σ above A's mean →

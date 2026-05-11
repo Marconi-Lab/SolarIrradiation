@@ -29,11 +29,13 @@ class _RecordingBQ:
         *,
         where_filters=(),
     ) -> set[tuple]:
-        self.calls.append({
-            "table_fqn": table_fqn,
-            "key_columns": tuple(key_columns),
-            "where_filters": tuple(where_filters),
-        })
+        self.calls.append(
+            {
+                "table_fqn": table_fqn,
+                "key_columns": tuple(key_columns),
+                "where_filters": tuple(where_filters),
+            }
+        )
         return set()  # pretend the warehouse is empty
 
     @property

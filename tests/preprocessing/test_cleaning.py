@@ -26,7 +26,6 @@ from susse.preprocessing import (
     data_cleaner_from_dict,
 )
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -44,11 +43,13 @@ def _daily_frame(
     value: float = 5.0,
 ) -> pd.DataFrame:
     """Construct ``n_days`` consecutive daily rows for one station."""
-    return pd.DataFrame({
-        "date": [start + timedelta(days=i) for i in range(n_days)],
-        "location": [location] * n_days,
-        "ghi_kwh_m2_day": [value] * n_days,
-    })
+    return pd.DataFrame(
+        {
+            "date": [start + timedelta(days=i) for i in range(n_days)],
+            "location": [location] * n_days,
+            "ghi_kwh_m2_day": [value] * n_days,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -61,21 +62,27 @@ class TestGhiUpperBoundCleaner:
         # Boundary check: rows exactly at the threshold are kept; rows
         # strictly above are dropped. Pinning this prevents off-by-one
         # creep that could either over- or under-clip the dataset.
-        df = _frame([
-            {"ghi_kwh_m2_day": 11.9},
-            {"ghi_kwh_m2_day": 12.0},   # boundary — keep
-            {"ghi_kwh_m2_day": 12.5},   # drop
-            {"ghi_kwh_m2_day": 9.5},
-        ])
+        df = _frame(
+            [
+                {"ghi_kwh_m2_day": 11.9},
+                {"ghi_kwh_m2_day": 12.0},  # boundary — keep
+                {"ghi_kwh_m2_day": 12.5},  # drop
+                {"ghi_kwh_m2_day": 9.5},
+            ]
+        )
         cleaned = GhiUpperBoundCleaner().apply(df)
         assert cleaned["ghi_kwh_m2_day"].tolist() == [11.9, 12.0, 9.5]
 
     def test_custom_column_and_threshold(self) -> None:
         # Same cleaner reused with a different column name + bound — the
         # paper's defaults aren't the only valid configuration.
-        df = _frame([
-            {"x": 0.5}, {"x": 1.0}, {"x": 2.0},
-        ])
+        df = _frame(
+            [
+                {"x": 0.5},
+                {"x": 1.0},
+                {"x": 2.0},
+            ]
+        )
         cleaned = GhiUpperBoundCleaner(column="x", threshold=1.0).apply(df)
         assert cleaned["x"].tolist() == [0.5, 1.0]
 
@@ -104,9 +111,7 @@ class TestIqrLowerBoundCleaner:
     def test_drops_low_outlier(self) -> None:
         # Q1=2, Q3=4, IQR=2 → lower bound = 2 − 1.5×2 = −1. With a clear
         # negative outlier far below that, expect it to be dropped.
-        df = _frame([
-            {"ghi_kwh_m2_day": v} for v in [-50.0, 2.0, 3.0, 4.0, 5.0]
-        ])
+        df = _frame([{"ghi_kwh_m2_day": v} for v in [-50.0, 2.0, 3.0, 4.0, 5.0]])
         cleaned = IqrLowerBoundCleaner().apply(df)
         assert -50.0 not in cleaned["ghi_kwh_m2_day"].tolist()
         assert len(cleaned) == 4
@@ -120,9 +125,7 @@ class TestIqrLowerBoundCleaner:
         # The upper-side fence is intentionally not applied — clear-sky
         # days at the top of the distribution are legitimate values.
         # Pin that an extreme high value survives this cleaner.
-        df = _frame([
-            {"ghi_kwh_m2_day": v} for v in [3.0, 4.0, 5.0, 6.0, 50.0]
-        ])
+        df = _frame([{"ghi_kwh_m2_day": v} for v in [3.0, 4.0, 5.0, 6.0, 50.0]])
         cleaned = IqrLowerBoundCleaner().apply(df)
         assert 50.0 in cleaned["ghi_kwh_m2_day"].tolist()
 
@@ -153,30 +156,38 @@ class TestHighMissingYearExcluder:
         # Station A: full year of data → keep.
         # Station B: only 30 days within a 365-day span → drop entire group.
         full = _daily_frame("A", date(2024, 1, 1), 365)
-        sparse_dates = [date(2024, 1, 1) + timedelta(days=i * 12)
-                        for i in range(30)]  # 30 days spread over ~360
-        sparse = pd.DataFrame({
-            "date": sparse_dates,
-            "location": ["B"] * 30,
-            "ghi_kwh_m2_day": [4.0] * 30,
-        })
+        sparse_dates = [
+            date(2024, 1, 1) + timedelta(days=i * 12) for i in range(30)
+        ]  # 30 days spread over ~360
+        sparse = pd.DataFrame(
+            {
+                "date": sparse_dates,
+                "location": ["B"] * 30,
+                "ghi_kwh_m2_day": [4.0] * 30,
+            }
+        )
         df = pd.concat([full, sparse], ignore_index=True)
         cleaner = HighMissingYearExcluder()  # 5% default threshold
         cleaned = cleaner.apply(df)
-        assert set(cleaned["location"]) == {"A"}, (
-            "Station B's missing fraction is far above 5% — its rows must be dropped."
-        )
+        assert set(cleaned["location"]) == {
+            "A"
+        }, "Station B's missing fraction is far above 5% — its rows must be dropped."
         assert len(cleaned) == 365
 
     def test_keeps_year_within_threshold(self) -> None:
         # 360 of 365 expected days = ~1.4% missing, below 5% → keep.
-        days = [date(2024, 1, 1) + timedelta(days=i) for i in range(365)
-                if i not in {10, 20, 30, 40, 50}]
-        df = pd.DataFrame({
-            "date": days,
-            "location": ["A"] * len(days),
-            "ghi_kwh_m2_day": [5.0] * len(days),
-        })
+        days = [
+            date(2024, 1, 1) + timedelta(days=i)
+            for i in range(365)
+            if i not in {10, 20, 30, 40, 50}
+        ]
+        df = pd.DataFrame(
+            {
+                "date": days,
+                "location": ["A"] * len(days),
+                "ghi_kwh_m2_day": [5.0] * len(days),
+            }
+        )
         cleaner = HighMissingYearExcluder()
         cleaned = cleaner.apply(df)
         assert len(cleaned) == len(days)
@@ -198,7 +209,8 @@ class TestHighMissingYearExcluder:
 
     def test_to_dict_roundtrip(self) -> None:
         c = HighMissingYearExcluder(
-            station_column="loc", date_column="d",
+            station_column="loc",
+            date_column="d",
             missing_fraction_threshold=0.1,
         )
         rebuilt = data_cleaner_from_dict(c.to_dict())
@@ -218,12 +230,20 @@ class TestKnnYearGapImputer:
         # 4 consecutive days, plus a 5th day after a 1-day gap. The
         # missing day's k=2 nearest existing values are days 4 and 6
         # (1 step away each), so the imputed value is their mean.
-        df = pd.DataFrame({
-            "date": [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3),
-                     date(2024, 1, 4), date(2024, 1, 6), date(2024, 1, 7)],
-            "location": ["A"] * 6,
-            "ghi_kwh_m2_day": [5.0, 5.5, 5.2, 6.0, 4.8, 4.5],
-        })
+        df = pd.DataFrame(
+            {
+                "date": [
+                    date(2024, 1, 1),
+                    date(2024, 1, 2),
+                    date(2024, 1, 3),
+                    date(2024, 1, 4),
+                    date(2024, 1, 6),
+                    date(2024, 1, 7),
+                ],
+                "location": ["A"] * 6,
+                "ghi_kwh_m2_day": [5.0, 5.5, 5.2, 6.0, 4.8, 4.5],
+            }
+        )
         cleaner = KnnYearGapImputer(k=2)
         imputed = cleaner.apply(df)
         # The Jan 5 row should have appeared.
@@ -238,14 +258,21 @@ class TestKnnYearGapImputer:
         # must come from the same (station, year) group, not appear as
         # NaN. A model that joins back on geohash5 would mis-route
         # imputed days otherwise.
-        df = pd.DataFrame({
-            "date": [date(2024, 1, 1), date(2024, 1, 2),
-                     date(2024, 1, 4), date(2024, 1, 5)],
-            "location": ["A"] * 4,
-            "geohash5": ["xyz12"] * 4,
-            "lat": [0.5] * 4, "lon": [32.0] * 4,
-            "ghi_kwh_m2_day": [5.0, 5.5, 5.2, 5.4],
-        })
+        df = pd.DataFrame(
+            {
+                "date": [
+                    date(2024, 1, 1),
+                    date(2024, 1, 2),
+                    date(2024, 1, 4),
+                    date(2024, 1, 5),
+                ],
+                "location": ["A"] * 4,
+                "geohash5": ["xyz12"] * 4,
+                "lat": [0.5] * 4,
+                "lon": [32.0] * 4,
+                "ghi_kwh_m2_day": [5.0, 5.5, 5.2, 5.4],
+            }
+        )
         cleaner = KnnYearGapImputer(k=2)
         imputed = cleaner.apply(df)
         jan3_rows = imputed[imputed["date"] == date(2024, 1, 3)]
@@ -266,11 +293,13 @@ class TestKnnYearGapImputer:
         # Group too small to compute a k-NN mean → cleaner skips it
         # rather than crashing. Pairs with HighMissingYearExcluder which
         # would normally have removed these groups upstream.
-        df = pd.DataFrame({
-            "date": [date(2024, 1, 1), date(2024, 1, 5)],
-            "location": ["A"] * 2,
-            "ghi_kwh_m2_day": [5.0, 5.5],
-        })
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1), date(2024, 1, 5)],
+                "location": ["A"] * 2,
+                "ghi_kwh_m2_day": [5.0, 5.5],
+            }
+        )
         cleaner = KnnYearGapImputer(k=5)
         imputed = cleaner.apply(df)
         assert len(imputed) == 2  # untouched
@@ -279,19 +308,29 @@ class TestKnnYearGapImputer:
         # Station A has a gap on Jan 3; Station B has different values
         # and a gap on Jan 4. Each group's imputation must use only that
         # group's observed values (kNN never crosses station boundaries).
-        df = pd.DataFrame({
-            "date": [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 4),
-                     date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3),
-                     date(2024, 1, 5)],
-            "location": ["A", "A", "A", "B", "B", "B", "B"],
-            "ghi_kwh_m2_day": [3.0, 3.5, 4.0,    7.0, 7.2, 7.4, 7.6],
-        })
+        df = pd.DataFrame(
+            {
+                "date": [
+                    date(2024, 1, 1),
+                    date(2024, 1, 2),
+                    date(2024, 1, 4),
+                    date(2024, 1, 1),
+                    date(2024, 1, 2),
+                    date(2024, 1, 3),
+                    date(2024, 1, 5),
+                ],
+                "location": ["A", "A", "A", "B", "B", "B", "B"],
+                "ghi_kwh_m2_day": [3.0, 3.5, 4.0, 7.0, 7.2, 7.4, 7.6],
+            }
+        )
         cleaner = KnnYearGapImputer(k=2)
         imputed = cleaner.apply(df)
-        a_jan3 = imputed[(imputed["location"] == "A")
-                         & (imputed["date"] == date(2024, 1, 3))]
-        b_jan4 = imputed[(imputed["location"] == "B")
-                         & (imputed["date"] == date(2024, 1, 4))]
+        a_jan3 = imputed[
+            (imputed["location"] == "A") & (imputed["date"] == date(2024, 1, 3))
+        ]
+        b_jan4 = imputed[
+            (imputed["location"] == "B") & (imputed["date"] == date(2024, 1, 4))
+        ]
         assert len(a_jan3) == 1
         assert len(b_jan4) == 1
         # Imputed values come from each group's own neighbours, not the
@@ -363,10 +402,12 @@ class TestPerStationMeanImputer:
     """Imputer fills NaN with per-station column means."""
 
     def test_fills_nan_with_station_mean(self) -> None:
-        df = pd.DataFrame({
-            "location": ["a", "a", "a", "b", "b", "b"],
-            "temperature": [10.0, 20.0, np.nan, 5.0, np.nan, 15.0],
-        })
+        df = pd.DataFrame(
+            {
+                "location": ["a", "a", "a", "b", "b", "b"],
+                "temperature": [10.0, 20.0, np.nan, 5.0, np.nan, 15.0],
+            }
+        )
         result = PerStationMeanImputer(columns=("temperature",)).apply(df)
         # Station 'a' has values [10, 20] → mean 15 fills the NaN.
         # Station 'b' has values [5, 15] → mean 10 fills the NaN.
@@ -380,21 +421,25 @@ class TestPerStationMeanImputer:
         # Station 'c' has every value NaN — no mean to compute, so the
         # imputer must leave those NaNs in place. Caller's
         # ``dropna_features`` will then drop the rows downstream.
-        df = pd.DataFrame({
-            "location": ["a", "a", "c", "c"],
-            "temperature": [10.0, 20.0, np.nan, np.nan],
-        })
+        df = pd.DataFrame(
+            {
+                "location": ["a", "a", "c", "c"],
+                "temperature": [10.0, 20.0, np.nan, np.nan],
+            }
+        )
         result = PerStationMeanImputer(columns=("temperature",)).apply(df)
         assert result.loc[0, "temperature"] == 10.0
         assert pd.isna(result.loc[2, "temperature"])
         assert pd.isna(result.loc[3, "temperature"])
 
     def test_multiple_columns_imputed_independently(self) -> None:
-        df = pd.DataFrame({
-            "location": ["a", "a", "a"],
-            "temperature": [10.0, 20.0, np.nan],
-            "humidity":    [np.nan, 40.0, 60.0],
-        })
+        df = pd.DataFrame(
+            {
+                "location": ["a", "a", "a"],
+                "temperature": [10.0, 20.0, np.nan],
+                "humidity": [np.nan, 40.0, 60.0],
+            }
+        )
         result = PerStationMeanImputer(
             columns=("temperature", "humidity"),
         ).apply(df)
@@ -412,7 +457,8 @@ class TestPerStationMeanImputer:
 
     def test_to_dict_roundtrip(self) -> None:
         original = PerStationMeanImputer(
-            columns=("temperature", "humidity"), station_column="station_id",
+            columns=("temperature", "humidity"),
+            station_column="station_id",
         )
         rebuilt = data_cleaner_from_dict(original.to_dict())
         assert isinstance(rebuilt, PerStationMeanImputer)

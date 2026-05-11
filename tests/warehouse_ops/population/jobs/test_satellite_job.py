@@ -33,22 +33,32 @@ class _StubBQ:
     @property
     def config(self):
         from susse.warehouse_ops.io.config import WarehouseConfig
+
         return WarehouseConfig()
 
 
 def _ghi_var(source: Source) -> VariableSpec:
     api = "ALLSKY_SFC_SW_DWN" if source is Source.NASA_POWER else "ghi"
     return VariableSpec(
-        variable_id="ghi", source=source, api_code=api,
-        display_name="GHI", unit="kWh/m^2/day", native_unit="kWh/m^2/day",
+        variable_id="ghi",
+        source=source,
+        api_code=api,
+        display_name="GHI",
+        unit="kWh/m^2/day",
+        native_unit="kWh/m^2/day",
         description="x",
     )
 
 
 def _temp_var() -> VariableSpec:
     return VariableSpec(
-        variable_id="temperature", source=Source.NASA_POWER, api_code="T2M",
-        display_name="Temp", unit="degC", native_unit="degC", description="x",
+        variable_id="temperature",
+        source=Source.NASA_POWER,
+        api_code="T2M",
+        display_name="Temp",
+        unit="degC",
+        native_unit="degC",
+        description="x",
     )
 
 
@@ -60,31 +70,37 @@ class TestExtractIrradiance:
         irradiance_vars = (
             _ghi_var(Source.NASA_POWER),
             VariableSpec(
-                variable_id="dhi", source=Source.NASA_POWER,
-                api_code="ALLSKY_SFC_SW_DIFF", display_name="DHI",
-                unit="kWh/m^2/day", native_unit="kWh/m^2/day", description="x",
+                variable_id="dhi",
+                source=Source.NASA_POWER,
+                api_code="ALLSKY_SFC_SW_DIFF",
+                display_name="DHI",
+                unit="kWh/m^2/day",
+                native_unit="kWh/m^2/day",
+                description="x",
             ),
         )
-        long = pd.DataFrame([
-            {
-                "date": date(2025, 1, 1),
-                "latitude": 0.333,
-                "longitude": 32.568,
-                "geohash5": "s8p1v",
-                "source": "NASA",
-                "variable_id": "ghi",
-                "value": 5.5,
-            },
-            {
-                "date": date(2025, 1, 1),
-                "latitude": 0.333,
-                "longitude": 32.568,
-                "geohash5": "s8p1v",
-                "source": "NASA",
-                "variable_id": "dhi",
-                "value": 2.5,
-            },
-        ])
+        long = pd.DataFrame(
+            [
+                {
+                    "date": date(2025, 1, 1),
+                    "latitude": 0.333,
+                    "longitude": 32.568,
+                    "geohash5": "s8p1v",
+                    "source": "NASA",
+                    "variable_id": "ghi",
+                    "value": 5.5,
+                },
+                {
+                    "date": date(2025, 1, 1),
+                    "latitude": 0.333,
+                    "longitude": 32.568,
+                    "geohash5": "s8p1v",
+                    "source": "NASA",
+                    "variable_id": "dhi",
+                    "value": 2.5,
+                },
+            ]
+        )
         wide = job._extract_irradiance(long, irradiance_vars)
         assert len(wide) == 1
         assert wide.loc[0, "ghi_kwh_m2_day"] == 5.5
@@ -116,14 +132,17 @@ class TestLocationFullyCached:
             (date(2025, 1, 1), "s8p1v"),
             (date(2025, 1, 2), "s8p1v"),
         }
-        assert job._location_fully_cached(
-            "s8p1v",
-            date_range=date_range,
-            long_vars=long_vars,
-            irradiance_vars=irr_vars,
-            existing_long=existing_long,
-            existing_irr=existing_irr,
-        ) is True
+        assert (
+            job._location_fully_cached(
+                "s8p1v",
+                date_range=date_range,
+                long_vars=long_vars,
+                irradiance_vars=irr_vars,
+                existing_long=existing_long,
+                existing_irr=existing_irr,
+            )
+            is True
+        )
 
     def test_returns_false_when_a_long_key_missing(self) -> None:
         job = self._job()
@@ -132,27 +151,33 @@ class TestLocationFullyCached:
         irr_vars = ()
 
         existing_long = {(date(2025, 1, 1), "s8p1v", "temperature")}  # day 2 missing
-        assert job._location_fully_cached(
-            "s8p1v",
-            date_range=date_range,
-            long_vars=long_vars,
-            irradiance_vars=irr_vars,
-            existing_long=existing_long,
-            existing_irr=set(),
-        ) is False
+        assert (
+            job._location_fully_cached(
+                "s8p1v",
+                date_range=date_range,
+                long_vars=long_vars,
+                irradiance_vars=irr_vars,
+                existing_long=existing_long,
+                existing_irr=set(),
+            )
+            is False
+        )
 
     def test_returns_false_when_irradiance_key_missing(self) -> None:
         job = self._job()
         date_range = DateRange(start=date(2025, 1, 1), end=date(2025, 1, 1))
         irr_vars = (_ghi_var(Source.NASA_POWER),)
-        assert job._location_fully_cached(
-            "s8p1v",
-            date_range=date_range,
-            long_vars=(),
-            irradiance_vars=irr_vars,
-            existing_long=set(),
-            existing_irr=set(),  # missing
-        ) is False
+        assert (
+            job._location_fully_cached(
+                "s8p1v",
+                date_range=date_range,
+                long_vars=(),
+                irradiance_vars=irr_vars,
+                existing_long=set(),
+                existing_irr=set(),  # missing
+            )
+            is False
+        )
 
 
 class TestLocationSpecToGeopy:
@@ -193,14 +218,17 @@ class _RecordingBQForCoverage:
     @property
     def config(self):
         from susse.warehouse_ops.io.config import WarehouseConfig
+
         return WarehouseConfig()
 
     def existing_keys(self, table_fqn, key_columns, *, where_filters=()):
-        self.coverage_calls.append({
-            "table_fqn": table_fqn,
-            "key_columns": tuple(key_columns),
-            "where_filters": tuple(where_filters),
-        })
+        self.coverage_calls.append(
+            {
+                "table_fqn": table_fqn,
+                "key_columns": tuple(key_columns),
+                "where_filters": tuple(where_filters),
+            }
+        )
         # Distinguish long-table vs irradiance-table call by key tuple length.
         if len(key_columns) == 3:
             return self._long_keys
@@ -233,7 +261,9 @@ class TestRunScopesCoverageByLocation:
         all_dates = (date(2024, 1, 1), date(2024, 1, 2))
         full_long = {
             (d, gh, v.variable_id)
-            for d in all_dates for gh in (gh1, gh2) for v in (long_var,)
+            for d in all_dates
+            for gh in (gh1, gh2)
+            for v in (long_var,)
         }
         full_irr = {(d, gh) for d in all_dates for gh in (gh1, gh2)}
         bq = _RecordingBQForCoverage(full_long, full_irr)
@@ -249,9 +279,9 @@ class TestRunScopesCoverageByLocation:
 
         # The job should have made coverage calls (one for long, one for
         # irradiance) and skipped both locations.
-        assert result.api_calls_made == 0, (
-            "fully-cached locations must skip the API call"
-        )
+        assert (
+            result.api_calls_made == 0
+        ), "fully-cached locations must skip the API call"
         assert result.extra["skipped_locations"] == 2
 
         # Both coverage calls must include a geohash5 IN (...) filter
@@ -259,12 +289,12 @@ class TestRunScopesCoverageByLocation:
         assert len(bq.coverage_calls) == 2
         for call in bq.coverage_calls:
             joined = " ".join(call["where_filters"])
-            assert "geohash5 IN" in joined, (
-                f"coverage call missing geohash5 scope: {call!r}"
-            )
-            assert gh1 in joined and gh2 in joined, (
-                f"coverage filter must include both plan geohashes: {call!r}"
-            )
+            assert (
+                "geohash5 IN" in joined
+            ), f"coverage call missing geohash5 scope: {call!r}"
+            assert (
+                gh1 in joined and gh2 in joined
+            ), f"coverage filter must include both plan geohashes: {call!r}"
 
 
 class TestCamsUnitConversion:
@@ -281,14 +311,20 @@ class TestCamsUnitConversion:
         # A typical clear-sky GHI in West Africa is ~250 W/m² mean (over
         # the 24h period); the corresponding daily energy is ~6 kWh/m²/day.
         cams_var = VariableSpec(
-            variable_id="ghi", source=Source.CAMS, api_code="ghi",
-            display_name="GHI", unit="kWh/m^2/day",
-            native_unit="Wh/m^2 (period)", description="x",
+            variable_id="ghi",
+            source=Source.CAMS,
+            api_code="ghi",
+            display_name="GHI",
+            unit="kWh/m^2/day",
+            native_unit="Wh/m^2 (period)",
+            description="x",
         )
-        df = pd.DataFrame([
-            {"timestamp": "2024-06-15T00:00:00Z", "ghi": 250.0},
-            {"timestamp": "2024-06-16T00:00:00Z", "ghi": 200.0},
-        ])
+        df = pd.DataFrame(
+            [
+                {"timestamp": "2024-06-15T00:00:00Z", "ghi": 250.0},
+                {"timestamp": "2024-06-16T00:00:00Z", "ghi": 200.0},
+            ]
+        )
         long = CamsSatelliteJob._cams_dataframe_to_long(df, (cams_var,))
         assert len(long) == 2
         # 250 W/m² × 0.024 = 6.0 kWh/m²/day
@@ -305,9 +341,13 @@ class TestCamsUnitConversion:
         # offset. (Defensive: previous bugs in similar pipelines have
         # added/subtracted constants.)
         cams_var = VariableSpec(
-            variable_id="ghi_clear", source=Source.CAMS, api_code="ghi_clear",
-            display_name="GHI clear", unit="kWh/m^2/day",
-            native_unit="Wh/m^2 (period)", description="x",
+            variable_id="ghi_clear",
+            source=Source.CAMS,
+            api_code="ghi_clear",
+            display_name="GHI clear",
+            unit="kWh/m^2/day",
+            native_unit="Wh/m^2 (period)",
+            description="x",
         )
         df = pd.DataFrame([{"timestamp": "2024-06-15T00:00:00Z", "ghi_clear": 0.0}])
         long = CamsSatelliteJob._cams_dataframe_to_long(df, (cams_var,))
@@ -327,6 +367,7 @@ class TestRunRejectsBadPlan:
 
     def test_run_raises_on_source_mismatch(self) -> None:
         from susse.warehouse_ops.population.types import NamedLocationsPlan
+
         job = NasaPowerSatelliteJob(_StubBQ())  # type: ignore[arg-type]
         plan = NamedLocationsPlan(
             source=Source.CAMS,  # wrong source for NASA job

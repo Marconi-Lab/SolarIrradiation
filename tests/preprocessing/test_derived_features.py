@@ -64,9 +64,7 @@ class TestCyclicalDayOfYear:
         # The whole point of the cyclical encoding: adjacent calendar
         # days near the year boundary are close in feature space, not
         # at the opposite ends of a 1..365 ramp.
-        out = cyclical_day_of_year(
-            pd.Series([date(2024, 12, 31), date(2025, 1, 1)])
-        )
+        out = cyclical_day_of_year(pd.Series([date(2024, 12, 31), date(2025, 1, 1)]))
         # L2 distance in (sin, cos) space.
         d = np.hypot(
             out["doy_sin"].iloc[0] - out["doy_sin"].iloc[1],

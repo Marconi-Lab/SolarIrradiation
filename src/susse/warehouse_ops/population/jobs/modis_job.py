@@ -24,6 +24,8 @@ import pandas as pd
 import pygeohash
 
 from ....api_clients.modis import ModisLongFetcher, product_cadence_days
+from ...io.bq import BigQueryClient
+from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
 from ..loaders import DerivedColumn, MergeLoader, MergeSpec
@@ -36,8 +38,6 @@ from ..types import (
     Source,
     VariableSpec,
 )
-from ...io.bq import BigQueryClient
-from ...io.config import TableRefs, TableSchemas
 
 _logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _split_variable_id(v: VariableSpec) -> tuple[str, str]:
             f"requires variable_id == f'{{api_code}}_{{band_id}}'. Update "
             f"the catalog entry in dim_variable.py."
         )
-    return v.api_code, v.variable_id[len(prefix):]
+    return v.api_code, v.variable_id[len(prefix) :]
 
 
 class ModisJob(BaseJob):
@@ -137,7 +137,10 @@ class ModisJob(BaseJob):
         )
         _logger.info(
             "%s: %d location(s), date %s..%s, %d (product, band) pair(s)",
-            self.name, len(locations), date_range.start, date_range.end,
+            self.name,
+            len(locations),
+            date_range.start,
+            date_range.end,
             len(product_band_pairs),
         )
 
@@ -223,7 +226,8 @@ class ModisJob(BaseJob):
             cadence = product_cadence_days(product_id)
             expected = max(1, date_range.n_days // cadence)
             actual = sum(
-                1 for k in existing_keys
+                1
+                for k in existing_keys
                 if k[1] == geohash5 and k[2] == product_id and k[3] == band_id
             )
             if actual < expected * _COVERAGE_RATIO_THRESHOLD:
@@ -250,7 +254,13 @@ class ModisJob(BaseJob):
             ),
         )
         cols = [
-            "date", "latitude", "longitude", "geohash5",
-            "product_id", "band_id", "value", "source",
+            "date",
+            "latitude",
+            "longitude",
+            "geohash5",
+            "product_id",
+            "band_id",
+            "value",
+            "source",
         ]
         return loader.load(df[cols])

@@ -7,10 +7,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from susse.warehouse_ops.population.curation import (
-    CurationOptions,
-    curate_ground,
-)
+from susse.warehouse_ops.population.curation import CurationOptions, curate_ground
 
 
 class TestCurationOptions:
@@ -36,8 +33,16 @@ class TestCurateGround:
     def test_curated_schema_columns(self, somalia_raw_df: pd.DataFrame) -> None:
         curated = curate_ground(somalia_raw_df)
         expected = {
-            "date", "month", "location", "lat", "lon", "geohash5",
-            "ghi_wh_m2_day", "ghi_kwh_m2_day", "qc_level", "_version",
+            "date",
+            "month",
+            "location",
+            "lat",
+            "lon",
+            "geohash5",
+            "ghi_wh_m2_day",
+            "ghi_kwh_m2_day",
+            "qc_level",
+            "_version",
             "_curated_at",
         }
         assert set(curated.columns) == expected

@@ -9,7 +9,10 @@ import pandas as pd
 import pytest
 
 from susse.models import (
-    MeanBaselineParams, MeanBaselineRegressor, ModelFactory, load_regressor,
+    MeanBaselineParams,
+    MeanBaselineRegressor,
+    ModelFactory,
+    load_regressor,
 )
 
 
@@ -31,9 +34,7 @@ class TestPredictionBehavior:
 
     def test_median_statistic_predicts_median(self) -> None:
         X, y = _toy_data()
-        model = MeanBaselineRegressor(
-            MeanBaselineParams(statistic="median")
-        ).fit(X, y)
+        model = MeanBaselineRegressor(MeanBaselineParams(statistic="median")).fit(X, y)
         assert model.predict(X).iloc[0] == pytest.approx(y.median())
 
     def test_predict_aligns_to_input_index(self) -> None:

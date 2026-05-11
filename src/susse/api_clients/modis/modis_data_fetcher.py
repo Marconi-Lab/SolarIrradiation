@@ -15,11 +15,7 @@ from geopy import location as Glocation
 
 from .modis_api_config import ModisConfig
 from .modis_data_result import ModisDataResult
-from .modis_product import (
-    ModisProduct,
-    ModisProductEnum,
-    ModisProductFactory,
-)
+from .modis_product import ModisProduct, ModisProductEnum, ModisProductFactory
 
 
 class ModisDataFetcher:
@@ -72,7 +68,9 @@ class ModisDataFetcher:
         if product.default_band is not None:
             logging.warning(
                 "Band %s not found in product %s, using default band %s instead",
-                band_name, product.name, product.default_band.name,
+                band_name,
+                product.name,
+                product.default_band.name,
             )
             return product.default_band.name
         raise ValueError(

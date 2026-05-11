@@ -96,6 +96,18 @@ class DataCleaner(ABC):
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-safe dict including a ``"kind"`` tag."""
 
+    @classmethod
+    @abstractmethod
+    def _from_dict(
+        cls, d: dict[str, Any], *, providers: dict[str, Any]
+    ) -> "DataCleaner":
+        """Inverse of :meth:`to_dict` for this concrete subclass.
+
+        Called by :func:`data_cleaner_from_dict` after kind-dispatch.
+        ``providers`` is accepted uniformly across the family even when
+        a particular cleaner doesn't use it.
+        """
+
 
 def data_cleaner_from_dict(
     d: dict[str, Any],
@@ -265,9 +277,7 @@ class HighMissingYearExcluder(DataCleaner):
                 "HighMissingYearExcluder.station_column must be non-empty."
             )
         if not self.date_column:
-            raise ValueError(
-                "HighMissingYearExcluder.date_column must be non-empty."
-            )
+            raise ValueError("HighMissingYearExcluder.date_column must be non-empty.")
         if not (0.0 <= self.missing_fraction_threshold <= 1.0):
             raise ValueError(
                 f"HighMissingYearExcluder.missing_fraction_threshold must be "
@@ -293,9 +303,7 @@ class HighMissingYearExcluder(DataCleaner):
             sub = dates.loc[idx]
             span_days = (sub.max() - sub.min()).days + 1
             observed = len(sub)
-            missing_fraction = (
-                1.0 - observed / span_days if span_days > 0 else 0.0
-            )
+            missing_fraction = 1.0 - observed / span_days if span_days > 0 else 0.0
             if missing_fraction > self.missing_fraction_threshold:
                 keep_mask.loc[idx] = False
         return df[keep_mask].reset_index(drop=True)
@@ -316,9 +324,7 @@ class HighMissingYearExcluder(DataCleaner):
         return cls(
             station_column=d.get("station_column", "location"),
             date_column=d.get("date_column", "date"),
-            missing_fraction_threshold=float(
-                d.get("missing_fraction_threshold", 0.05)
-            ),
+            missing_fraction_threshold=float(d.get("missing_fraction_threshold", 0.05)),
         )
 
 
@@ -483,9 +489,7 @@ class PerStationMeanImputer(DataCleaner):
                 "almost certainly a misconfiguration."
             )
         if not self.station_column:
-            raise ValueError(
-                "PerStationMeanImputer.station_column must be non-empty."
-            )
+            raise ValueError("PerStationMeanImputer.station_column must be non-empty.")
 
     @property
     def kind(self) -> CleanerKind:

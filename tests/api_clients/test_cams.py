@@ -19,7 +19,8 @@ from susse.api_clients.cams.cams_client import CamsApiError
 def test_get_email_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(CAMSClient.DEFAULT_EMAIL_ENV_KEY, "user@example.com")
     monkeypatch.setattr(
-        "builtins.input", lambda prompt: pytest.fail("input() should not be called when env var is set"),
+        "builtins.input",
+        lambda prompt: pytest.fail("input() should not be called when env var is set"),
     )
     assert CAMSClient()._get_email() == "user@example.com"
 
@@ -47,8 +48,10 @@ def test_fetch_data_returns_processed_df_and_metadata(
     monkeypatch.setattr(pvlib.iotools, "get_cams", lambda **kw: (raw_df, metadata))
 
     df, meta = CAMSClient().fetch_data(
-        latitude=0.0, longitude=0.0,
-        start=datetime(2025, 1, 1), end=datetime(2025, 1, 1, 1),
+        latitude=0.0,
+        longitude=0.0,
+        start=datetime(2025, 1, 1),
+        end=datetime(2025, 1, 1, 1),
         time_step="1h",
     )
     assert "timestamp" in df.columns
@@ -70,7 +73,9 @@ def test_fetch_data_raises_cams_api_error_on_pvlib_failure(
 
     with pytest.raises(CamsApiError, match="network fell over"):
         CAMSClient().fetch_data(
-            latitude=0.0, longitude=0.0,
-            start=datetime(2025, 1, 1), end=datetime(2025, 1, 1, 1),
+            latitude=0.0,
+            longitude=0.0,
+            start=datetime(2025, 1, 1),
+            end=datetime(2025, 1, 1, 1),
             time_step="1h",
         )

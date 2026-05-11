@@ -29,8 +29,13 @@ from susse.warehouse_ops.population.types import (
 
 def _merra_var(variable_id: str, api_code: str) -> VariableSpec:
     return VariableSpec(
-        variable_id=variable_id, source=Source.MERRA_2, api_code=api_code,
-        display_name=variable_id, unit="x", native_unit="x", description="x",
+        variable_id=variable_id,
+        source=Source.MERRA_2,
+        api_code=api_code,
+        display_name=variable_id,
+        unit="x",
+        native_unit="x",
+        description="x",
     )
 
 
@@ -38,6 +43,7 @@ class _StubBQ:
     @property
     def config(self):
         from susse.warehouse_ops.io.config import WarehouseConfig
+
         return WarehouseConfig()
 
 
@@ -75,14 +81,17 @@ class _RecordingBQForCoverage:
     @property
     def config(self):
         from susse.warehouse_ops.io.config import WarehouseConfig
+
         return WarehouseConfig()
 
     def existing_keys(self, table_fqn, key_columns, *, where_filters=()):
-        self.coverage_calls.append({
-            "table_fqn": table_fqn,
-            "key_columns": tuple(key_columns),
-            "where_filters": tuple(where_filters),
-        })
+        self.coverage_calls.append(
+            {
+                "table_fqn": table_fqn,
+                "key_columns": tuple(key_columns),
+                "where_filters": tuple(where_filters),
+            }
+        )
         return self._keys
 
 
@@ -111,12 +120,17 @@ class TestRunRejectsBadPlan:
             source=Source.NASA_POWER,
             date_range=DateRange(start=date(2024, 6, 1), end=date(2024, 6, 1)),
             locations=(LocationSpec(name="x", lat=0.0, lon=0.0),),
-            variables=(VariableSpec(
-                variable_id="ghi", source=Source.NASA_POWER,
-                api_code="ALLSKY_SFC_SW_DWN",
-                display_name="GHI", unit="kWh/m^2/day",
-                native_unit="kWh/m^2/day", description="x",
-            ),),
+            variables=(
+                VariableSpec(
+                    variable_id="ghi",
+                    source=Source.NASA_POWER,
+                    api_code="ALLSKY_SFC_SW_DWN",
+                    display_name="GHI",
+                    unit="kWh/m^2/day",
+                    native_unit="kWh/m^2/day",
+                    description="x",
+                ),
+            ),
         )
         with pytest.raises(ValueError, match="plan.source"):
             job.run(plan)
@@ -163,7 +177,8 @@ class TestRunIssuesOneFetchRegionCall:
         var = _merra_var("aod_550_extinction", "TOTEXTTAU")
         grid = GridSpec(
             bbox=BoundingBox(min_lat=0.0, max_lat=1.0, min_lon=10.0, max_lon=11.0),
-            lat_step=0.5, lon_step=0.5,
+            lat_step=0.5,
+            lon_step=0.5,
         )
         bq = _RecordingBQForCoverage(set())
         fetcher = _StubFetcher()
@@ -198,8 +213,13 @@ class TestEnrichRemapsAndGeohashes:
         var = _merra_var("aod_550_extinction", "TOTEXTTAU")
 
         fetcher_rows = [
-            {"date": date(2024, 6, 21), "latitude": loc.lat, "longitude": loc.lon,
-             "variable_id": "TOTEXTTAU", "value": 0.42},
+            {
+                "date": date(2024, 6, 21),
+                "latitude": loc.lat,
+                "longitude": loc.lon,
+                "variable_id": "TOTEXTTAU",
+                "value": 0.42,
+            },
         ]
         job = MerraRegionJob(_StubBQ(), fetcher=_StubFetcher(fetcher_rows))  # type: ignore[arg-type]
 
@@ -217,12 +237,24 @@ class TestEnrichRemapsAndGeohashes:
         # rather than written with a NaN variable_id.
         loc = LocationSpec(name="kampala", lat=0.333, lon=32.568)
         var = _merra_var("aod_550_extinction", "TOTEXTTAU")
-        df = pd.DataFrame([
-            {"date": date(2024, 6, 21), "latitude": loc.lat, "longitude": loc.lon,
-             "variable_id": "TOTEXTTAU", "value": 0.42},
-            {"date": date(2024, 6, 21), "latitude": loc.lat, "longitude": loc.lon,
-             "variable_id": "GHOST_VAR", "value": 999.0},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date(2024, 6, 21),
+                    "latitude": loc.lat,
+                    "longitude": loc.lon,
+                    "variable_id": "TOTEXTTAU",
+                    "value": 0.42,
+                },
+                {
+                    "date": date(2024, 6, 21),
+                    "latitude": loc.lat,
+                    "longitude": loc.lon,
+                    "variable_id": "GHOST_VAR",
+                    "value": 999.0,
+                },
+            ]
+        )
         job = MerraRegionJob(_StubBQ(), fetcher=_StubFetcher())  # type: ignore[arg-type]
         enriched = job._enrich(df, [loc], {var.api_code: var.variable_id})
 
@@ -235,10 +267,17 @@ class TestEnrichRemapsAndGeohashes:
         # invariant violation rather than silently writing NaN geohashes.
         loc = LocationSpec(name="kampala", lat=0.333, lon=32.568)
         var = _merra_var("aod_550_extinction", "TOTEXTTAU")
-        df = pd.DataFrame([
-            {"date": date(2024, 6, 21), "latitude": 99.0, "longitude": 99.0,
-             "variable_id": "TOTEXTTAU", "value": 0.42},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date(2024, 6, 21),
+                    "latitude": 99.0,
+                    "longitude": 99.0,
+                    "variable_id": "TOTEXTTAU",
+                    "value": 0.42,
+                },
+            ]
+        )
         job = MerraRegionJob(_StubBQ(), fetcher=_StubFetcher())  # type: ignore[arg-type]
         with pytest.raises(RuntimeError, match="out of sync"):
             job._enrich(df, [loc], {var.api_code: var.variable_id})
@@ -256,22 +295,38 @@ class TestDropAlreadyCached:
     largely-already-populated date range."""
 
     def test_drops_rows_in_existing_keys(self) -> None:
-        df = pd.DataFrame([
-            {"date": date(2024, 6, 1), "geohash5": "abc12",
-             "variable_id": "v1", "value": 1.0},
-            {"date": date(2024, 6, 2), "geohash5": "abc12",
-             "variable_id": "v1", "value": 2.0},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date(2024, 6, 1),
+                    "geohash5": "abc12",
+                    "variable_id": "v1",
+                    "value": 1.0,
+                },
+                {
+                    "date": date(2024, 6, 2),
+                    "geohash5": "abc12",
+                    "variable_id": "v1",
+                    "value": 2.0,
+                },
+            ]
+        )
         existing = {(date(2024, 6, 1), "abc12", "v1")}
         out = MerraRegionJob._drop_already_cached(df, existing)
         assert len(out) == 1
         assert out.iloc[0]["date"] == date(2024, 6, 2)
 
     def test_returns_input_when_existing_set_empty(self) -> None:
-        df = pd.DataFrame([
-            {"date": date(2024, 6, 1), "geohash5": "abc12",
-             "variable_id": "v1", "value": 1.0},
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date(2024, 6, 1),
+                    "geohash5": "abc12",
+                    "variable_id": "v1",
+                    "value": 1.0,
+                },
+            ]
+        )
         out = MerraRegionJob._drop_already_cached(df, set())
         assert len(out) == 1
 
@@ -307,7 +362,7 @@ class TestRunScopesCoverageByLocation:
 
         assert len(bq.coverage_calls) == 1
         joined = " ".join(bq.coverage_calls[0]["where_filters"])
-        assert "geohash5 IN" in joined, (
-            f"coverage call missing geohash5 scope: {bq.coverage_calls[0]!r}"
-        )
+        assert (
+            "geohash5 IN" in joined
+        ), f"coverage call missing geohash5 scope: {bq.coverage_calls[0]!r}"
         assert gh1 in joined and gh2 in joined

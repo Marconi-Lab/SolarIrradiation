@@ -115,7 +115,9 @@ class TestValidateGroundCurated:
         row = _valid_curated_row()
         row["ghi_kwh_m2_day"] = 999.0  # disagrees with ghi_wh_m2_day / 1000
         df = pd.DataFrame([row])
-        with pytest.raises(ValueError, match="ghi_kwh_m2_day and ghi_wh_m2_day disagree"):
+        with pytest.raises(
+            ValueError, match="ghi_kwh_m2_day and ghi_wh_m2_day disagree"
+        ):
             validate_ground_curated(df)
 
     def test_rejects_missing_provenance_column(self) -> None:

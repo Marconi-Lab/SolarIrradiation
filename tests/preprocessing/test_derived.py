@@ -25,19 +25,22 @@ from susse.preprocessing import (
 
 
 def _frame_with_coords() -> pd.DataFrame:
-    return pd.DataFrame({
-        "date": [date(2024, 1, 1), date(2024, 1, 2)],
-        "lat": [0.5179, 0.5179],
-        "lon": [32.4715, 32.4715],
-        "ghi": [4.5, 5.5],
-        "ghi_clear": [6.0, 6.0],
-    })
+    return pd.DataFrame(
+        {
+            "date": [date(2024, 1, 1), date(2024, 1, 2)],
+            "lat": [0.5179, 0.5179],
+            "lon": [32.4715, 32.4715],
+            "ghi": [4.5, 5.5],
+            "ghi_clear": [6.0, 6.0],
+        }
+    )
 
 
 class TestClearSkyIndexFeature:
     def test_compute_matches_division(self) -> None:
         f = ClearSkyIndexFeature(
-            ghi_column="ghi", ghi_clear_column="ghi_clear",
+            ghi_column="ghi",
+            ghi_clear_column="ghi_clear",
             output_column="kt",
         )
         result = f.compute(_frame_with_coords())
@@ -46,7 +49,8 @@ class TestClearSkyIndexFeature:
 
     def test_required_input_columns_match_construction(self) -> None:
         f = ClearSkyIndexFeature(
-            ghi_column="my_ghi", ghi_clear_column="my_clear",
+            ghi_column="my_ghi",
+            ghi_clear_column="my_clear",
             output_column="kt",
         )
         assert f.required_input_columns == ("my_ghi", "my_clear")
@@ -55,12 +59,16 @@ class TestClearSkyIndexFeature:
     def test_empty_field_rejected(self) -> None:
         with pytest.raises(ValueError, match="output_column"):
             ClearSkyIndexFeature(
-                ghi_column="g", ghi_clear_column="gc", output_column="",
+                ghi_column="g",
+                ghi_clear_column="gc",
+                output_column="",
             )
 
     def test_dict_roundtrip(self) -> None:
         f = ClearSkyIndexFeature(
-            ghi_column="g", ghi_clear_column="gc", output_column="kt",
+            ghi_column="g",
+            ghi_clear_column="gc",
+            output_column="kt",
         )
         d = f.to_dict()
         assert d["kind"] == FeatureKind.CLEAR_SKY_INDEX.value
@@ -215,7 +223,9 @@ class TestProtocolCompliance:
     def test_all_subclasses_expose_kind_and_output(self) -> None:
         instances: list[DerivedFeature] = [
             ClearSkyIndexFeature(
-                ghi_column="g", ghi_clear_column="gc", output_column="kt",
+                ghi_column="g",
+                ghi_clear_column="gc",
+                output_column="kt",
             ),
             CyclicalDayOfYearFeature(),
             AltitudeFeature(provider=_StubProvider()),

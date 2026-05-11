@@ -21,6 +21,8 @@ import pandas as pd
 import pygeohash
 
 from ....api_clients.merra_2 import MerraDailyFetcher
+from ...io.bq import BigQueryClient
+from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
 from ..loaders import DerivedColumn, MergeLoader, MergeSpec
@@ -32,8 +34,6 @@ from ..types import (
     Source,
     VariableSpec,
 )
-from ...io.bq import BigQueryClient
-from ...io.config import TableRefs, TableSchemas
 
 _logger = logging.getLogger(__name__)
 
@@ -108,7 +108,10 @@ class MerraRegionJob(BaseJob):
         )
         _logger.info(
             "%s: %d location(s), date %s..%s, %d var(s)",
-            self.name, len(locations), date_range.start, date_range.end,
+            self.name,
+            len(locations),
+            date_range.start,
+            date_range.end,
             len(variables),
         )
 
@@ -238,7 +241,12 @@ class MerraRegionJob(BaseJob):
             ),
         )
         cols = [
-            "date", "latitude", "longitude", "geohash5",
-            "variable_id", "value", "source",
+            "date",
+            "latitude",
+            "longitude",
+            "geohash5",
+            "variable_id",
+            "value",
+            "source",
         ]
         return loader.load(df[cols])

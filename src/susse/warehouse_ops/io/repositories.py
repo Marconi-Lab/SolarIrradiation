@@ -17,17 +17,15 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
+from ..population.types import IrradianceBand
 from .bq import BigQueryClient
 from .config import TableRefs
-from ..population.types import IrradianceBand
 
 
 class GroundRepository:
     """Curated daily ground GHI measurements with QC, location, geohash."""
 
-    def __init__(
-        self, bq: BigQueryClient, tables: Optional[TableRefs] = None
-    ) -> None:
+    def __init__(self, bq: BigQueryClient, tables: Optional[TableRefs] = None) -> None:
         # `tables` is uniquely determined by `bq.config` for any production
         # deployment; default to the derived value so callers don't have to
         # repeat themselves. Pass `tables` explicitly only when running
@@ -79,9 +77,7 @@ class GroundRepository:
 class SatelliteRepository:
     """Daily satellite irradiance + per-source pivoted aux variables."""
 
-    def __init__(
-        self, bq: BigQueryClient, tables: Optional[TableRefs] = None
-    ) -> None:
+    def __init__(self, bq: BigQueryClient, tables: Optional[TableRefs] = None) -> None:
         # See `GroundRepository.__init__` for the default rationale.
         self._bq = bq
         self._t = tables if tables is not None else TableRefs(config=bq.config)
@@ -186,9 +182,7 @@ class SatelliteRepository:
         """
         return self._bq.query(sql)
 
-    def warehouse_table_mods(
-        self, table_ids: Sequence[str]
-    ) -> dict[str, str]:
+    def warehouse_table_mods(self, table_ids: Sequence[str]) -> dict[str, str]:
         """Return ``{table_id: last_modified_time_iso}`` for each table.
 
         Used by the dataset manifest to capture the warehouse state at

@@ -65,6 +65,7 @@ def log_dataset_artifact(
         ``"<entity>/<project>/<artifact_name>:v0"``.
     """
     import wandb
+
     snapshot_dir = Path(snapshot_dir)
     manifest = _load_manifest_for_metadata(snapshot_dir)
 
@@ -75,14 +76,17 @@ def log_dataset_artifact(
     )
 
     with wandb.init(
-        project=project, entity=entity, job_type="dataset_build",
+        project=project,
+        entity=entity,
+        job_type="dataset_build",
         config={
             "feature_selection": manifest.feature_selection.to_dict(),
             "date_start": manifest.date_start.isoformat(),
             "date_end": manifest.date_end.isoformat(),
             "location_filter": (
                 list(manifest.location_filter)
-                if manifest.location_filter is not None else None
+                if manifest.location_filter is not None
+                else None
             ),
             "warehouse_project": manifest.warehouse_project,
             "warehouse_dataset": manifest.warehouse_dataset,
@@ -103,7 +107,10 @@ def log_dataset_artifact(
         artifact.wait()  # block until the upload + version assignment lands
         ref = f"{run.entity}/{project}/{artifact_name}:v{artifact.version}"
         _logger.info("Logged dataset artifact %s.", ref)
-        return ref
+    # Return outside the `with` block — mypy can't trace context-manager
+    # suppression of exceptions otherwise, and the return-inside-with
+    # pattern triggers a [return] error.
+    return ref
 
 
 def use_dataset_artifact(
@@ -128,6 +135,7 @@ def use_dataset_artifact(
         is hash-validated against the manifest on load.
     """
     import wandb
+
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
 

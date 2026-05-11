@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from susse.models import (
-    LinearParams, MeanBaselineParams, ModelKind, RandomForestParams,
+    LinearParams,
+    MeanBaselineParams,
+    ModelKind,
+    RandomForestParams,
     params_from_dict,
 )
 

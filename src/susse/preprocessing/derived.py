@@ -112,6 +112,18 @@ class DerivedFeature(ABC):
         the caller-supplied providers dict.
         """
 
+    @classmethod
+    @abstractmethod
+    def _from_dict(
+        cls, d: dict[str, Any], *, providers: dict[str, Any]
+    ) -> "DerivedFeature":
+        """Inverse of :meth:`to_dict` for this concrete subclass.
+
+        Called by :func:`derived_feature_from_dict` after kind-dispatch.
+        Subclasses re-inject any provider-style dependencies they
+        captured at construction time (e.g. an :class:`ElevationProvider`).
+        """
+
 
 def derived_feature_from_dict(
     d: dict[str, Any],
@@ -168,9 +180,7 @@ class ClearSkyIndexFeature(DerivedFeature):
             ("output_column", self.output_column),
         ):
             if not value:
-                raise ValueError(
-                    f"ClearSkyIndexFeature.{name} must be non-empty."
-                )
+                raise ValueError(f"ClearSkyIndexFeature.{name} must be non-empty.")
 
     @property
     def kind(self) -> FeatureKind:
@@ -275,7 +285,7 @@ class AltitudeFeature(DerivedFeature):
                 "AltitudeFeature.provider must not be None. Construct "
                 "with `AltitudeFeature(provider=PvlibElevationProvider())` "
                 "(import from `susse.preprocessing`). For load-time "
-                "re-injection, pass providers={\"altitude\": ...} to "
+                're-injection, pass providers={"altitude": ...} to '
                 "load_bundle()."
             )
         if not self.output_column:
@@ -306,7 +316,8 @@ class AltitudeFeature(DerivedFeature):
             dtype=float,
         )
         return pd.DataFrame(
-            {self.output_column: values}, index=df.index,
+            {self.output_column: values},
+            index=df.index,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -327,7 +338,7 @@ class AltitudeFeature(DerivedFeature):
             raise ValueError(
                 f"AltitudeFeature requires "
                 f"providers[{ALTITUDE_PROVIDER_KEY!r}] at load time. Pass "
-                f"`load_bundle(dir, providers={{\"{ALTITUDE_PROVIDER_KEY}\": "
+                f'`load_bundle(dir, providers={{"{ALTITUDE_PROVIDER_KEY}": '
                 f"PvlibElevationProvider()}})` (import from `susse.preprocessing`)."
             )
         return cls(

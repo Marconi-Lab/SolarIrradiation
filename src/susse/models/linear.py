@@ -68,9 +68,7 @@ class LinearRegressor(BaseRegressor[LinearParams]):
         return self._state_obj
 
     @classmethod
-    def _from_state(
-        cls, params: LinearParams, state: object
-    ) -> "LinearRegressor":
+    def _from_state(cls, params: LinearParams, state: object) -> "LinearRegressor":
         if not isinstance(state, _LinearState):
             raise ValueError(
                 f"LinearRegressor._from_state expected a _LinearState, got "

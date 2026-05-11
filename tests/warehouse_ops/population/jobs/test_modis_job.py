@@ -14,15 +14,15 @@ import pandas as pd
 import pytest
 
 from susse.warehouse_ops.population.jobs.modis_job import (
-    ModisJob,
     _COVERAGE_RATIO_THRESHOLD,
+    ModisJob,
     _split_variable_id,
 )
 from susse.warehouse_ops.population.types import (
+    BoundingBox,
     DateRange,
     GridPlan,
     GridSpec,
-    BoundingBox,
     LocationSpec,
     NamedLocationsPlan,
     Source,
@@ -32,8 +32,13 @@ from susse.warehouse_ops.population.types import (
 
 def _modis_var(variable_id: str, api_code: str) -> VariableSpec:
     return VariableSpec(
-        variable_id=variable_id, source=Source.MODIS, api_code=api_code,
-        display_name=variable_id, unit="x", native_unit="x", description="x",
+        variable_id=variable_id,
+        source=Source.MODIS,
+        api_code=api_code,
+        display_name=variable_id,
+        unit="x",
+        native_unit="x",
+        description="x",
     )
 
 
@@ -41,6 +46,7 @@ class _StubBQ:
     @property
     def config(self):
         from susse.warehouse_ops.io.config import WarehouseConfig
+
         return WarehouseConfig()
 
 
@@ -111,8 +117,13 @@ class TestLocationFullyCached:
         # MOD11A2 has 8-day cadence over 64 days → expected ~8 rows.
         # 5 actual rows = 0.625 ratio < 0.9 threshold → must refetch.
         existing = {
-            (date(2024, 6, 1) + pd.Timedelta(days=8 * i), "s8p1v",
-             "MOD11A2", "LST_Day_1km", "MODIS")
+            (
+                date(2024, 6, 1) + pd.Timedelta(days=8 * i),
+                "s8p1v",
+                "MOD11A2",
+                "LST_Day_1km",
+                "MODIS",
+            )
             for i in range(5)
         }
         date_range = DateRange(start=date(2024, 6, 1), end=date(2024, 8, 4))
@@ -166,12 +177,17 @@ class TestRunRejectsBadPlan:
             source=Source.NASA_POWER,  # wrong source for MODIS job
             date_range=DateRange(start=date(2024, 6, 1), end=date(2024, 6, 1)),
             locations=(LocationSpec(name="x", lat=0.0, lon=0.0),),
-            variables=(VariableSpec(
-                variable_id="ghi", source=Source.NASA_POWER,
-                api_code="ALLSKY_SFC_SW_DWN",
-                display_name="GHI", unit="kWh/m^2/day",
-                native_unit="kWh/m^2/day", description="x",
-            ),),
+            variables=(
+                VariableSpec(
+                    variable_id="ghi",
+                    source=Source.NASA_POWER,
+                    api_code="ALLSKY_SFC_SW_DWN",
+                    display_name="GHI",
+                    unit="kWh/m^2/day",
+                    native_unit="kWh/m^2/day",
+                    description="x",
+                ),
+            ),
         )
         with pytest.raises(ValueError, match="plan.source"):
             job.run(plan)
@@ -191,14 +207,17 @@ class _RecordingBQForCoverage:
     @property
     def config(self):
         from susse.warehouse_ops.io.config import WarehouseConfig
+
         return WarehouseConfig()
 
     def existing_keys(self, table_fqn, key_columns, *, where_filters=()):
-        self.coverage_calls.append({
-            "table_fqn": table_fqn,
-            "key_columns": tuple(key_columns),
-            "where_filters": tuple(where_filters),
-        })
+        self.coverage_calls.append(
+            {
+                "table_fqn": table_fqn,
+                "key_columns": tuple(key_columns),
+                "where_filters": tuple(where_filters),
+            }
+        )
         return self._keys
 
 
@@ -245,9 +264,9 @@ class TestRunScopesCoverageByLocation:
 
         assert len(bq.coverage_calls) == 1
         joined = " ".join(bq.coverage_calls[0]["where_filters"])
-        assert "geohash5 IN" in joined, (
-            f"coverage call missing geohash5 scope: {bq.coverage_calls[0]!r}"
-        )
+        assert (
+            "geohash5 IN" in joined
+        ), f"coverage call missing geohash5 scope: {bq.coverage_calls[0]!r}"
         assert gh1 in joined and gh2 in joined
 
     def test_run_invokes_fetcher_per_uncached_location(self) -> None:
@@ -274,9 +293,7 @@ class TestRunScopesCoverageByLocation:
         assert result.extra["skipped_locations"] == 0
         # Both calls must carry the (product, band) pair derived from the var.
         for call in fetcher.calls:
-            assert call["products_and_bands"] == (
-                ("MOD13Q1", "250m_16_days_NDVI"),
-            )
+            assert call["products_and_bands"] == (("MOD13Q1", "250m_16_days_NDVI"),)
 
     def test_grid_plan_resolves_locations_from_grid(self) -> None:
         # GridPlan: the job must enumerate via ``grid.iter_locations()`` —
@@ -284,7 +301,8 @@ class TestRunScopesCoverageByLocation:
         ndvi_var = _modis_var("MOD13Q1_250m_16_days_NDVI", "MOD13Q1")
         grid = GridSpec(
             bbox=BoundingBox(min_lat=0.0, max_lat=0.0, min_lon=10.0, max_lon=10.0),
-            lat_step=1.0, lon_step=1.0,
+            lat_step=1.0,
+            lon_step=1.0,
         )
         bq = _RecordingBQForCoverage(set())
         fetcher = _StubFetcher()

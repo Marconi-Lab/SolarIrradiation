@@ -20,11 +20,7 @@ The module imports are lightweight; ``wandb`` is only loaded when
 from .feature_selection import FeatureSelection
 from .feature_service import FeatureService
 from .manifest import DatasetManifest, TrainingDataset
-from .snapshot_io import (
-    build_and_write_snapshot,
-    load_snapshot,
-    write_snapshot,
-)
+from .snapshot_io import build_and_write_snapshot, load_snapshot, write_snapshot
 from .wandb_io import log_dataset_artifact, use_dataset_artifact
 
 __all__ = [

@@ -22,11 +22,7 @@ no W&B calls. See :class:`TrainerConfig` for the toggle.
 
 from .bundle import TrainedBundle, load_bundle
 from .metadata import ScoreSet, TrainingMetadata
-from .splitter import (
-    Splitter,
-    auto_pick_largest_station,
-    make_station_loso_splitter,
-)
+from .splitter import Splitter, auto_pick_largest_station, make_station_loso_splitter
 from .trainer import Trainer, TrainerConfig, score_predictions
 
 __all__ = [

@@ -71,22 +71,26 @@ class FeatureSelection:
         # variable through a long-table field is rejected at construction
         # rather than silently producing a 100%-NaN column at fetch time.
         self._validate_against_catalog(
-            self.nasa_variable_ids, Source.NASA_POWER,
+            self.nasa_variable_ids,
+            Source.NASA_POWER,
             field="nasa_variable_ids",
             expected_storage=PhysicalStorage.LONG_FORMAT,
         )
         self._validate_against_catalog(
-            self.cams_variable_ids, Source.CAMS,
+            self.cams_variable_ids,
+            Source.CAMS,
             field="cams_variable_ids",
             expected_storage=PhysicalStorage.LONG_FORMAT,
         )
         self._validate_against_catalog(
-            self.merra_variable_ids, Source.MERRA_2,
+            self.merra_variable_ids,
+            Source.MERRA_2,
             field="merra_variable_ids",
             expected_storage=PhysicalStorage.LONG_FORMAT,
         )
         self._validate_against_catalog(
-            self.modis_variable_ids, Source.MODIS,
+            self.modis_variable_ids,
+            Source.MODIS,
             field="modis_variable_ids",
             expected_storage=PhysicalStorage.MODIS_OBSERVATIONS,
         )
@@ -131,9 +135,7 @@ class FeatureSelection:
     ) -> None:
         if not ids:
             return
-        catalog = {
-            v.variable_id: v for v in VariableCatalog.for_source(source)
-        }
+        catalog = {v.variable_id: v for v in VariableCatalog.for_source(source)}
         if not catalog:
             raise ValueError(
                 f"FeatureSelection.{field} = {list(ids)} but the catalog has "
@@ -144,7 +146,8 @@ class FeatureSelection:
         unknown = [vid for vid in ids if vid not in catalog]
         if unknown:
             valid = sorted(
-                vid for vid, v in catalog.items()
+                vid
+                for vid, v in catalog.items()
                 if v.physical_storage is expected_storage
             )
             raise ValueError(
@@ -164,8 +167,7 @@ class FeatureSelection:
         # Reject catalog entries that exist but live in a different
         # physical storage than this field's pivot reads from.
         wrong_storage = [
-            vid for vid in ids
-            if catalog[vid].physical_storage is not expected_storage
+            vid for vid in ids if catalog[vid].physical_storage is not expected_storage
         ]
         if wrong_storage:
             actual = {vid: catalog[vid].physical_storage.value for vid in wrong_storage}
@@ -176,7 +178,7 @@ class FeatureSelection:
                     catalog[vid].physical_storage is PhysicalStorage.IRRADIANCE_WIDE
                     for vid in wrong_storage
                 )
-                else f"Move these IDs to the field whose physical_storage matches."
+                else "Move these IDs to the field whose physical_storage matches."
             )
             raise ValueError(
                 f"FeatureSelection.{field} expects "
@@ -238,15 +240,15 @@ class FeatureSelection:
             merra_variable_ids=tuple(d.get("merra_variable_ids", ())),
             modis_variable_ids=tuple(d.get("modis_variable_ids", ())),
             include_satellite_irradiance=tuple(
-                Source(v) for v in d.get(
+                Source(v)
+                for v in d.get(
                     "include_satellite_irradiance",
                     [Source.NASA_POWER.value, Source.CAMS.value],
                 )
             ),
             include_satellite_bands=tuple(
-                IrradianceBand(v) for v in d.get(
-                    "include_satellite_bands", [IrradianceBand.GHI.value]
-                )
+                IrradianceBand(v)
+                for v in d.get("include_satellite_bands", [IrradianceBand.GHI.value])
             ),
             qc_levels=tuple(d.get("qc_levels", ("pass",))),
         )

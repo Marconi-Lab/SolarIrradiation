@@ -40,24 +40,30 @@ class ModelKind(StrEnum):
         # Local imports break a circular: subclasses define their own
         # `kind` property which references this enum.
         from .params import (  # noqa: PLC0415
-            LinearParams, MeanBaselineParams, RandomForestParams,
+            LinearParams,
+            MeanBaselineParams,
+            RandomForestParams,
         )
-        return {
+
+        params_mapping: dict[ModelKind, type[BaseModelParams]] = {
             ModelKind.MEAN_BASELINE: MeanBaselineParams,
             ModelKind.RANDOM_FOREST: RandomForestParams,
             ModelKind.LINEAR: LinearParams,
-        }[self]
+        }
+        return params_mapping[self]
 
-    def model_class(self) -> type["BaseRegressor"]:
+    def model_class(self) -> type["BaseRegressor[Any]"]:
         """Return the regressor class that consumes this kind's params."""
         from .linear import LinearRegressor  # noqa: PLC0415
         from .mean_baseline import MeanBaselineRegressor  # noqa: PLC0415
         from .random_forest import RandomForestRegressor  # noqa: PLC0415
-        return {
+
+        regressor_mapping: dict[ModelKind, type["BaseRegressor[Any]"]] = {
             ModelKind.MEAN_BASELINE: MeanBaselineRegressor,
             ModelKind.RANDOM_FOREST: RandomForestRegressor,
             ModelKind.LINEAR: LinearRegressor,
-        }[self]
+        }
+        return regressor_mapping[self]
 
 
 @dataclass(frozen=True)
@@ -146,9 +152,7 @@ class RandomForestParams(BaseModelParams):
 
     def __post_init__(self) -> None:
         if self.n_estimators < 1:
-            raise ValueError(
-                f"n_estimators={self.n_estimators} must be >= 1."
-            )
+            raise ValueError(f"n_estimators={self.n_estimators} must be >= 1.")
         if self.max_depth is not None and self.max_depth < 1:
             raise ValueError(
                 f"max_depth={self.max_depth} must be >= 1 or None for unlimited."

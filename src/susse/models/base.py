@@ -34,7 +34,15 @@ class BaseRegressor(ABC, Generic[P]):
     Generic over ``P``, the params dataclass type. The bound on ``P``
     keeps the type relationship intact for static checkers without
     forcing every subclass to repeat the parameter type in two places.
+
+    Concrete subclasses accept their typed ``params`` as the single
+    constructor argument; the signature is declared here so the factory
+    (``ModelKind.model_class()(params)``) type-checks against the ABC.
     """
+
+    @abstractmethod
+    def __init__(self, params: P) -> None:
+        """Construct an unfitted regressor from its hyperparameter set."""
 
     @abstractmethod
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "BaseRegressor[P]":
@@ -91,6 +99,7 @@ class BaseRegressor(ABC, Generic[P]):
             json.dumps(self.params.to_dict(), indent=2, sort_keys=True)
         )
         import joblib  # local import — only models that get saved pay the cost
+
         joblib.dump(self._state(), dir / _STATE_FILENAME)
 
     @abstractmethod
@@ -128,6 +137,7 @@ def load_regressor(dir: Path) -> BaseRegressor:
             f"in-memory state, or hand-fix the directory."
         )
     import joblib
+
     state = joblib.load(dir / _STATE_FILENAME)
     cls = params.kind.model_class()
     return cls._from_state(params, state)

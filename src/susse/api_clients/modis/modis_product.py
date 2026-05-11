@@ -36,6 +36,7 @@ class ModisProductEnum(Enum):
     band of interest. For a list of all possible products with their bands and documentation see
     https://modis.ornl.gov/documentation.html
     """
+
     SURFACE_REFLECTANCE_8DAY = "MOD09A1"  # 500 m, 8-day composite
     BRDF_PARAMETERS_16DAY = "MCD43A1"  # BRDF model parameters (RossThick/LiSparse)
     ALBEDO_16DAY = "MCD43A3"  # White/black-sky & shortwave albedos

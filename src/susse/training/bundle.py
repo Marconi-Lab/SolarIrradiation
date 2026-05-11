@@ -71,9 +71,7 @@ class TrainedBundle:
         self.regressor.save(dest / _MODEL_SUBDIR)
         (dest / _FEATURE_SPEC_FILENAME).write_text(self.feature_spec.to_json())
         (dest / _METADATA_FILENAME).write_text(self.metadata.to_json())
-        (dest / _SOURCE_MANIFEST_FILENAME).write_text(
-            self.source_manifest.to_json()
-        )
+        (dest / _SOURCE_MANIFEST_FILENAME).write_text(self.source_manifest.to_json())
 
 
 def load_bundle(
@@ -125,9 +123,7 @@ def load_bundle(
         (src / _FEATURE_SPEC_FILENAME).read_text(),
         providers=providers,
     )
-    metadata = TrainingMetadata.from_json(
-        (src / _METADATA_FILENAME).read_text()
-    )
+    metadata = TrainingMetadata.from_json((src / _METADATA_FILENAME).read_text())
     source_manifest = DatasetManifest.from_json(
         (src / _SOURCE_MANIFEST_FILENAME).read_text()
     )

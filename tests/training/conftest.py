@@ -21,18 +21,30 @@ from susse.preprocessing import FeatureSpec, PreprocessedDataset
 @pytest.fixture
 def toy_manifest() -> DatasetManifest:
     return DatasetManifest(
-        name="toy_train", version="v0",
+        name="toy_train",
+        version="v0",
         created_at_utc=datetime(2026, 5, 10, tzinfo=timezone.utc).isoformat(),
-        susse_version="test", git_sha=None,
+        susse_version="test",
+        git_sha=None,
         feature_selection=FeatureSelection(),
-        date_start=date(2024, 1, 1), date_end=date(2024, 2, 29),
+        date_start=date(2024, 1, 1),
+        date_end=date(2024, 2, 29),
         location_filter=None,
-        warehouse_project="test", warehouse_dataset="test",
+        warehouse_project="test",
+        warehouse_dataset="test",
         warehouse_table_mods={},
-        n_rows=120, n_cols=8,
-        column_names=("date", "location", "geohash5", "y_ghi_kwh_m2_day",
-                      "feat_a", "feat_b", "sat_ghi_nasa_kwh_m2_day",
-                      "sat_ghi_cams_kwh_m2_day"),
+        n_rows=120,
+        n_cols=8,
+        column_names=(
+            "date",
+            "location",
+            "geohash5",
+            "y_ghi_kwh_m2_day",
+            "feat_a",
+            "feat_b",
+            "sat_ghi_nasa_kwh_m2_day",
+            "sat_ghi_cams_kwh_m2_day",
+        ),
         content_hash="toy_hash_for_tests",
     )
 
@@ -48,18 +60,20 @@ def toy_processed(toy_manifest: DatasetManifest) -> PreprocessedDataset:
             feat_a = float(rng.uniform(0, 1))
             feat_b = float(rng.uniform(-1, 1))
             y = intercept + 1.5 * feat_a - 0.3 * feat_b + rng.normal(0, 0.2)
-            rows.append({
-                "date": d.date(),
-                "location": station,
-                "geohash5": "abc12",
-                "y_ghi_kwh_m2_day": y,
-                "feat_a": feat_a,
-                "feat_b": feat_b,
-                # Satellite "estimate" with a small fixed bias so the
-                # baseline-scoring path has a meaningful signal.
-                "sat_ghi_nasa_kwh_m2_day": y + 0.7,
-                "sat_ghi_cams_kwh_m2_day": y + 0.4,
-            })
+            rows.append(
+                {
+                    "date": d.date(),
+                    "location": station,
+                    "geohash5": "abc12",
+                    "y_ghi_kwh_m2_day": y,
+                    "feat_a": feat_a,
+                    "feat_b": feat_b,
+                    # Satellite "estimate" with a small fixed bias so the
+                    # baseline-scoring path has a meaningful signal.
+                    "sat_ghi_nasa_kwh_m2_day": y + 0.7,
+                    "sat_ghi_cams_kwh_m2_day": y + 0.4,
+                }
+            )
     df = pd.DataFrame(rows).reset_index(drop=True)
     spec = FeatureSpec(
         target_column="y_ghi_kwh_m2_day",

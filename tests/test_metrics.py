@@ -21,7 +21,6 @@ from susse.metrics import (
     normalised_rmse,
 )
 
-
 # ---------------------------------------------------------------------------
 # Index of Agreement (Willmott 1981)
 # ---------------------------------------------------------------------------
@@ -165,5 +164,7 @@ class TestPaperShapedExample:
         assert ioa_cor > ioa_sat
 
         # nRMSE / nMAE: corrected wins on both.
-        assert normalised_rmse(y_true, y_corrected) < normalised_rmse(y_true, y_satellite)
+        assert normalised_rmse(y_true, y_corrected) < normalised_rmse(
+            y_true, y_satellite
+        )
         assert normalised_mae(y_true, y_corrected) < normalised_mae(y_true, y_satellite)

@@ -183,23 +183,29 @@ class Preprocessor:
             for col in cleaner.required_input_columns:
                 if col not in df.columns:
                     missing.append(
-                        (col,
-                         f"cleaners[{cleaner.kind.value}]"
-                         f".required_input_columns"),
+                        (
+                            col,
+                            f"cleaners[{cleaner.kind.value}]"
+                            f".required_input_columns",
+                        ),
                     )
         for derived in spec.derived_features:
             for col in derived.required_input_columns:
                 if col not in df.columns:
                     missing.append(
-                        (col,
-                         f"derived_features[{derived.kind.value}]"
-                         f".required_input_columns"),
+                        (
+                            col,
+                            f"derived_features[{derived.kind.value}]"
+                            f".required_input_columns",
+                        ),
                     )
         # The target may legitimately be missing for inference frames; a
         # missing target is only an error if dropna_target is True
         # (which forces the column to exist).
         if spec.dropna_target and spec.target_column not in df.columns:
-            missing.append((spec.target_column, "target_column (with dropna_target=True)"))
+            missing.append(
+                (spec.target_column, "target_column (with dropna_target=True)")
+            )
         if missing:
             details = "; ".join(
                 f"{col!r} (referenced by {field})" for col, field in missing

@@ -25,7 +25,10 @@ _KT_DENOMINATOR_FLOOR: float = 1e-6
 
 
 def clear_sky_index(
-    ghi: pd.Series, ghi_clear: pd.Series, *, denominator_floor: float = _KT_DENOMINATOR_FLOOR
+    ghi: pd.Series,
+    ghi_clear: pd.Series,
+    *,
+    denominator_floor: float = _KT_DENOMINATOR_FLOOR,
 ) -> pd.Series:
     """Return ``kt = GHI / GHI_clear``, with NaN for ill-defined denominators.
 

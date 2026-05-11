@@ -125,9 +125,7 @@ class LocationSpec:
                 f"Did you swap lat and lon?"
             )
         if not (-180.0 <= self.lon <= 180.0):
-            raise ValueError(
-                f"LocationSpec.lon={self.lon} is outside [-180, 180]."
-            )
+            raise ValueError(f"LocationSpec.lon={self.lon} is outside [-180, 180].")
 
 
 @dataclass(frozen=True)
@@ -168,13 +166,9 @@ class GridSpec:
 
     def __post_init__(self) -> None:
         if self.lat_step <= 0:
-            raise ValueError(
-                f"GridSpec.lat_step={self.lat_step} must be positive."
-            )
+            raise ValueError(f"GridSpec.lat_step={self.lat_step} must be positive.")
         if self.lon_step <= 0:
-            raise ValueError(
-                f"GridSpec.lon_step={self.lon_step} must be positive."
-            )
+            raise ValueError(f"GridSpec.lon_step={self.lon_step} must be positive.")
 
     @property
     def n_points(self) -> int:

@@ -48,15 +48,11 @@ class RandomForestRegressor(BaseRegressor[RandomForestParams]):
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
         if self._estimator is None:
-            raise RuntimeError(
-                "RandomForestRegressor.predict called before .fit()."
-            )
+            raise RuntimeError("RandomForestRegressor.predict called before .fit().")
         preds = self._estimator.predict(X.values)
         return pd.Series(np.asarray(preds, dtype=float), index=X.index)
 
-    def feature_importances(
-        self, feature_names: tuple[str, ...]
-    ) -> pd.Series:
+    def feature_importances(self, feature_names: tuple[str, ...]) -> pd.Series:
         """Return per-feature importance, indexed by feature_names.
 
         Args:

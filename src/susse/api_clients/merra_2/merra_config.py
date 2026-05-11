@@ -7,7 +7,7 @@ convention, and the conversion from real lat/lon to MERRA-2's native grid
 indices.
 """
 
-from datetime import datetime
+from datetime import date
 
 import numpy as np
 
@@ -30,11 +30,13 @@ class Merra2Config:
         return f"{Merra2Config.BASE_URL}/{product_data.database_name}"
 
     @staticmethod
-    def create_file_name(date: datetime, product_data: MerraProductData) -> str:
-        d_str = str(date.day).zfill(2)
-        m_str = str(date.month).zfill(2)
-        y_str = str(date.year)
-        file_num = Merra2Config._create_year_url(date.year)
+    def create_file_name(d: date, product_data: MerraProductData) -> str:
+        # ``date`` accepts both ``datetime.date`` and ``datetime.datetime``
+        # (datetime subclasses date). The function only reads .day/.month/.year.
+        d_str = str(d.day).zfill(2)
+        m_str = str(d.month).zfill(2)
+        y_str = str(d.year)
+        file_num = Merra2Config._create_year_url(d.year)
         return f"MERRA2_{file_num}.{product_data.database_id}.{y_str}{m_str}{d_str}.nc4"
 
     @staticmethod

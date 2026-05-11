@@ -21,11 +21,14 @@ import pandas as pd
 import pygeohash
 
 from ....api_clients.cams import CAMSClient
+from ....api_clients.cams.cams_client import CamsApiError
 from ....api_clients.NASA_Power import (
     NASAPowerFetchData,
     NASAPowerProduct,
     TemporalResolution,
 )
+from ...io.bq import BigQueryClient
+from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
 from ..dim_variable import VariableCatalog
@@ -40,13 +43,12 @@ from ..types import (
     VariableSpec,
 )
 from ..validators import validate_long_format
-from ....api_clients.cams.cams_client import CamsApiError
-from ...io.bq import BigQueryClient
-from ...io.config import TableRefs, TableSchemas
 
 try:
     from geopy import Point
-except ImportError:  # pragma: no cover - geopy is a hard dep but the import path is checked at use site
+except (
+    ImportError
+):  # pragma: no cover - geopy is a hard dep but the import path is checked at use site
     Point = None  # type: ignore[assignment]
 
 
@@ -65,6 +67,7 @@ def _location_spec_to_geopy(loc: LocationSpec):
             "Add geopy to requirements.txt and reinstall."
         )
     return Point(loc.lat, loc.lon)
+
 
 _logger = logging.getLogger(__name__)
 
@@ -95,7 +98,8 @@ class BaseSatelliteJob(BaseJob):
 
     @property
     @abstractmethod
-    def source(self) -> Source: ...
+    def source(self) -> Source:
+        """Source tag for this satellite ingest (``Source.NASA_POWER`` etc.)."""
 
     @property
     @abstractmethod
@@ -136,11 +140,13 @@ class BaseSatelliteJob(BaseJob):
         date_range = plan.date_range
         all_vars = tuple(plan.variables)
         long_vars = tuple(
-            v for v in all_vars
+            v
+            for v in all_vars
             if v.variable_id not in VariableCatalog.IRRADIANCE_VARIABLE_IDS
         )
         irradiance_vars = tuple(
-            v for v in all_vars
+            v
+            for v in all_vars
             if v.variable_id in VariableCatalog.IRRADIANCE_VARIABLE_IDS
         )
 
@@ -155,22 +161,34 @@ class BaseSatelliteJob(BaseJob):
         )
         _logger.info(
             "%s: %d location(s), date %s..%s, %d long-vars, %d irradiance-vars",
-            self.name, len(locations), date_range.start, date_range.end,
-            len(long_vars), len(irradiance_vars),
+            self.name,
+            len(locations),
+            date_range.start,
+            date_range.end,
+            len(long_vars),
+            len(irradiance_vars),
         )
-        existing_long = coverage.existing_long_keys(
-            self.long_table_fqn,
-            date_range=date_range,
-            source=self.source,
-            variable_ids=tuple(v.variable_id for v in long_vars),
-            geohash5s=plan_geohashes,
-        ) if long_vars else set()
-        existing_irr = coverage.existing_irradiance_keys(
-            self._refs.irradiance_daily,
-            date_range=date_range,
-            source=self.source,
-            geohash5s=plan_geohashes,
-        ) if irradiance_vars else set()
+        existing_long = (
+            coverage.existing_long_keys(
+                self.long_table_fqn,
+                date_range=date_range,
+                source=self.source,
+                variable_ids=tuple(v.variable_id for v in long_vars),
+                geohash5s=plan_geohashes,
+            )
+            if long_vars
+            else set()
+        )
+        existing_irr = (
+            coverage.existing_irradiance_keys(
+                self._refs.irradiance_daily,
+                date_range=date_range,
+                source=self.source,
+                geohash5s=plan_geohashes,
+            )
+            if irradiance_vars
+            else set()
+        )
 
         rows_added_long = 0
         rows_added_irr = 0
@@ -248,9 +266,7 @@ class BaseSatelliteJob(BaseJob):
         existing_irr: set[tuple],
     ) -> bool:
         """True iff every (date, variable) we'd need is already cached."""
-        all_dates = pd.date_range(
-            date_range.start, date_range.end, freq="D"
-        ).date
+        all_dates = pd.date_range(date_range.start, date_range.end, freq="D").date
         for d in all_dates:
             if irradiance_vars and (d, geohash5) not in existing_irr:
                 return False
@@ -310,12 +326,19 @@ class BaseSatelliteJob(BaseJob):
                 derived_columns=_GEOG_DERIVATION,
             ),
         )
-        return loader.load(df[
-            [
-                "date", "latitude", "longitude", "geohash5",
-                "variable_id", "value", "source",
+        return loader.load(
+            df[
+                [
+                    "date",
+                    "latitude",
+                    "longitude",
+                    "geohash5",
+                    "variable_id",
+                    "value",
+                    "source",
+                ]
             ]
-        ])
+        )
 
     def _load_irradiance(self, df: pd.DataFrame) -> int:
         loader = MergeLoader(
@@ -327,8 +350,14 @@ class BaseSatelliteJob(BaseJob):
             ),
         )
         cols = [
-            "date", "latitude", "longitude", "geohash5", "source",
-            "ghi_kwh_m2_day", "dhi_kwh_m2_day", "dni_kwh_m2_day",
+            "date",
+            "latitude",
+            "longitude",
+            "geohash5",
+            "source",
+            "ghi_kwh_m2_day",
+            "dhi_kwh_m2_day",
+            "dni_kwh_m2_day",
             "reliability",
         ]
         return loader.load(df[cols])
@@ -430,7 +459,11 @@ class NasaPowerSatelliteJob(BaseSatelliteJob):
                     continue
                 row_date = datetime.strptime(ts_str, "%Y%m%d").date()
                 rows.append(
-                    {"date": row_date, "variable_id": variable_id, "value": float(value)}
+                    {
+                        "date": row_date,
+                        "variable_id": variable_id,
+                        "value": float(value),
+                    }
                 )
         return pd.DataFrame(rows)
 
@@ -499,13 +532,13 @@ class CamsSatelliteJob(BaseSatelliteJob):
         if not present:
             return pd.DataFrame(columns=["date", "variable_id", "value"])
         long = df[[ts_col] + present].melt(
-            id_vars=[ts_col], value_vars=present,
-            var_name="api_code", value_name="value",
+            id_vars=[ts_col],
+            value_vars=present,
+            var_name="api_code",
+            value_name="value",
         )
         long["date"] = pd.to_datetime(long[ts_col]).dt.date
         long["variable_id"] = long["api_code"].map(api_to_var)
         long = long[["date", "variable_id", "value"]].dropna(subset=["value"])
         long["value"] = long["value"].astype(float) * cls._W_M2_TO_KWH_M2_DAY
         return long.reset_index(drop=True)
-
-

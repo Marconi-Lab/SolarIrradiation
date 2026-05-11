@@ -132,7 +132,9 @@ class Trainer:
         train_metrics = score_predictions(y_train, regressor.predict(X_train))
         val_metrics = score_predictions(y_val, regressor.predict(X_val))
         baseline_metrics = self._score_baselines(
-            processed=processed, val_idx=val_idx, y_val=y_val,
+            processed=processed,
+            val_idx=val_idx,
+            y_val=y_val,
         )
 
         metadata = TrainingMetadata(
@@ -252,35 +254,36 @@ class Trainer:
             if dataset_artifact_ref is not None:
                 run.use_artifact(dataset_artifact_ref)
 
-            run.log({
-                "train/n_rows": bundle.metadata.n_train_rows,
-                "val/n_rows": bundle.metadata.n_val_rows,
-                "train/mae": bundle.metadata.train_metrics.mae,
-                "train/rmse": bundle.metadata.train_metrics.rmse,
-                "train/r2": bundle.metadata.train_metrics.r2,
-                "val/mae": bundle.metadata.val_metrics.mae,
-                "val/rmse": bundle.metadata.val_metrics.rmse,
-                "val/r2": bundle.metadata.val_metrics.r2,
-                **{
-                    f"baseline/{col}/mae": s.mae
-                    for col, s in bundle.metadata.baseline_metrics.items()
-                },
-                **{
-                    f"baseline/{col}/rmse": s.rmse
-                    for col, s in bundle.metadata.baseline_metrics.items()
-                },
-                **{
-                    f"baseline/{col}/r2": s.r2
-                    for col, s in bundle.metadata.baseline_metrics.items()
-                },
-            })
+            run.log(
+                {
+                    "train/n_rows": bundle.metadata.n_train_rows,
+                    "val/n_rows": bundle.metadata.n_val_rows,
+                    "train/mae": bundle.metadata.train_metrics.mae,
+                    "train/rmse": bundle.metadata.train_metrics.rmse,
+                    "train/r2": bundle.metadata.train_metrics.r2,
+                    "val/mae": bundle.metadata.val_metrics.mae,
+                    "val/rmse": bundle.metadata.val_metrics.rmse,
+                    "val/r2": bundle.metadata.val_metrics.r2,
+                    **{
+                        f"baseline/{col}/mae": s.mae
+                        for col, s in bundle.metadata.baseline_metrics.items()
+                    },
+                    **{
+                        f"baseline/{col}/rmse": s.rmse
+                        for col, s in bundle.metadata.baseline_metrics.items()
+                    },
+                    **{
+                        f"baseline/{col}/r2": s.r2
+                        for col, s in bundle.metadata.baseline_metrics.items()
+                    },
+                }
+            )
 
             if bundle_dest is not None:
                 bundle.save(bundle_dest)
                 artifact_dir = Path(bundle_dest)
                 artifact = wandb.Artifact(
-                    name=f"{bundle.source_manifest.name}-"
-                         f"{params.kind.value}",
+                    name=f"{bundle.source_manifest.name}-" f"{params.kind.value}",
                     type="trained_model",
                     metadata={
                         "model_kind": params.kind.value,
@@ -300,8 +303,7 @@ class Trainer:
                     tmp_dir = Path(tmp)
                     bundle.save(tmp_dir)
                     artifact = wandb.Artifact(
-                        name=f"{bundle.source_manifest.name}-"
-                             f"{params.kind.value}",
+                        name=f"{bundle.source_manifest.name}-" f"{params.kind.value}",
                         type="trained_model",
                         metadata={
                             "model_kind": params.kind.value,
@@ -347,8 +349,8 @@ def score_predictions(y_true: pd.Series, y_pred: pd.Series) -> ScoreSet:
     yp = y_pred[valid].to_numpy(dtype=float)
     err = yp - yt
     mae = float(np.abs(err).mean())
-    rmse = float(np.sqrt((err ** 2).mean()))
-    ss_res = float((err ** 2).sum())
+    rmse = float(np.sqrt((err**2).mean()))
+    ss_res = float((err**2).sum())
     ss_tot = float(((yt - yt.mean()) ** 2).sum())
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
     return ScoreSet(n_rows=n, mae=mae, rmse=rmse, r2=r2)

@@ -43,10 +43,13 @@ class TestTrainingMetadata:
     def test_empty_holdout_label_rejected(self) -> None:
         with pytest.raises(ValueError, match="holdout_label must be non-empty"):
             TrainingMetadata(
-                created_at_utc="t", susse_version="v",
-                git_sha=None, holdout_label="",
+                created_at_utc="t",
+                susse_version="v",
+                git_sha=None,
+                holdout_label="",
                 splitter_name="x",
-                n_train_rows=1, n_val_rows=1,
+                n_train_rows=1,
+                n_val_rows=1,
                 train_metrics=_toy_score(),
                 val_metrics=_toy_score(),
                 baseline_metrics={},
@@ -55,10 +58,13 @@ class TestTrainingMetadata:
     def test_empty_splitter_name_rejected(self) -> None:
         with pytest.raises(ValueError, match="splitter_name must be non-empty"):
             TrainingMetadata(
-                created_at_utc="t", susse_version="v",
-                git_sha=None, holdout_label="x",
+                created_at_utc="t",
+                susse_version="v",
+                git_sha=None,
+                holdout_label="x",
                 splitter_name="",
-                n_train_rows=1, n_val_rows=1,
+                n_train_rows=1,
+                n_val_rows=1,
                 train_metrics=_toy_score(),
                 val_metrics=_toy_score(),
                 baseline_metrics={},
@@ -67,10 +73,13 @@ class TestTrainingMetadata:
     def test_negative_n_train_rejected(self) -> None:
         with pytest.raises(ValueError, match=r"n_train_rows=-1"):
             TrainingMetadata(
-                created_at_utc="t", susse_version="v",
-                git_sha=None, holdout_label="x",
+                created_at_utc="t",
+                susse_version="v",
+                git_sha=None,
+                holdout_label="x",
                 splitter_name="y",
-                n_train_rows=-1, n_val_rows=1,
+                n_train_rows=-1,
+                n_val_rows=1,
                 train_metrics=_toy_score(),
                 val_metrics=_toy_score(),
                 baseline_metrics={},
@@ -82,5 +91,6 @@ class TestTrainingMetadata:
         assert recovered == original
         # Baseline keys survive verbatim (dict ordering is irrelevant for equality).
         assert set(recovered.baseline_metrics.keys()) == {
-            "sat_ghi_nasa_kwh_m2_day", "sat_ghi_cams_kwh_m2_day",
+            "sat_ghi_nasa_kwh_m2_day",
+            "sat_ghi_cams_kwh_m2_day",
         }

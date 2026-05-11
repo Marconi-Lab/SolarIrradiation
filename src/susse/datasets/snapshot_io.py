@@ -118,8 +118,12 @@ def write_snapshot(
 
     _logger.info(
         "Wrote snapshot %s v%s to %s — %d rows × %d cols, hash=%s.",
-        manifest_final.name, manifest_final.version, dest,
-        manifest_final.n_rows, manifest_final.n_cols, content_hash[:12],
+        manifest_final.name,
+        manifest_final.version,
+        dest,
+        manifest_final.n_rows,
+        manifest_final.n_cols,
+        content_hash[:12],
     )
     return TrainingDataset(df=df, manifest=manifest_final)
 
@@ -199,5 +203,3 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
-
-

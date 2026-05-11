@@ -64,9 +64,7 @@ class MergeLoader:
     inserted; nothing is duplicated.
     """
 
-    def __init__(
-        self, bq: BigQueryClient, table_fqn: str, spec: MergeSpec
-    ) -> None:
+    def __init__(self, bq: BigQueryClient, table_fqn: str, spec: MergeSpec) -> None:
         self._bq = bq
         self._table_fqn = table_fqn
         self._spec = spec
@@ -84,16 +82,12 @@ class MergeLoader:
             return 0
         self._validate_columns(df)
         staging_fqn = f"{self._table_fqn}_staging"
-        self._bq.load_dataframe(
-            df, staging_fqn, write_disposition="WRITE_TRUNCATE"
-        )
+        self._bq.load_dataframe(df, staging_fqn, write_disposition="WRITE_TRUNCATE")
         self._merge_from_staging(staging_columns=tuple(df.columns))
         return len(df)
 
     def _validate_columns(self, df: pd.DataFrame) -> None:
-        missing_keys = [
-            k for k in self._spec.schema.merge_keys if k not in df.columns
-        ]
+        missing_keys = [k for k in self._spec.schema.merge_keys if k not in df.columns]
         if missing_keys:
             raise ValueError(
                 f"DataFrame is missing merge-key columns for "
@@ -124,9 +118,7 @@ class MergeLoader:
         staging_select = ", ".join(select_parts)
 
         on_clause = " AND ".join(f"t.`{k}` = s.`{k}`" for k in merge_keys)
-        update_clause = ", ".join(
-            f"`{c}` = s.`{c}`" for c in non_key_columns
-        )
+        update_clause = ", ".join(f"`{c}` = s.`{c}`" for c in non_key_columns)
         col_list = ", ".join(f"`{c}`" for c in all_target_columns)
         val_list = ", ".join(f"s.`{c}`" for c in all_target_columns)
 
@@ -213,8 +205,12 @@ class MergeLoader:
                 "MERGE for %s spans %d days from %s to %s — splitting into "
                 "%d chunks of <=%d days to stay under BigQuery's "
                 "partition-per-DML cap.",
-                self._table_fqn, (max_d - min_d).days + 1, min_d, max_d,
-                len(chunks), _BQ_PARTITION_LIMIT_PER_STATEMENT,
+                self._table_fqn,
+                (max_d - min_d).days + 1,
+                min_d,
+                max_d,
+                len(chunks),
+                _BQ_PARTITION_LIMIT_PER_STATEMENT,
             )
         for start, end in chunks:
             filter_expr = (
@@ -224,9 +220,7 @@ class MergeLoader:
             self._bq.execute_ddl(merge_sql_factory(filter_expr))
 
 
-def _date_chunks(
-    start: date, end: date, max_days: int
-) -> list[tuple[date, date]]:
+def _date_chunks(start: date, end: date, max_days: int) -> list[tuple[date, date]]:
     """Split ``[start, end]`` into contiguous spans of at most ``max_days``.
 
     The returned spans are inclusive on both ends and cover every day in

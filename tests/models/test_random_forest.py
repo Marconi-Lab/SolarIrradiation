@@ -9,7 +9,10 @@ import pandas as pd
 import pytest
 
 from susse.models import (
-    ModelFactory, RandomForestParams, RandomForestRegressor, load_regressor,
+    ModelFactory,
+    RandomForestParams,
+    RandomForestRegressor,
+    load_regressor,
 )
 
 
@@ -20,10 +23,12 @@ def _learnable_data(n: int = 200) -> tuple[pd.DataFrame, pd.Series]:
     than the standard deviation of y.
     """
     rng = np.random.default_rng(0)
-    X = pd.DataFrame({
-        "a": rng.uniform(-1, 1, n),
-        "b": rng.uniform(-1, 1, n),
-    })
+    X = pd.DataFrame(
+        {
+            "a": rng.uniform(-1, 1, n),
+            "b": rng.uniform(-1, 1, n),
+        }
+    )
     y = pd.Series(2.0 * X["a"] - 3.0 * X["b"] + rng.normal(scale=0.1, size=n))
     return X, y
 

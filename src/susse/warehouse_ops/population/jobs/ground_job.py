@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from ...io.bq import BigQueryClient
+from ...io.config import TableRefs, TableSchemas
 from ..adapters import GroundSourceAdapter
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
@@ -14,8 +16,6 @@ from ..curation import CurationOptions, curate_ground
 from ..loaders import DerivedColumn, MergeLoader, MergeSpec
 from ..types import FetchPlan, GroundFilePlan
 from ..validators import validate_ground_curated, validate_ground_raw
-from ...io.bq import BigQueryClient
-from ...io.config import TableRefs, TableSchemas
 
 _logger = logging.getLogger(__name__)
 
@@ -81,7 +81,8 @@ class GroundIngestJob(BaseJob):
         existing_raw: set[tuple] = set()
         for loc in locations_in_file:
             existing_raw |= coverage.existing_ground_raw_keys(
-                self._refs.ground_measurements_raw, location=loc,
+                self._refs.ground_measurements_raw,
+                location=loc,
             )
 
         # Filter to rows NOT yet in raw.
@@ -101,7 +102,8 @@ class GroundIngestJob(BaseJob):
         else:
             _logger.info(
                 "%s: all %d rows already present in raw table; nothing to do.",
-                self.name, len(raw),
+                self.name,
+                len(raw),
             )
 
         finished = datetime.now(timezone.utc)

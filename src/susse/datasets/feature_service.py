@@ -89,7 +89,8 @@ class FeatureService:
               * ``qc_level`` — kept for traceability.
         """
         ground = self._ground.fetch(
-            date_start, date_end,
+            date_start,
+            date_end,
             locations=locations,
             qc_levels=selection.qc_levels,
         )
@@ -99,7 +100,8 @@ class FeatureService:
         plan_geohashes = tuple(ground["geohash5"].unique())
 
         irr = self._sat.daily_irradiance_by_geohash(
-            date_start, date_end,
+            date_start,
+            date_end,
             sources=tuple(s.value for s in selection.include_satellite_irradiance),
             bands=selection.include_satellite_bands,
             geohash5s=plan_geohashes,
@@ -111,7 +113,8 @@ class FeatureService:
             aux = self._sat.long_aux_pivoted(
                 table_fqn=getattr(self._t, table_attr),
                 column_prefix=prefix,
-                start=date_start, end=date_end,
+                start=date_start,
+                end=date_end,
                 variable_ids=ids,
                 geohash5s=plan_geohashes,
             )
@@ -159,10 +162,12 @@ class FeatureService:
                 "build_training_pairs for the same constraint."
             )
         import pygeohash
+
         gh = pygeohash.encode(lat, lon, precision=self._opts.geohash_precision)
 
         irr = self._sat.daily_irradiance_by_geohash(
-            target_date, target_date,
+            target_date,
+            target_date,
             sources=tuple(s.value for s in selection.include_satellite_irradiance),
             bands=selection.include_satellite_bands,
             geohash5s=(gh,),
@@ -181,7 +186,8 @@ class FeatureService:
             aux = self._sat.long_aux_pivoted(
                 table_fqn=getattr(self._t, table_attr),
                 column_prefix=prefix,
-                start=target_date, end=target_date,
+                start=target_date,
+                end=target_date,
                 variable_ids=ids,
                 geohash5s=(gh,),
             )
@@ -195,9 +201,7 @@ class FeatureService:
     # Manifest support
     # ------------------------------------------------------------------
 
-    def warehouse_table_mods(
-        self, selection: FeatureSelection
-    ) -> dict[str, str]:
+    def warehouse_table_mods(self, selection: FeatureSelection) -> dict[str, str]:
         """Per-source-table ``last_modified_time`` for manifest provenance.
 
         Returns the ISO-8601 modification timestamp of each warehouse

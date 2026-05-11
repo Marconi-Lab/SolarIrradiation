@@ -31,8 +31,8 @@ from susse.api_clients.merra_2 import MerraAuthError
 from susse.api_clients.merra_2.merra_daily_fetcher import (
     MerraDailyFetcher,
     _Bbox,
-    _Earthdata,
     _cadence_for,
+    _Earthdata,
     _timestamps_for,
     cos_zenith_aggregate,
 )
@@ -45,9 +45,7 @@ def _kampala_lat_lon() -> tuple[float, float]:
 
 def _hourly_index_utc(d: date) -> pd.DatetimeIndex:
     base = datetime.combine(d, datetime.min.time(), tzinfo=timezone.utc)
-    return pd.DatetimeIndex(
-        [base + timedelta(hours=h, minutes=30) for h in range(24)]
-    )
+    return pd.DatetimeIndex([base + timedelta(hours=h, minutes=30) for h in range(24)])
 
 
 class TestCosZenithAggregate:
@@ -69,8 +67,10 @@ class TestCosZenithAggregate:
         # cos(zenith) weighting.
         lat, lon = _kampala_lat_lon()
         times = _hourly_index_utc(date(2024, 6, 21))
-        noon_only = np.zeros(24); noon_only[12] = 100.0
-        midnight_only = np.zeros(24); midnight_only[0] = 100.0
+        noon_only = np.zeros(24)
+        noon_only[12] = 100.0
+        midnight_only = np.zeros(24)
+        midnight_only[0] = 100.0
         noon_daily = cos_zenith_aggregate(noon_only, times, lat, lon)
         midnight_daily = cos_zenith_aggregate(midnight_only, times, lat, lon)
         assert noon_daily > 5.0, (
@@ -85,9 +85,7 @@ class TestCosZenithAggregate:
     def test_handles_all_nan_input(self) -> None:
         lat, lon = _kampala_lat_lon()
         times = _hourly_index_utc(date(2024, 6, 21))
-        result = cos_zenith_aggregate(
-            np.full(24, np.nan), times, lat, lon
-        )
+        result = cos_zenith_aggregate(np.full(24, np.nan), times, lat, lon)
         assert np.isnan(result)
 
     def test_partial_nan_excluded_from_average(self) -> None:
@@ -108,15 +106,18 @@ class TestCosZenithAggregate:
 
 
 class TestCadenceLookup:
-    @pytest.mark.parametrize("database_id, expected", [
-        ("tavg1_2d_aer_Nx", 24),
-        ("tavg1_2d_slv_Nx", 24),
-        ("inst1_2d_asm_Nx", 24),
-        ("tavg3_3d_cld_Np", 8),
-        ("inst3_2d_gas_Nx", 8),
-        ("statD_2d_slv_Nx", 1),
-        ("const_2d_asm_Nx", 1),
-    ])
+    @pytest.mark.parametrize(
+        "database_id, expected",
+        [
+            ("tavg1_2d_aer_Nx", 24),
+            ("tavg1_2d_slv_Nx", 24),
+            ("inst1_2d_asm_Nx", 24),
+            ("tavg3_3d_cld_Np", 8),
+            ("inst3_2d_gas_Nx", 8),
+            ("statD_2d_slv_Nx", 1),
+            ("const_2d_asm_Nx", 1),
+        ],
+    )
     def test_known_collections(self, database_id: str, expected: int) -> None:
         assert _cadence_for(database_id) == expected
 
@@ -187,8 +188,7 @@ class TestUrlBuilder:
         url = MerraDailyFetcher._build_bbox_url(
             product_data=MerraProducts.AEROSOL_EXTINCTION_550nm.value,
             date=date(2024, 6, 21),
-            bbox=_Bbox(lat_idx_lo=180, lat_idx_hi=180,
-                       lon_idx_lo=240, lon_idx_hi=240),
+            bbox=_Bbox(lat_idx_lo=180, lat_idx_hi=180, lon_idx_lo=240, lon_idx_hi=240),
             cadence=24,
         )
         assert "[0:1:23]" in url
@@ -199,8 +199,7 @@ class TestUrlBuilder:
         url = MerraDailyFetcher._build_bbox_url(
             product_data=MerraProducts.AEROSOL_OPTICAL_DEPTH_ANALYSIS.value,
             date=date(2024, 6, 21),
-            bbox=_Bbox(lat_idx_lo=180, lat_idx_hi=180,
-                       lon_idx_lo=240, lon_idx_hi=240),
+            bbox=_Bbox(lat_idx_lo=180, lat_idx_hi=180, lon_idx_lo=240, lon_idx_hi=240),
             cadence=8,
         )
         # Critical: 3-hourly collection has only 8 timesteps; using
@@ -215,8 +214,7 @@ class TestUrlBuilder:
         url = MerraDailyFetcher._build_bbox_url(
             product_data=MerraProducts.AEROSOL_EXTINCTION_550nm.value,
             date=date(2024, 6, 21),
-            bbox=_Bbox(lat_idx_lo=180, lat_idx_hi=180,
-                       lon_idx_lo=240, lon_idx_hi=240),
+            bbox=_Bbox(lat_idx_lo=180, lat_idx_hi=180, lon_idx_lo=240, lon_idx_hi=240),
             cadence=24,
         )
         assert ".nc4.nc4" not in url
@@ -228,8 +226,7 @@ class TestUrlBuilder:
         url = MerraDailyFetcher._build_bbox_url(
             product_data=MerraProducts.AEROSOL_EXTINCTION_550nm.value,
             date=date(2024, 6, 21),
-            bbox=_Bbox(lat_idx_lo=177, lat_idx_hi=189,
-                       lon_idx_lo=335, lon_idx_hi=345),
+            bbox=_Bbox(lat_idx_lo=177, lat_idx_hi=189, lon_idx_lo=335, lon_idx_hi=345),
             cadence=24,
         )
         assert "[177:1:189]" in url
@@ -253,9 +250,7 @@ class TestEarthdataCredentials:
         with pytest.raises(MerraAuthError, match="EARTHDATA_USERNAME"):
             _Earthdata.from_env()
 
-    def test_present_credentials_loaded(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_present_credentials_loaded(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("EARTHDATA_USERNAME", "alice")
         monkeypatch.setenv("EARTHDATA_PASSWORD", "secret")
         # No-op the .env loader so test env wins deterministically.
@@ -286,12 +281,12 @@ def _stub_bbox_raw_factory(scale: float = 1.0):
             lat_idx = bbox.lat_idx_lo + i
             for j in range(bbox.n_lon):
                 lon_idx = bbox.lon_idx_lo + j
-                arr[cadence // 2, i, j] = (
-                    scale * (
-                        offset
-                        + date.month * 100 + date.day
-                        + lat_idx * 0.001 + lon_idx * 0.0001
-                    )
+                arr[cadence // 2, i, j] = scale * (
+                    offset
+                    + date.month * 100
+                    + date.day
+                    + lat_idx * 0.001
+                    + lon_idx * 0.0001
                 )
         return arr
 
@@ -301,14 +296,15 @@ def _stub_bbox_raw_factory(scale: float = 1.0):
 class TestFetchRegionShape:
     """``fetch_region`` returns one row per (point, date, variable)."""
 
-    def test_one_row_per_point_date_var(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_one_row_per_point_date_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            MerraDailyFetcher, "_fetch_bbox_raw", _stub_bbox_raw_factory(),
+            MerraDailyFetcher,
+            "_fetch_bbox_raw",
+            _stub_bbox_raw_factory(),
         )
         monkeypatch.setattr(
-            MerraDailyFetcher, "_authenticated_session",
+            MerraDailyFetcher,
+            "_authenticated_session",
             lambda self, url: object(),
         )
         fetcher = MerraDailyFetcher(max_workers=1)
@@ -321,7 +317,11 @@ class TestFetchRegionShape:
         # 2 points × 3 days × 2 vars = 12 rows.
         assert len(df) == 12
         assert set(df.columns) == {
-            "date", "latitude", "longitude", "variable_id", "value",
+            "date",
+            "latitude",
+            "longitude",
+            "variable_id",
+            "value",
         }
         # Distinct values per (point, var) — each point's bbox slice
         # encodes its own (lat_idx, lon_idx) so values must differ.
@@ -339,10 +339,13 @@ class TestFetchRegionShape:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            MerraDailyFetcher, "_fetch_bbox_raw", _stub_bbox_raw_factory(),
+            MerraDailyFetcher,
+            "_fetch_bbox_raw",
+            _stub_bbox_raw_factory(),
         )
         monkeypatch.setattr(
-            MerraDailyFetcher, "_authenticated_session",
+            MerraDailyFetcher,
+            "_authenticated_session",
             lambda self, url: object(),
         )
         fetcher = MerraDailyFetcher(max_workers=1)
@@ -354,7 +357,11 @@ class TestFetchRegionShape:
         )
         assert df.empty
         assert list(df.columns) == [
-            "date", "latitude", "longitude", "variable_id", "value",
+            "date",
+            "latitude",
+            "longitude",
+            "variable_id",
+            "value",
         ]
 
     def test_rejects_empty_points(self) -> None:
@@ -390,7 +397,8 @@ class TestFetchRegionPointParity:
         stub = _stub_bbox_raw_factory()
         monkeypatch.setattr(MerraDailyFetcher, "_fetch_bbox_raw", stub)
         monkeypatch.setattr(
-            MerraDailyFetcher, "_authenticated_session",
+            MerraDailyFetcher,
+            "_authenticated_session",
             lambda self, url: object(),
         )
         lat, lon = 0.5, 32.5
@@ -405,6 +413,7 @@ class TestFetchRegionPointParity:
         # Reproduce the same aggregation manually using the stub directly
         # so we can verify slice arithmetic is correct.
         from susse.api_clients.merra_2.merra_daily_fetcher import _Bbox
+
         lat_idx, lon_idx = MerraDailyFetcher._grid_indices(lat, lon)
         bbox = _Bbox(lat_idx, lat_idx, lon_idx, lon_idx)
         raw = stub(
@@ -427,7 +436,8 @@ class TestFetchRegionPointParity:
         stub = _stub_bbox_raw_factory()
         monkeypatch.setattr(MerraDailyFetcher, "_fetch_bbox_raw", stub)
         monkeypatch.setattr(
-            MerraDailyFetcher, "_authenticated_session",
+            MerraDailyFetcher,
+            "_authenticated_session",
             lambda self, url: object(),
         )
         points = ((0.0, 30.0), (2.0, 32.5))
@@ -441,11 +451,14 @@ class TestFetchRegionPointParity:
         assert len(df) == 2
 
         from susse.api_clients.merra_2.merra_daily_fetcher import _Bbox
+
         idx0 = MerraDailyFetcher._grid_indices(*points[0])
         idx1 = MerraDailyFetcher._grid_indices(*points[1])
         bbox = _Bbox(
-            min(idx0[0], idx1[0]), max(idx0[0], idx1[0]),
-            min(idx0[1], idx1[1]), max(idx0[1], idx1[1]),
+            min(idx0[0], idx1[0]),
+            max(idx0[0], idx1[0]),
+            min(idx0[1], idx1[1]),
+            max(idx0[1], idx1[1]),
         )
         raw = stub(
             None,
@@ -456,8 +469,9 @@ class TestFetchRegionPointParity:
         )
         timestamps = _timestamps_for(date(2024, 6, 21), 24)
         for (lat, lon), (lat_idx, lon_idx) in zip(points, (idx0, idx1)):
-            sub = raw[:, lat_idx - bbox.lat_idx_lo,
-                      lon_idx - bbox.lon_idx_lo].astype(float)
+            sub = raw[:, lat_idx - bbox.lat_idx_lo, lon_idx - bbox.lon_idx_lo].astype(
+                float
+            )
             expected = cos_zenith_aggregate(sub, timestamps, lat, lon)
             row = df[(df["latitude"] == lat) & (df["longitude"] == lon)].iloc[0]
             assert row["value"] == pytest.approx(expected, abs=1e-12)
@@ -476,20 +490,22 @@ class TestParallelEquivalence:
     network or requires Earthdata credentials.
     """
 
-    def test_parallel_matches_serial(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_parallel_matches_serial(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            MerraDailyFetcher, "_fetch_bbox_raw", _stub_bbox_raw_factory(),
+            MerraDailyFetcher,
+            "_fetch_bbox_raw",
+            _stub_bbox_raw_factory(),
         )
         monkeypatch.setattr(
-            MerraDailyFetcher, "_authenticated_session",
+            MerraDailyFetcher,
+            "_authenticated_session",
             lambda self, url: object(),
         )
 
         kwargs = dict(
             points=((0.5179, 32.4715), (1.0, 33.0)),
-            date_start=date(2024, 6, 1), date_end=date(2024, 6, 14),
+            date_start=date(2024, 6, 1),
+            date_end=date(2024, 6, 14),
             api_codes=("TOTEXTTAU", "TOTSCATAU"),
         )
 
@@ -514,15 +530,20 @@ class TestParallelEquivalence:
         # the legacy 3-column shape. Pin that the wrapper projects out
         # the region columns.
         monkeypatch.setattr(
-            MerraDailyFetcher, "_fetch_bbox_raw", _stub_bbox_raw_factory(),
+            MerraDailyFetcher,
+            "_fetch_bbox_raw",
+            _stub_bbox_raw_factory(),
         )
         monkeypatch.setattr(
-            MerraDailyFetcher, "_authenticated_session",
+            MerraDailyFetcher,
+            "_authenticated_session",
             lambda self, url: object(),
         )
         df = MerraDailyFetcher(max_workers=1).fetch_long_for_location(
-            latitude=0.5, longitude=32.5,
-            date_start=date(2024, 6, 1), date_end=date(2024, 6, 3),
+            latitude=0.5,
+            longitude=32.5,
+            date_start=date(2024, 6, 1),
+            date_end=date(2024, 6, 3),
             api_codes=("TOTEXTTAU",),
         )
         assert list(df.columns) == ["date", "variable_id", "value"]
@@ -584,6 +605,7 @@ class TestSessionRetryConfig:
         # Stub the URS handshake — we just want a Session object back.
         def fake_setup_session(username, password, check_url):
             return requests.Session()
+
         monkeypatch.setattr(
             "susse.api_clients.merra_2.merra_daily_fetcher.setup_session",
             fake_setup_session,

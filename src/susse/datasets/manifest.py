@@ -110,9 +110,7 @@ class DatasetManifest:
             "date_start": self.date_start.isoformat(),
             "date_end": self.date_end.isoformat(),
             "location_filter": (
-                list(self.location_filter)
-                if self.location_filter is not None
-                else None
+                list(self.location_filter) if self.location_filter is not None else None
             ),
             "warehouse_project": self.warehouse_project,
             "warehouse_dataset": self.warehouse_dataset,

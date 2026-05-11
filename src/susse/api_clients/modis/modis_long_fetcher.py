@@ -24,7 +24,8 @@ import logging
 import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date as _date, datetime, timedelta
+from datetime import date as _date
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -51,9 +52,9 @@ _MAX_TILES_PER_REQUEST = 10
 # rows a date range should produce when checking warehouse coverage.
 # Add an entry here when introducing a new product to the catalog.
 PRODUCT_CADENCE_DAYS: dict[str, int] = {
-    "MCD43A4": 1,    # NBAR — daily 500 m
-    "MOD11A2": 8,    # LST — 8-day composite
-    "MOD13Q1": 16,   # NDVI — 16-day composite
+    "MCD43A4": 1,  # NBAR — daily 500 m
+    "MOD11A2": 8,  # LST — 8-day composite
+    "MOD13Q1": 16,  # NDVI — 16-day composite
 }
 
 
@@ -69,7 +70,8 @@ def product_cadence_days(product_id: str) -> int:
         _logger.warning(
             "Unknown MODIS product cadence for %r — assuming daily. Add it "
             "to PRODUCT_CADENCE_DAYS in %s for correct behaviour.",
-            product_id, __name__,
+            product_id,
+            __name__,
         )
         cadence = 1
     return cadence
@@ -80,9 +82,7 @@ def _max_days_per_request(product_id: str) -> int:
     return product_cadence_days(product_id) * _MAX_TILES_PER_REQUEST
 
 
-def _date_chunks(
-    start: _date, end: _date, max_days: int
-) -> list[tuple[_date, _date]]:
+def _date_chunks(start: _date, end: _date, max_days: int) -> list[tuple[_date, _date]]:
     """Split ``[start, end]`` into contiguous spans of at most ``max_days``."""
     if start > end:
         return []
@@ -169,7 +169,9 @@ class ModisLongFetcher:
         tasks: list[tuple[str, str, _date, _date]] = []
         for product_id, band_id in products_and_bands:
             chunks = _date_chunks(
-                date_start, date_end, _max_days_per_request(product_id),
+                date_start,
+                date_end,
+                _max_days_per_request(product_id),
             )
             for chunk_start, chunk_end in chunks:
                 tasks.append((product_id, band_id, chunk_start, chunk_end))
@@ -198,9 +200,7 @@ class ModisLongFetcher:
             if self._max_workers > 1:
                 pool.shutdown(wait=True)
 
-        return pd.DataFrame(
-            rows, columns=("date", "product_id", "band_id", "value")
-        )
+        return pd.DataFrame(rows, columns=("date", "product_id", "band_id", "value"))
 
     def _warm_up(self) -> None:
         with self._inner_lock:
@@ -238,8 +238,12 @@ class ModisLongFetcher:
         end_dt = datetime.combine(chunk_end, datetime.min.time())
         _logger.info(
             "MODIS request: product=%s band=%s lat=%.4f lon=%.4f %s..%s",
-            product_id, band_id, location.latitude, location.longitude,
-            chunk_start.isoformat(), chunk_end.isoformat(),
+            product_id,
+            band_id,
+            location.latitude,
+            location.longitude,
+            chunk_start.isoformat(),
+            chunk_end.isoformat(),
         )
         t0 = _time.monotonic()
         try:
@@ -253,7 +257,11 @@ class ModisLongFetcher:
         except Exception as exc:
             _logger.warning(
                 "MODIS fetch failed for product=%s band=%s %s..%s: %s",
-                product_id, band_id, chunk_start, chunk_end, exc,
+                product_id,
+                band_id,
+                chunk_start,
+                chunk_end,
+                exc,
             )
             return []
         elapsed = _time.monotonic() - t0
@@ -262,7 +270,10 @@ class ModisLongFetcher:
         rows = self._result_to_rows(result, product_id, band_id)
         _logger.info(
             "MODIS response: product=%s band=%s — %d rows in %.1fs.",
-            product_id, band_id, len(rows), elapsed,
+            product_id,
+            band_id,
+            len(rows),
+            elapsed,
         )
         return rows
 
@@ -275,10 +286,12 @@ class ModisLongFetcher:
             value = float(dp.data_avg)
             if pd.isna(value):
                 continue
-            rows.append({
-                "date": dp.date.date(),
-                "product_id": product_id,
-                "band_id": band_id,
-                "value": value,
-            })
+            rows.append(
+                {
+                    "date": dp.date.date(),
+                    "product_id": product_id,
+                    "band_id": band_id,
+                    "value": value,
+                }
+            )
         return rows

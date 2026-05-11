@@ -23,7 +23,11 @@ class TestStandardCsvAdapter:
         df = adapter.parse(somalia_csv_path)
 
         assert list(df.columns) == [
-            "datetime", "ghi", "location", "latitude", "longitude"
+            "datetime",
+            "ghi",
+            "location",
+            "latitude",
+            "longitude",
         ]
         assert len(df) == 5  # the fixture is a 5-row slice
         assert (df["location"] == "somalia_location1").all()

@@ -48,13 +48,12 @@ def auto_pick_largest_station(
         )
     counts = processed.df.groupby(location_column).size()
     if counts.empty:
-        raise ValueError(
-            "PreprocessedDataset is empty; cannot pick a holdout station."
-        )
+        raise ValueError("PreprocessedDataset is empty; cannot pick a holdout station.")
     # ``idxmax`` is NOT deterministic across ties; sort the index first
     # so the returned name is reproducible across runs.
     counts_sorted = counts.sort_index().sort_values(
-        ascending=False, kind="stable",
+        ascending=False,
+        kind="stable",
     )
     return str(counts_sorted.index[0])
 
@@ -95,9 +94,9 @@ def make_station_loso_splitter(
             )
         mask = processed.df[location_column] == held_out_station
         if not mask.any():
-            sample = sorted(
-                processed.df[location_column].dropna().unique().tolist()
-            )[:8]
+            sample = sorted(processed.df[location_column].dropna().unique().tolist())[
+                :8
+            ]
             raise ValueError(
                 f"Station {held_out_station!r} has no rows in this "
                 f"dataset. Available stations (first 8): {sample}. "
