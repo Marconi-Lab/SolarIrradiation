@@ -22,6 +22,7 @@ from susse.preprocessing import (
     HighMissingYearExcluder,
     IqrLowerBoundCleaner,
     KnnYearGapImputer,
+    PerStationMeanImputer,
     data_cleaner_from_dict,
 )
 
@@ -333,6 +334,7 @@ class TestDispatchByKind:
             IqrLowerBoundCleaner(),
             HighMissingYearExcluder(),
             KnnYearGapImputer(),
+            PerStationMeanImputer(columns=("temperature",)),
         ]
         for original in instances:
             assert original.kind.cleaner_class() is type(original)
@@ -349,8 +351,75 @@ class TestProtocolCompliance:
             IqrLowerBoundCleaner(),
             HighMissingYearExcluder(),
             KnnYearGapImputer(),
+            PerStationMeanImputer(columns=("temperature",)),
         ]
         for c in instances:
             assert isinstance(c.kind, CleanerKind)
             assert len(c.required_input_columns) >= 1
             assert "kind" in c.to_dict()
+
+
+class TestPerStationMeanImputer:
+    """Imputer fills NaN with per-station column means."""
+
+    def test_fills_nan_with_station_mean(self) -> None:
+        df = pd.DataFrame({
+            "location": ["a", "a", "a", "b", "b", "b"],
+            "temperature": [10.0, 20.0, np.nan, 5.0, np.nan, 15.0],
+        })
+        result = PerStationMeanImputer(columns=("temperature",)).apply(df)
+        # Station 'a' has values [10, 20] → mean 15 fills the NaN.
+        # Station 'b' has values [5, 15] → mean 10 fills the NaN.
+        assert result.loc[2, "temperature"] == pytest.approx(15.0)
+        assert result.loc[4, "temperature"] == pytest.approx(10.0)
+        # Non-NaN values unchanged.
+        assert result.loc[0, "temperature"] == 10.0
+        assert result.loc[3, "temperature"] == 5.0
+
+    def test_leaves_all_nan_station_alone(self) -> None:
+        # Station 'c' has every value NaN — no mean to compute, so the
+        # imputer must leave those NaNs in place. Caller's
+        # ``dropna_features`` will then drop the rows downstream.
+        df = pd.DataFrame({
+            "location": ["a", "a", "c", "c"],
+            "temperature": [10.0, 20.0, np.nan, np.nan],
+        })
+        result = PerStationMeanImputer(columns=("temperature",)).apply(df)
+        assert result.loc[0, "temperature"] == 10.0
+        assert pd.isna(result.loc[2, "temperature"])
+        assert pd.isna(result.loc[3, "temperature"])
+
+    def test_multiple_columns_imputed_independently(self) -> None:
+        df = pd.DataFrame({
+            "location": ["a", "a", "a"],
+            "temperature": [10.0, 20.0, np.nan],
+            "humidity":    [np.nan, 40.0, 60.0],
+        })
+        result = PerStationMeanImputer(
+            columns=("temperature", "humidity"),
+        ).apply(df)
+        assert result.loc[2, "temperature"] == pytest.approx(15.0)
+        assert result.loc[0, "humidity"] == pytest.approx(50.0)
+
+    def test_empty_columns_rejected(self) -> None:
+        with pytest.raises(ValueError, match="columns is empty"):
+            PerStationMeanImputer(columns=())
+
+    def test_missing_column_in_input_raises(self) -> None:
+        df = pd.DataFrame({"location": ["a"], "temperature": [10.0]})
+        with pytest.raises(KeyError, match="humidity"):
+            PerStationMeanImputer(columns=("humidity",)).apply(df)
+
+    def test_to_dict_roundtrip(self) -> None:
+        original = PerStationMeanImputer(
+            columns=("temperature", "humidity"), station_column="station_id",
+        )
+        rebuilt = data_cleaner_from_dict(original.to_dict())
+        assert isinstance(rebuilt, PerStationMeanImputer)
+        assert rebuilt.columns == ("temperature", "humidity")
+        assert rebuilt.station_column == "station_id"
+
+    def test_empty_frame_returns_empty(self) -> None:
+        df = pd.DataFrame({"location": [], "temperature": []})
+        result = PerStationMeanImputer(columns=("temperature",)).apply(df)
+        assert result.empty

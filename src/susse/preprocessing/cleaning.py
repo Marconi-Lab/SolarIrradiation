@@ -47,6 +47,7 @@ class CleanerKind(StrEnum):
     IQR_LOWER_BOUND = "iqr_lower_bound"
     HIGH_MISSING_YEAR = "high_missing_year"
     KNN_YEAR_GAP_IMPUTE = "knn_year_gap_impute"
+    PER_STATION_MEAN_IMPUTE = "per_station_mean_impute"
 
     def cleaner_class(self) -> type["DataCleaner"]:
         """Return the concrete :class:`DataCleaner` subclass for this kind."""
@@ -58,6 +59,8 @@ class CleanerKind(StrEnum):
             return HighMissingYearExcluder
         if self is CleanerKind.KNN_YEAR_GAP_IMPUTE:
             return KnnYearGapImputer
+        if self is CleanerKind.PER_STATION_MEAN_IMPUTE:
+            return PerStationMeanImputer
         raise AssertionError(f"Unhandled CleanerKind: {self!r}")  # pragma: no cover
 
 
@@ -433,4 +436,93 @@ class KnnYearGapImputer(DataCleaner):
             station_column=d.get("station_column", "location"),
             date_column=d.get("date_column", "date"),
             k=int(d.get("k", 5)),
+        )
+
+
+@dataclass(frozen=True)
+class PerStationMeanImputer(DataCleaner):
+    """Fill NaN values in feature columns with that station's column mean.
+
+    For each ``(station, column)`` pair, replace NaN entries with the mean
+    of the column's non-NaN values **at the same station**. Useful when a
+    sensor outage produces a short NaN gap at a station that otherwise
+    has good coverage — the per-station mean is the most defensible
+    constant-fill choice in that situation.
+
+    When NOT to use this:
+
+    * **All-NaN-at-some-station columns** (e.g. NASA POWER's land-only
+      ``evaporation_land`` over an oceanic station). The imputer has no
+      values to average and leaves the NaNs in place; the row will then
+      be dropped by ``dropna_features``. There is no honest imputation
+      for a column whose values do not exist by design — drop the
+      column instead.
+    * **Strong time trend within a station.** Mean-fill flattens the
+      annual cycle. For seasonal features, prefer per-(station, month)
+      means or kNN imputation in the time dimension.
+
+    The imputer is opt-in per column via :attr:`columns`. Listing a
+    column whose station is fully NaN raises a warning but does not
+    fail the run.
+
+    Args:
+        columns: Feature columns to impute. Passing an empty tuple is
+            an error — be explicit about which columns to touch.
+        station_column: Column carrying the station identifier. Default
+            ``"location"`` matches the rest of the pipeline.
+    """
+
+    columns: tuple[str, ...] = ()
+    station_column: str = "location"
+
+    def __post_init__(self) -> None:
+        if not self.columns:
+            raise ValueError(
+                "PerStationMeanImputer.columns is empty. List the feature "
+                "columns you want to impute explicitly; an empty tuple is "
+                "almost certainly a misconfiguration."
+            )
+        if not self.station_column:
+            raise ValueError(
+                "PerStationMeanImputer.station_column must be non-empty."
+            )
+
+    @property
+    def kind(self) -> CleanerKind:
+        return CleanerKind.PER_STATION_MEAN_IMPUTE
+
+    @property
+    def required_input_columns(self) -> tuple[str, ...]:
+        return (self.station_column,) + self.columns
+
+    def apply(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+        out = df.copy()
+        for col in self.columns:
+            if col not in out.columns:
+                raise KeyError(
+                    f"PerStationMeanImputer: column {col!r} is not present "
+                    f"in the input DataFrame. Available columns: "
+                    f"{sorted(out.columns)}."
+                )
+            per_station_mean = out.groupby(self.station_column)[col].transform("mean")
+            out[col] = out[col].fillna(per_station_mean)
+        return out
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind.value,
+            "columns": list(self.columns),
+            "station_column": self.station_column,
+        }
+
+    @classmethod
+    def _from_dict(
+        cls, d: dict[str, Any], *, providers: dict[str, Any]
+    ) -> "PerStationMeanImputer":
+        del providers
+        return cls(
+            columns=tuple(d.get("columns", ())),
+            station_column=d.get("station_column", "location"),
         )

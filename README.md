@@ -37,7 +37,6 @@ data/
   ground_measurements/    Canonical raw ground-truth CSVs (tracked in git).
   bundles/                Fitted-model bundles (gitignored, regenerable).
   training_snapshots/     Parquet dataset snapshots (gitignored, regenerable).
-scripts/                  Ad-hoc utilities and one-off data dumps.
 docs/architecture.md      Library-internals reference for contributors.
 ```
 

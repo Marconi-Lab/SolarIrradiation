@@ -8,9 +8,8 @@ Use this directory for any operation that:
 * backfills, deletes, or rewrites rows;
 * runs an ingest job that loads data from an external source.
 
-For diagnostics or reusable read-only scripts, use `scripts/` (e.g.
-`scripts/audit_warehouse.py`). Anything in this directory is expected to
-mutate warehouse state.
+Anything in this directory is expected to mutate warehouse state. Read-only
+diagnostics belong in a notebook under `notebooks/inspection/` instead.
 
 ## Conventions
 
@@ -100,6 +99,7 @@ Every migration begins with a docstring covering:
 | a9 | [`2026-05-08_a9_fix_cams_units.py`](./2026-05-08_a9_fix_cams_units.py) | Multiply CAMS rows above magnitude threshold by 0.024 in `irradiance_daily` and `cams_daily_vars_long`. Fixes a units bug where `CamsSatelliteJob` wrote raw W/m² mean values into kWh/m²/day columns. 178,372 rows corrected. | applied |
 | a10 | [`2026-05-08_a10_drop_solar_zenith_angle.py`](./2026-05-08_a10_drop_solar_zenith_angle.py) | Delete the `solar_zenith_angle` row from `dim_variable`. NASA POWER doesn't serve SZA at daily resolution; the entry caused spurious re-fetches because the coverage check saw it as always-missing. | applied |
 | a11 | [`2026-05-10_a11_annotate_physical_storage.py`](./2026-05-10_a11_annotate_physical_storage.py) | Add the `physical_storage` column to `dim_variable` and tag every row with where the value physically lives (`long_format` / `irradiance_wide` / `modis_observations`). Enables `FeatureSelection` to reject wide-vs-long mismatches at construction. | applied |
+| a12 | [`2026-05-11_a12_ingest_katongole_2017_2022.py`](./2026-05-11_a12_ingest_katongole_2017_2022.py) | Ingest NASA POWER + CAMS at the 54 Katongole 2023 stations over 2017-2022. Required by the recomputation notebook before it can compute a multi-year climatology matching Katongole's published window. | drafted |
 | b3 | [`2026-05-08_b3_create_merra_daily_vars_long.py`](./2026-05-08_b3_create_merra_daily_vars_long.py) | Create the empty `merra_daily_vars_long` table from its DDL. | applied |
 | b7 | [`2026-05-08_b7_populate_dim_variable_merra.py`](./2026-05-08_b7_populate_dim_variable_merra.py) | Extend `dim_variable` with the 4 MERRA-2 catalog entries. Idempotent. | applied |
 | b9 | [`2026-05-10_b9_ingest_merra_region.py`](./2026-05-10_b9_ingest_merra_region.py) | Ingest MERRA-2 hourly fields via OPeNDAP, aggregate to daily, and load into `merra_daily_vars_long` for the Uganda 2024 grid using the bbox-based `fetch_region` path (~100× faster than per-point fetch). Requires `EARTHDATA_USERNAME` / `EARTHDATA_PASSWORD`. | drafted |

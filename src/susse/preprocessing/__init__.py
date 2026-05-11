@@ -37,6 +37,7 @@ from .cleaning import (
     HighMissingYearExcluder,
     IqrLowerBoundCleaner,
     KnnYearGapImputer,
+    PerStationMeanImputer,
     data_cleaner_from_dict,
 )
 from .derived import (
@@ -68,6 +69,7 @@ __all__ = [
     "IqrLowerBoundCleaner",
     "KnnYearGapImputer",
     "LongitudeFeature",
+    "PerStationMeanImputer",
     "PreprocessedDataset",
     "Preprocessor",
     "PvlibElevationProvider",
