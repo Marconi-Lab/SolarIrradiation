@@ -86,16 +86,17 @@ EARTHDATA_PASSWORD=<NASA Earthdata password>
 
 ## Where to start reading
 
-1. `notebooks/tutorial/01_warehouse_population.ipynb` — what's in the
-   warehouse, how the three ingest patterns work.
-2. `notebooks/tutorial/02_warehouse_access_and_dataset.ipynb` →
+1. `notebooks/tutorial/01_data_overview.ipynb` — what's in the
+   warehouse, with an interactive map of every coordinate it knows about.
+2. `notebooks/tutorial/02_query_the_warehouse.ipynb` →
    `03_preprocessing.ipynb` → `04_models.ipynb` → `05_training.ipynb`
    — the assembly → training → bundle path, in order.
 3. `notebooks/papers/mukiibi_mikelson_2026/01_recomputation.ipynb` — a
    complete worked example: warehouse → preprocessor → RF → Katongole
    validation, with deliberate paper-faithful choices documented inline.
-4. `docs/architecture.md` — library internals, for when you need to
-   extend it.
+4. `warehouse/extending_the_warehouse.ipynb` — for contributors who
+   need to add new variables, sources, or stations to the warehouse.
+5. `docs/architecture.md` — library internals.
 
 ## Developer workflow
 

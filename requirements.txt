@@ -1,5 +1,6 @@
 cryptography>=43.0.3
 db-dtypes>=1.2.0
+folium>=0.18.0
 geopandas>=1.1.0
 geopy>=2.4.1
 google-cloud-bigquery>=3.20.0

@@ -1,7 +1,7 @@
 # Library architecture
 
 Reference for the SuSSE warehouse-population code. The user-facing
-walkthrough lives in [`notebooks/tutorial/01_warehouse_population.ipynb`](../notebooks/tutorial/01_warehouse_population.ipynb);
+walkthrough lives in [`warehouse/extending_the_warehouse.ipynb`](../warehouse/extending_the_warehouse.ipynb);
 this document is for engineers who need to extend or debug the library
 itself.
 
@@ -98,7 +98,7 @@ These rules guide the layering and prevent drift:
 
 Two distinct workflows touch the warehouse:
 
-* **Reference / debugging** lives in `notebooks/tutorial/01_warehouse_population.ipynb`.
+* **Reference / debugging** lives in `warehouse/extending_the_warehouse.ipynb`.
   Read-only by default. Useful for "did this work?", "what does this
   plan look like?", "which station has zero pairs?".
 * **One-shot operational changes** live in `warehouse/migrations/*.py`.

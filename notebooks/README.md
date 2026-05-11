@@ -17,8 +17,8 @@ regenerate the canonical artifacts.
 
 | # | Notebook | Status |
 |---|---|---|
-| 01 | `01_warehouse_population.ipynb` — what's in the warehouse, the three ingest patterns | shipped |
-| 02 | `02_warehouse_access_and_dataset.ipynb` — `FeatureSelection` → `TrainingDataset` snapshot | shipped |
+| 01 | `01_data_overview.ipynb` — what's in the warehouse (tables, catalog, interactive map of every coordinate) | shipped |
+| 02 | `02_query_the_warehouse.ipynb` — `FeatureSelection` → `FeatureService` → `TrainingDataset` snapshot, plus raw-SQL examples | shipped |
 | 03 | `03_preprocessing.ipynb` — `FeatureSpec` → `PreprocessedDataset` | shipped |
 | 04 | `04_models.ipynb` — model factory (mean baseline / RF / linear) and the `Params` pattern | shipped |
 | 05 | `05_training.ipynb` — `Trainer`, `TrainedBundle`, W&B integration | shipped |
@@ -28,6 +28,11 @@ regenerate the canonical artifacts.
 The tutorial notebooks **do** train models and write artifacts (under
 `data/training_snapshots/`, `data/bundles/`); they're the canonical way
 to regenerate those gitignored artifacts after a fresh clone.
+
+The warehouse-extension content (ingest patterns, RUN_INGEST=True
+walkthroughs, contributor recipes) lives separately at
+[`warehouse/extending_the_warehouse.ipynb`](../warehouse/extending_the_warehouse.ipynb)
+because most readers will only query the warehouse, not modify it.
 
 ## `inspection/` — analysis surface
 

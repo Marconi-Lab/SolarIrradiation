@@ -20,7 +20,7 @@ Without this step the warehouse has zero satellite/ground training pairs.
 The 28 stations sit outside the existing Uganda-2024 grid footprint, so we
 must pull satellite data at each station's exact (lat, lon) for its ground
 date range. After this migration the pair-availability check in
-``notebooks/tutorial/01_warehouse_population.ipynb`` must show
+``warehouse/extending_the_warehouse.ipynb`` must show
 ``n_nasa_pairs > 0`` and ``n_cams_pairs > 0`` for every station.
 
 Expected effect
