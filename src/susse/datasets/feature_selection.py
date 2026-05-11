@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..warehouse_ops.population.dim_variable import VariableCatalog
-from ..warehouse_ops.population.types import PhysicalStorage, Source
+from ..warehouse_ops.population.types import IrradianceBand, PhysicalStorage, Source
 
 
 @dataclass(frozen=True)
@@ -42,9 +42,15 @@ class FeatureSelection:
             Pulled from ``modis_observations`` with as-of forward-fill
             semantics (carry the most recent composite value forward to
             each daily row).
-        include_satellite_irradiance: Which satellite GHI series to
-            include as features. Each one becomes a column
-            ``sat_ghi_<source>_kwh_m2_day``.
+        include_satellite_irradiance: Which satellite sources contribute
+            irradiance features. Each (source, band) combination becomes
+            a column ``sat_<band>_<source>_kwh_m2_day``.
+        include_satellite_bands: Which irradiance bands to pull from
+            ``irradiance_daily`` for the requested sources. Defaults to
+            GHI only — the common case for bias-correcting global
+            horizontal irradiance. Add :attr:`IrradianceBand.DHI` /
+            :attr:`IrradianceBand.DNI` to expose diffuse / direct-normal
+            as additional features.
         qc_levels: QC levels to keep on ground measurements. Default
             ``("pass",)`` excludes failed-range and other rejected rows.
     """
@@ -54,6 +60,7 @@ class FeatureSelection:
     merra_variable_ids: tuple[str, ...] = ()
     modis_variable_ids: tuple[str, ...] = ()
     include_satellite_irradiance: tuple[Source, ...] = (Source.NASA_POWER, Source.CAMS)
+    include_satellite_bands: tuple[IrradianceBand, ...] = (IrradianceBand.GHI,)
     qc_levels: tuple[str, ...] = ("pass",)
 
     def __post_init__(self) -> None:
@@ -92,6 +99,20 @@ class FeatureSelection:
                     f"not satellite-irradiance series — request them via the "
                     f"corresponding *_variable_ids field."
                 )
+        if self.include_satellite_irradiance and not self.include_satellite_bands:
+            raise ValueError(
+                "include_satellite_bands is empty but "
+                "include_satellite_irradiance requested sources "
+                f"{[s.value for s in self.include_satellite_irradiance]}. "
+                "Pass at least one IrradianceBand (default: "
+                "(IrradianceBand.GHI,)) or set include_satellite_irradiance=()."
+            )
+        if len(set(self.include_satellite_bands)) != len(self.include_satellite_bands):
+            raise ValueError(
+                "include_satellite_bands contains duplicates: "
+                f"{[b.value for b in self.include_satellite_bands]}. "
+                "Each band should appear at most once."
+            )
         if not self.qc_levels:
             raise ValueError(
                 "qc_levels must be non-empty. Pass ('pass',) to keep only "
@@ -199,12 +220,18 @@ class FeatureSelection:
             "include_satellite_irradiance": [
                 s.value for s in self.include_satellite_irradiance
             ],
+            "include_satellite_bands": [b.value for b in self.include_satellite_bands],
             "qc_levels": list(self.qc_levels),
         }
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "FeatureSelection":
-        """Reconstruct from a :meth:`to_dict` payload."""
+        """Reconstruct from a :meth:`to_dict` payload.
+
+        Older manifests written before the GHI/DHI/DNI split lack the
+        ``include_satellite_bands`` key. Default to ``(GHI,)`` so they
+        deserialise to a selection equivalent to the original behaviour.
+        """
         return cls(
             nasa_variable_ids=tuple(d.get("nasa_variable_ids", ())),
             cams_variable_ids=tuple(d.get("cams_variable_ids", ())),
@@ -214,6 +241,11 @@ class FeatureSelection:
                 Source(v) for v in d.get(
                     "include_satellite_irradiance",
                     [Source.NASA_POWER.value, Source.CAMS.value],
+                )
+            ),
+            include_satellite_bands=tuple(
+                IrradianceBand(v) for v in d.get(
+                    "include_satellite_bands", [IrradianceBand.GHI.value]
                 )
             ),
             qc_levels=tuple(d.get("qc_levels", ("pass",))),

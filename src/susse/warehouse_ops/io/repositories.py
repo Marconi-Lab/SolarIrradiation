@@ -19,14 +19,21 @@ import pandas as pd
 
 from .bq import BigQueryClient
 from .config import TableRefs
+from ..population.types import IrradianceBand
 
 
 class GroundRepository:
     """Curated daily ground GHI measurements with QC, location, geohash."""
 
-    def __init__(self, bq: BigQueryClient, tables: TableRefs) -> None:
+    def __init__(
+        self, bq: BigQueryClient, tables: Optional[TableRefs] = None
+    ) -> None:
+        # `tables` is uniquely determined by `bq.config` for any production
+        # deployment; default to the derived value so callers don't have to
+        # repeat themselves. Pass `tables` explicitly only when running
+        # against a sandbox / non-default dataset.
         self._bq = bq
-        self._t = tables
+        self._t = tables if tables is not None else TableRefs(config=bq.config)
 
     def fetch(
         self,
@@ -72,9 +79,12 @@ class GroundRepository:
 class SatelliteRepository:
     """Daily satellite irradiance + per-source pivoted aux variables."""
 
-    def __init__(self, bq: BigQueryClient, tables: TableRefs) -> None:
+    def __init__(
+        self, bq: BigQueryClient, tables: Optional[TableRefs] = None
+    ) -> None:
+        # See `GroundRepository.__init__` for the default rationale.
         self._bq = bq
-        self._t = tables
+        self._t = tables if tables is not None else TableRefs(config=bq.config)
 
     def daily_irradiance_by_geohash(
         self,
@@ -82,19 +92,33 @@ class SatelliteRepository:
         end: date,
         *,
         sources: Sequence[str] = ("NASA", "CAMS"),
+        bands: Sequence[IrradianceBand] = (IrradianceBand.GHI,),
         geohash5s: Optional[Sequence[str]] = None,
     ) -> pd.DataFrame:
-        """Per-(date, geohash5) wide irradiance for the requested sources.
+        """Per-(date, geohash5) wide irradiance for the requested sources and bands.
 
-        Returns columns ``date, geohash5, sat_ghi_<source>_kwh_m2_day`` —
-        one extra column per source. Empty list of sources returns an
-        empty frame (no SQL trip).
+        Args:
+            start, end: Inclusive date bounds.
+            sources: Source tags as stored in ``irradiance_daily.source``
+                (``"NASA"``, ``"CAMS"``).
+            bands: Which irradiance series to project. Each entry adds one
+                column per requested source. Defaults to just GHI to keep
+                the common training path lean.
+            geohash5s: Optional list of geohash5 strings; ``None`` returns
+                the full date range without spatial filtering.
+
+        Returns:
+            DataFrame with columns ``date, geohash5`` plus one
+            ``sat_<band>_<source>_kwh_m2_day`` per (band, source) pair.
+            Empty list of ``sources`` or ``bands`` returns an empty frame
+            without hitting BigQuery.
         """
-        if not sources:
+        if not sources or not bands:
             return pd.DataFrame()
         select_cols = [
-            f"MAX(IF(source = '{src}', ghi_kwh_m2_day, NULL)) "
-            f"AS sat_ghi_{src.lower()}_kwh_m2_day"
+            f"MAX(IF(source = '{src}', {band.value}_kwh_m2_day, NULL)) "
+            f"AS sat_{band.value}_{src.lower()}_kwh_m2_day"
+            for band in bands
             for src in sources
         ]
         filters = [f"date BETWEEN DATE('{start}') AND DATE('{end}')"]

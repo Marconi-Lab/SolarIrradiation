@@ -349,14 +349,13 @@ class LongitudeFeature(DerivedFeature):
     destroys generalisation to held-out stations and to off-station grid
     points. Geographical signal should enter the model via continuous
     physical properties (altitude, distance-to-coast, terrain ruggedness,
-    …), not raw coordinates. See ``feedback_no_lat_lon_features`` in the
-    project memory for the full rationale.
+    …), not raw coordinates.
 
     Why it nonetheless exists: Mukiibi & Mikelson (2026) used longitude as
-    a predictor (Table II of the paper). Faithful recomputation of those
-    headline metrics requires the same predictor set. The
-    ``notebooks/papers/mukiibi_mikelson_2026/`` recomputation notebook is
-    the only legitimate consumer.
+    a predictor (their Table II). Faithful recomputation of those headline
+    metrics requires the same predictor set. The recomputation notebook
+    under ``notebooks/papers/mukiibi_mikelson_2026/`` is the only
+    legitimate consumer; do not import this class from new code.
     """
 
     output_column: str = "longitude"

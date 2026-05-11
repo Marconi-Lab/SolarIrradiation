@@ -1,7 +1,7 @@
 # Library architecture
 
 Reference for the SuSSE warehouse-population code. The user-facing
-walkthrough lives in [`notebooks/01_warehouse_population.ipynb`](../notebooks/01_warehouse_population.ipynb);
+walkthrough lives in [`notebooks/tutorial/01_warehouse_population.ipynb`](../notebooks/tutorial/01_warehouse_population.ipynb);
 this document is for engineers who need to extend or debug the library
 itself.
 
@@ -24,8 +24,8 @@ itself.
 │ susse.warehouse_ops.population/   — typed plans, jobs, loaders           │
 │                                                                          │
 │   Plans      NamedLocationsPlan, GridPlan, GroundFilePlan                │
-│   Jobs       NasaPowerSatelliteJob, CamsSatelliteJob, MerraSatelliteJob  │
-│              (BaseSatelliteJob)         GroundIngestJob                  │
+│   Jobs       NasaPowerSatelliteJob, CamsSatelliteJob, MerraRegionJob,    │
+│              ModisJob (BaseSatelliteJob)       GroundIngestJob           │
 │   Helpers    VariableCatalog, CoverageRepository, MergeLoader,           │
 │              validators                                                  │
 └─────────────────────────────────────┬────────────────────────────────────┘
@@ -98,7 +98,7 @@ These rules guide the layering and prevent drift:
 
 Two distinct workflows touch the warehouse:
 
-* **Reference / debugging** lives in `notebooks/01_warehouse_population.ipynb`.
+* **Reference / debugging** lives in `notebooks/tutorial/01_warehouse_population.ipynb`.
   Read-only by default. Useful for "did this work?", "what does this
   plan look like?", "which station has zero pairs?".
 * **One-shot operational changes** live in `warehouse/migrations/*.py`.

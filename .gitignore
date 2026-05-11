@@ -48,11 +48,15 @@ version.py
 /data/bundles/
 /data/training_snapshots/
 
-# Python bytecode files
+# Tool caches and editor / venv state
 .mypy_cache/
+.pytest_cache/
 .vscode/
 .idea/
 .venv/
-b8.log
-c8.log
-b9.log
+
+# Ad-hoc run logs from long migrations (e.g. b8.log, c8.log).
+*.log
+
+# Local Claude config — per-developer prompt and agent state.
+.claude/

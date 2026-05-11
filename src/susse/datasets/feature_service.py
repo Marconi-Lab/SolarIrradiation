@@ -36,14 +36,18 @@ class FeatureService:
     def __init__(
         self,
         bq: BigQueryClient,
-        tables: TableRefs,
+        tables: Optional[TableRefs] = None,
         opts: Optional[WarehouseOptions] = None,
     ) -> None:
+        # `tables` is uniquely determined by `bq.config` for any production
+        # deployment; default to the derived value so callers don't have to
+        # construct two parallel objects. Pass explicitly only when running
+        # against a sandbox dataset.
         self._bq = bq
-        self._t = tables
+        self._t = tables if tables is not None else TableRefs(config=bq.config)
         self._opts = opts or WarehouseOptions()
-        self._ground = GroundRepository(bq, tables)
-        self._sat = SatelliteRepository(bq, tables)
+        self._ground = GroundRepository(bq, self._t)
+        self._sat = SatelliteRepository(bq, self._t)
 
     @property
     def tables(self) -> TableRefs:
@@ -76,7 +80,10 @@ class FeatureService:
             DataFrame columns:
               * ``date, location, lat, lon, geohash5`` — base.
               * ``y_ghi_kwh_m2_day`` — ground target.
-              * ``sat_ghi_<source>_kwh_m2_day`` per requested source.
+              * ``sat_<band>_<source>_kwh_m2_day`` per requested
+                (band, source) pair. ``band`` defaults to ``ghi``; set
+                :attr:`FeatureSelection.include_satellite_bands` to
+                additionally project DHI / DNI from the wide table.
               * ``<prefix>_<variable_id>`` per requested aux variable
                 (prefix matches source: ``nasa_``, ``cams_``, ``merra_``).
               * ``qc_level`` — kept for traceability.
@@ -94,6 +101,7 @@ class FeatureService:
         irr = self._sat.daily_irradiance_by_geohash(
             date_start, date_end,
             sources=tuple(s.value for s in selection.include_satellite_irradiance),
+            bands=selection.include_satellite_bands,
             geohash5s=plan_geohashes,
         )
         df = self._merge_left(ground, irr, on=("date", "geohash5"))
@@ -156,12 +164,14 @@ class FeatureService:
         irr = self._sat.daily_irradiance_by_geohash(
             target_date, target_date,
             sources=tuple(s.value for s in selection.include_satellite_irradiance),
+            bands=selection.include_satellite_bands,
             geohash5s=(gh,),
         )
         if irr.empty:
             base = pd.DataFrame([{"date": target_date, "geohash5": gh}])
-            for src in selection.include_satellite_irradiance:
-                base[f"sat_ghi_{src.value.lower()}_kwh_m2_day"] = pd.NA
+            for band in selection.include_satellite_bands:
+                for src in selection.include_satellite_irradiance:
+                    base[f"sat_{band.value}_{src.value.lower()}_kwh_m2_day"] = pd.NA
             df = base
         else:
             df = irr

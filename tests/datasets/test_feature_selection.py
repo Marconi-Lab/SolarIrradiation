@@ -6,7 +6,7 @@ import pytest
 
 from susse.datasets import FeatureSelection
 from susse.warehouse_ops.population.dim_variable import VariableCatalog
-from susse.warehouse_ops.population.types import PhysicalStorage, Source
+from susse.warehouse_ops.population.types import IrradianceBand, PhysicalStorage, Source
 
 
 def _first_long_format(variables) -> str:
@@ -103,6 +103,42 @@ class TestIrradianceSourceRestriction:
         assert sel.include_satellite_irradiance == (Source.NASA_POWER, Source.CAMS)
 
 
+class TestIrradianceBands:
+    """include_satellite_bands picks which irradiance series ship from the wide table."""
+
+    def test_default_is_ghi_only(self) -> None:
+        sel = FeatureSelection()
+        assert sel.include_satellite_bands == (IrradianceBand.GHI,)
+
+    def test_can_request_dhi_and_dni(self) -> None:
+        sel = FeatureSelection(
+            include_satellite_bands=(
+                IrradianceBand.GHI,
+                IrradianceBand.DHI,
+                IrradianceBand.DNI,
+            ),
+        )
+        assert IrradianceBand.DHI in sel.include_satellite_bands
+        assert IrradianceBand.DNI in sel.include_satellite_bands
+
+    def test_empty_bands_with_sources_rejected(self) -> None:
+        with pytest.raises(ValueError, match="include_satellite_bands is empty"):
+            FeatureSelection(include_satellite_bands=())
+
+    def test_empty_bands_allowed_when_no_sources(self) -> None:
+        sel = FeatureSelection(
+            include_satellite_irradiance=(),
+            include_satellite_bands=(),
+        )
+        assert sel.is_empty is True
+
+    def test_duplicate_bands_rejected(self) -> None:
+        with pytest.raises(ValueError, match="duplicates"):
+            FeatureSelection(
+                include_satellite_bands=(IrradianceBand.GHI, IrradianceBand.GHI),
+            )
+
+
 class TestQcLevels:
     def test_empty_qc_levels_rejected(self) -> None:
         # An empty tuple would silently drop every ground row; pin this
@@ -138,6 +174,7 @@ class TestJsonRoundtrip:
             cams_variable_ids=(_first_cams_id(),),
             merra_variable_ids=(_first_merra_id(),),
             include_satellite_irradiance=(Source.NASA_POWER,),
+            include_satellite_bands=(IrradianceBand.GHI, IrradianceBand.DNI),
             qc_levels=("pass", "fail_range"),
         )
         recovered = FeatureSelection.from_dict(original.to_dict())
@@ -149,3 +186,14 @@ class TestJsonRoundtrip:
         original = FeatureSelection()
         recovered = FeatureSelection.from_dict(original.to_dict())
         assert recovered == original
+
+    def test_legacy_dict_without_bands_defaults_to_ghi(self) -> None:
+        # Manifests written before the GHI/DHI/DNI split won't carry the
+        # ``include_satellite_bands`` key. They must deserialise as if the
+        # field had its default value, so older snapshots stay loadable.
+        legacy = {
+            "include_satellite_irradiance": [Source.NASA_POWER.value],
+            "qc_levels": ["pass"],
+        }
+        sel = FeatureSelection.from_dict(legacy)
+        assert sel.include_satellite_bands == (IrradianceBand.GHI,)

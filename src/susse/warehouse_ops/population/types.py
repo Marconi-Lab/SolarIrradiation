@@ -41,6 +41,21 @@ class Source(StrEnum):
     MODIS = "MODIS"
 
 
+class IrradianceBand(StrEnum):
+    """Which irradiance series a feature selection wants from ``irradiance_daily``.
+
+    The wide table stores GHI, DHI and DNI side-by-side as named columns
+    (``ghi_kwh_m2_day``, ``dhi_kwh_m2_day``, ``dni_kwh_m2_day``). The enum
+    value matches the column-name prefix, so callers can use it both as
+    a selection token and to build the resulting ``sat_<band>_<source>``
+    output column names.
+    """
+
+    GHI = "ghi"
+    DHI = "dhi"
+    DNI = "dni"
+
+
 class PhysicalStorage(StrEnum):
     """Where a catalog variable's values are physically stored in the warehouse.
 

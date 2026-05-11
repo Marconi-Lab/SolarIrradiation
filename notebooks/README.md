@@ -4,31 +4,30 @@ Three lanes, distinct audiences:
 
 ```
 notebooks/
-  tutorial/      ← system overview; read 01 → 07 to learn the codebase
+  tutorial/      ← system overview; read 01 → 05 in order to learn the codebase
   inspection/    ← day-to-day model & data inspection (one question per file)
   papers/        ← per-publication validation analyses, with data co-located
 ```
 
-## `tutorial/` — the 7-step refactor track
+## `tutorial/` — end-to-end pipeline walkthrough
 
-Sequential acceptance gates. Each notebook delivers one slice of the
-end-to-end pipeline and consumes the previous one's output. Read in order;
-re-run in order if you want to regenerate the canonical artifacts.
+Sequential. Each notebook delivers one slice of the pipeline and consumes
+the previous one's output; read in order, re-run in order if you want to
+regenerate the canonical artifacts.
 
 | # | Notebook | Status |
 |---|---|---|
-| 01 | `01_warehouse_population.ipynb` | shipped |
-| 02 | `02_warehouse_access_and_dataset.ipynb` | shipped |
-| 03 | `03_preprocessing.ipynb` | shipped |
-| 04 | `04_models.ipynb` | shipped |
-| 05 | `05_training.ipynb` | shipped |
-| 06 | `06_evaluation.ipynb` | TBD — proper splitter abstraction + metrics class |
-| 07 | `07_inference.ipynb` | TBD — portal-facing `load_bundle` + `predict(lat, lon, date)` |
+| 01 | `01_warehouse_population.ipynb` — what's in the warehouse, the three ingest patterns | shipped |
+| 02 | `02_warehouse_access_and_dataset.ipynb` — `FeatureSelection` → `TrainingDataset` snapshot | shipped |
+| 03 | `03_preprocessing.ipynb` — `FeatureSpec` → `PreprocessedDataset` | shipped |
+| 04 | `04_models.ipynb` — model factory (mean baseline / RF / linear) and the `Params` pattern | shipped |
+| 05 | `05_training.ipynb` — `Trainer`, `TrainedBundle`, W&B integration | shipped |
+| 06 | `06_evaluation.ipynb` — splitter abstraction (random / temporal / station-LOSO / spatial-block) + a unified metrics class | **planned** |
+| 07 | `07_inference.ipynb` — portal-facing `load_bundle` + `predict(lat, lon, date)` | **planned** |
 
 The tutorial notebooks **do** train models and write artifacts (under
-`data/training_snapshots/`, `data/bundles/`); long-term, training will move
-into a `scripts/train.py` and the tutorial track will be slimmed down to
-demonstrate the public API rather than driving production runs.
+`data/training_snapshots/`, `data/bundles/`); they're the canonical way
+to regenerate those gitignored artifacts after a fresh clone.
 
 ## `inspection/` — analysis surface
 
@@ -62,9 +61,12 @@ for prefetched satellite/auxiliary data and curated training ground-truth.
 
 Current papers:
 
-- `katongole_2023/` — Katongole et al. 2023, *Tanzania Journal of Science*.
-  55-station 7-year monthly GHI climatology, used as out-of-distribution
-  validation. See the subfolder's `README.md` for the validation strategy.
+- [`mukiibi_mikelson_2026/`](papers/mukiibi_mikelson_2026/) — Mukiibi & Mikelson
+  (2026, IEEE, forthcoming). Reproduces the Random Forest GHI bias-correction
+  model on the refactored SuSSE library and validates against Katongole et al.
+  (2023, *Tanzania Journal of Science*) 54-station monthly climatology
+  (the reference CSV lives co-located inside the paper folder). The fitted
+  bundle is also the model the companion `Irradiation_Portal` Flask app loads.
 
 ## Path conventions
 

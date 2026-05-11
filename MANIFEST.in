@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include requirements.txt
+include pyproject.toml
+recursive-include src/susse *.py
+recursive-include src/susse/api_clients *.yml
+recursive-include warehouse/sql *.sql
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.egg-info
