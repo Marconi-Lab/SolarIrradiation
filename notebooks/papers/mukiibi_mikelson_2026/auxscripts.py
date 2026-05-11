@@ -610,7 +610,10 @@ def plot_figure_2_grid(
             f"got {len(stations)}."
         )
 
-    panel_codes = [f"{r}{c}" for r in ("a", "b", "c", "d") for c in (1, 2, 3, 4)]
+    panel_codes = [f"{r}{c}" for r in ("a", "b") for c in (1, 2)]
+    panel_codes = panel_codes + [f"{r}{c}" for r in ("a", "b") for c in (3, 4)]
+    panel_codes = panel_codes + [f"{r}{c}" for r in ("c", "d") for c in (1, 2)]
+    panel_codes = panel_codes + [f"{r}{c}" for r in ("c", "d") for c in (3, 4)]
     month_ticks = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     fig, axes = plt.subplots(4, 4, figsize=(20, 14))
@@ -619,17 +622,17 @@ def plot_figure_2_grid(
             comparison_calibrated["location"] == station
         ].sort_values("month")
         ax.plot(sub["month"], sub["monthly_obs"], "-",
-                lw=0.9, color="C0", alpha=0.35,
+                lw=0.7, color="C0", alpha=0.35,
                 label="Measured (TAHMO, raw)")
         ax.plot(sub["month"], sub["monthly_obs_calibrated"], "-o",
-                lw=1.6, ms=4, color="C0",
+                lw=1.4, ms=4, color="C0",
                 label="Measured (calibrated)")
-        ax.plot(sub["month"], sub["monthly_pred"], "--x",
+        ax.plot(sub["month"], sub["monthly_pred"], "-o",
                 lw=1.4, ms=5, color="C3", label="RF Predicted")
-        ax.plot(sub["month"], sub["sat_ghi_nasa_kwh_m2_day"], ":s",
-                lw=1.0, ms=3, color="C2", alpha=0.85, label="NASA GHI")
+        ax.plot(sub["month"], sub["sat_ghi_nasa_kwh_m2_day"], "-",
+                lw=0.8, alpha=0.7, color="C2", label="NASA GHI")
         ax.plot(sub["month"], sub["sat_ghi_cams_kwh_m2_day"], "-",
-                lw=1.0, color="C1", label="CAMS GHI")
+                lw=0.8, alpha=0.7, color="C1", label="CAMS GHI")
         ax.set_title(
             f"GHI comparison for {station} ({validation_label})",
             fontsize=9,
@@ -648,7 +651,7 @@ def plot_figure_2_grid(
         ax.set_ylabel("Solar irradiation (kWh m⁻² day⁻¹)", fontsize=8)
     for ax in axes[-1, :]:
         ax.set_xlabel("Month of the Year", fontsize=8)
-    axes[-1, 0].legend(loc="lower left", fontsize=7, framealpha=0.9)
+    axes[0, 0].legend(loc="lower left", fontsize=7, framealpha=0.9)
     fig.tight_layout()
     plt.show()
     return stations
