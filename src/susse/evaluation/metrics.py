@@ -30,11 +30,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
 
-ArrayLike = pd.Series | np.ndarray | list[float]
+ArrayLike: TypeAlias = pd.Series | np.ndarray | list[float]
 
 
 def _aligned_arrays(
