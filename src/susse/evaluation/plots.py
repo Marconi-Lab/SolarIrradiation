@@ -201,7 +201,8 @@ def plot_training_fit_timeseries(
     df: pd.DataFrame,
     *,
     observed_column: str,
-    series_columns: Mapping[str, str],
+    prediction_series: Mapping[str, str],
+    reference_series: Mapping[str, str] | None = None,
     location_column: str = "location",
     date_column: str = "date",
     n_stations: int = 6,
@@ -212,6 +213,24 @@ def plot_training_fit_timeseries(
     Picks the ``n_stations`` stations with the most rows and restricts
     each station's panel to its most recent calendar year for
     legibility.
+
+    Args:
+        df: Frame holding the observed + per-row date / location columns
+            and every named series.
+        observed_column: Ground-truth column. Rendered prominently
+            (blue line + circle markers).
+        prediction_series: Mapping ``{display_label: column_name}`` of
+            model outputs to render with the same prominence as the
+            observed series (line + circle markers).
+        reference_series: Optional mapping ``{display_label: column_name}``
+            of context series (e.g. raw satellite estimates) rendered
+            as thin, low-alpha background lines without markers. The
+            visual contrast surfaces which series the model produced
+            vs. which were inputs / external references.
+        location_column: Station identifier column.
+        date_column: Row date column.
+        n_stations: Number of station panels to draw.
+        value_label: Y-axis label unit.
     """
     plot_stations = (
         df.groupby(location_column).size()
@@ -222,20 +241,36 @@ def plot_training_fit_timeseries(
         figsize=(16, 3 * ((n_stations + 1) // 2)),
         sharey=True,
     )
-    series_palette = ["C3", "C2", "C1", "C4", "C5"]
+    prediction_palette = ["C3", "C4", "C5"]
+    reference_palette = ["C2", "C1", "C6"]
+    refs = reference_series or {}
+    all_cols = (
+        [observed_column]
+        + list(prediction_series.values())
+        + list(refs.values())
+    )
     for ax, loc in zip(np.atleast_1d(axes).flat, plot_stations):
         sub = df[df[location_column] == loc].sort_values(date_column).copy()
         sub[date_column] = pd.to_datetime(sub[date_column])
         last_year = sub[date_column].dt.year.max()
         sub = sub[sub[date_column].dt.year == last_year]
-        cols = [observed_column] + list(series_columns.values())
-        weekly = sub.set_index(date_column)[cols].resample("W").mean()
+        weekly = sub.set_index(date_column)[all_cols].resample("W").mean()
         ax.plot(
             weekly.index, weekly[observed_column], "-o",
             ms=3, label="Observed", color="C0",
         )
-        for color, (label, col) in zip(series_palette, series_columns.items()):
-            ax.plot(weekly.index, weekly[col], "-o", ms=3, label=label, color=color)
+        for color, (label, col) in zip(
+            prediction_palette, prediction_series.items()
+        ):
+            ax.plot(
+                weekly.index, weekly[col], "-o",
+                ms=3, label=label, color=color,
+            )
+        for color, (label, col) in zip(reference_palette, refs.items()):
+            ax.plot(
+                weekly.index, weekly[col], "-",
+                lw=0.7, alpha=0.4, label=label, color=color,
+            )
         ax.set_title(f"{loc} ({last_year}, n={len(sub):,})", fontsize=10)
         ax.grid(alpha=0.3)
     np.atleast_1d(axes).flat[0].legend(fontsize=8, loc="lower left")

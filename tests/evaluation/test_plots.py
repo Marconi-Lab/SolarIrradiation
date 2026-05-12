@@ -103,11 +103,23 @@ def test_plot_training_fit_timeseries(eval_frame: pd.DataFrame) -> None:
     plot_training_fit_timeseries(
         eval_frame,
         observed_column="y_obs",
-        series_columns={
-            "Model": "y_pred",
-            "NASA":  "sat_ghi_nasa_kwh_m2_day",
-            "CAMS":  "sat_ghi_cams_kwh_m2_day",
+        prediction_series={"Model": "y_pred"},
+        reference_series={
+            "NASA": "sat_ghi_nasa_kwh_m2_day",
+            "CAMS": "sat_ghi_cams_kwh_m2_day",
         },
+        n_stations=2,
+    )
+
+
+def test_plot_training_fit_timeseries_no_references(
+    eval_frame: pd.DataFrame,
+) -> None:
+    """The reference_series arg is optional — predictions alone must work."""
+    plot_training_fit_timeseries(
+        eval_frame,
+        observed_column="y_obs",
+        prediction_series={"Model": "y_pred"},
         n_stations=2,
     )
 
