@@ -8,11 +8,11 @@ provenance. Optional W&B integration is **strict opt-in**: a default
 
 What the trainer does *not* do (deliberate exclusions):
 
-* No splitter abstraction — :data:`Splitter` is a callable contract,
-  and NB 06 will define the proper hierarchy on top of it.
-* No metrics class — :class:`ScoreSet` is the v1 record. NB 06 will
-  build a richer metrics module if needed.
-* No hyperparameter search — that lives in NB 06's evaluation loop.
+* No hyperparameter search — out of scope for the v1 pipeline.
+* No richer metrics than the :class:`ScoreSet` MAE/RMSE/R² triplet —
+  paper-style metrics (IOA, MBE, normalised RMSE/MAE) live in
+  :mod:`susse.evaluation.metrics` and are applied after training via
+  :class:`susse.evaluation.Evaluator`.
 """
 
 from __future__ import annotations
@@ -97,9 +97,10 @@ class Trainer:
                 :class:`DatasetManifest` for full lineage.
             params: Typed hyperparameters dispatching the concrete
                 regressor via :class:`susse.models.ModelFactory`.
-            splitter: Callable returning ``(train_idx, val_idx)``.
-                The two index sets must be disjoint and both must be
-                subsets of ``processed.df.index``.
+            splitter: :class:`Splitter` instance producing
+                ``(train_idx, val_idx)``. The two index sets must be
+                disjoint and both must be subsets of
+                ``processed.df.index``.
             holdout_label: Free-form description of the val fold,
                 recorded verbatim in :class:`TrainingMetadata`.
             bundle_dest: If given, the bundle is saved to this
@@ -142,7 +143,7 @@ class Trainer:
             susse_version=susse_version(),
             git_sha=git_sha(),
             holdout_label=holdout_label,
-            splitter_name=getattr(splitter, "__name__", "unnamed_splitter"),
+            splitter_name=splitter.name,
             n_train_rows=len(train_idx),
             n_val_rows=len(val_idx),
             train_metrics=train_metrics,

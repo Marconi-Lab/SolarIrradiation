@@ -683,28 +683,6 @@ def plot_feature_importances_top_n(
 # ---------------------------------------------------------------------------
 
 
-def _score_row(yt: pd.Series, yp: pd.Series, *, split: str, model: str) -> dict:
-    """One row of the Table-IV style score sheet."""
-    from susse.metrics import (
-        index_of_agreement, mean_bias_error, normalised_mae, normalised_rmse,
-    )
-    from susse.training import score_predictions
-
-    scores = score_predictions(yt, yp)
-    return {
-        "split": split,
-        "model": model,
-        "n": scores.n_rows,
-        "RMSE": round(scores.rmse, 3),
-        "nRMSE_%": round(normalised_rmse(yt, yp), 2),
-        "MAE": round(scores.mae, 3),
-        "nMAE_%": round(normalised_mae(yt, yp), 2),
-        "MBE": round(mean_bias_error(yt, yp), 3),
-        "R²": round(scores.r2, 3),
-        "IOA": round(index_of_agreement(yt, yp), 3),
-    }
-
-
 def score_table_iv(
     comparison: pd.DataFrame, *,
     label: str | None = None,
@@ -713,19 +691,27 @@ def score_table_iv(
 ) -> pd.DataFrame:
     """Cross-station mean of paper-Table-IV style metrics.
 
+    Thin paper-specific wrapper over :class:`susse.evaluation.Evaluator`
+    that hardcodes the RF / NASA CERES / CAMS comparison series and
+    relabels the Evaluator's ``prediction`` column to ``model`` to
+    match the paper's table layout.
+
     Returns a DataFrame with rows for RF, NASA CERES and CAMS evaluated
     against ``obs_col``. Pass ``obs_col="monthly_obs_calibrated"`` for the
     cross-network-calibrated comparison.
     """
+    from susse.evaluation import Evaluator
+
     if label is None:
         label = f"{comparison['location'].nunique()} stations"
-    series: Mapping[str, pd.Series] = {
-        rf_label:     comparison["monthly_pred"],
-        "NASA CERES": comparison["sat_ghi_nasa_kwh_m2_day"],
-        "CAMS":       comparison["sat_ghi_cams_kwh_m2_day"],
-    }
-    rows = [
-        _score_row(comparison[obs_col], yp, split=label, model=name)
-        for name, yp in series.items()
-    ]
-    return pd.DataFrame(rows)
+    table = Evaluator().score(
+        observed=comparison[obs_col],
+        predictions={
+            rf_label:     comparison["monthly_pred"],
+            "NASA CERES": comparison["sat_ghi_nasa_kwh_m2_day"],
+            "CAMS":       comparison["sat_ghi_cams_kwh_m2_day"],
+        },
+        splits={label: comparison.index},
+    ).rename(columns={"prediction": "model"})
+    return table.round({"RMSE": 3, "nRMSE_%": 2, "MAE": 3, "nMAE_%": 2,
+                        "MBE": 3, "R²": 3, "IOA": 3})

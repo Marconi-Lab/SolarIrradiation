@@ -88,3 +88,53 @@ def toy_processed(toy_manifest: DatasetManifest) -> PreprocessedDataset:
         feature_spec=spec,
         source_manifest=toy_manifest,
     )
+
+
+@pytest.fixture
+def geo_processed(toy_manifest: DatasetManifest) -> PreprocessedDataset:
+    """Toy dataset with five stations + lat/lon for spatial-splitter tests.
+
+    Coordinates are chosen so the deterministic max-pairwise-haversine
+    pair is unambiguous: ``arctic`` and ``cape_town`` are far apart
+    enough that no other pair comes close. ``country`` is an
+    additional categorical block to exercise
+    :class:`SpatialBlockSplitter`.
+    """
+    rng = np.random.default_rng(seed=7)
+    stations = [
+        # name,        lat,   lon,    country
+        ("kampala",    0.33, 32.57, "uganda"),
+        ("nairobi",   -1.29, 36.82, "kenya"),
+        ("accra",      5.65, -0.10, "ghana"),
+        ("arctic",    78.92, 11.93, "svalbard"),
+        ("cape_town",-33.92, 18.42, "south_africa"),
+    ]
+    rows: list[dict] = []
+    for name, lat, lon, country in stations:
+        for d in pd.date_range("2024-01-01", "2024-01-30", freq="D"):
+            rows.append(
+                {
+                    "date": d.date(),
+                    "location": name,
+                    "lat": lat,
+                    "lon": lon,
+                    "country": country,
+                    "geohash5": "abc12",
+                    "y_ghi_kwh_m2_day": float(rng.uniform(3.0, 6.0)),
+                    "feat_a": float(rng.uniform(0, 1)),
+                }
+            )
+    df = pd.DataFrame(rows).reset_index(drop=True)
+    spec = FeatureSpec(
+        target_column="y_ghi_kwh_m2_day",
+        feature_columns=("feat_a",),
+        derived_features=(),
+        id_columns=("date", "location", "lat", "lon", "country", "geohash5"),
+    )
+    return PreprocessedDataset(
+        df=df,
+        feature_columns=spec.output_feature_names,
+        target_column=spec.target_column,
+        feature_spec=spec,
+        source_manifest=toy_manifest,
+    )

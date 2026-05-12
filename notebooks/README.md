@@ -22,7 +22,7 @@ regenerate the canonical artifacts.
 | 03 | `03_preprocessing.ipynb` — `FeatureSpec` → `PreprocessedDataset` | shipped |
 | 04 | `04_models.ipynb` — model factory (mean baseline / RF / linear) and the `Params` pattern | shipped |
 | 05 | `05_training.ipynb` — `Trainer`, `TrainedBundle`, W&B integration | shipped |
-| 06 | `06_evaluation.ipynb` — splitter abstraction (random / temporal / station-LOSO / spatial-block) + a unified metrics class | **planned** |
+| 06 | `06_evaluation.ipynb` — `Splitter` ABC (random / temporal / station-LOSO / spatial-spread / spatial-block) + `Metric` ABC + `Evaluator` + generic eval plots | shipped |
 | 07 | `07_inference.ipynb` — portal-facing `load_bundle` + `predict(lat, lon, date)` | **planned** |
 
 The tutorial notebooks **do** train models and write artifacts (under
