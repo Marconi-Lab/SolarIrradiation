@@ -18,12 +18,18 @@ The fitted bundle saved by the notebook is also the model the companion
 
 ```
 mukiibi_mikelson_2026/
-├── README.md                       # this file
-├── 01_recomputation.ipynb          # full pipeline + Katongole validation
-├── _build_notebook.py              # source of truth — regenerates the .ipynb
-└── reference_data/
-    └── katongole_2023_monthly.csv  # 54-station × 12-month climatology
+├── README.md             # this file
+├── 01_recomputation.ipynb # full pipeline + Katongole validation
+├── _build_notebook.py    # source of truth — regenerates the .ipynb
+└── auxscripts.py         # paper-specific plot / pre-flight helpers
 ```
+
+The Katongole 2023 reference CSV used to live alongside this notebook
+but is now at
+[`data/external_references/katongole_2023_monthly.csv`](../../../data/external_references/katongole_2023_monthly.csv)
+— it's a generic reference benchmark that future papers will reuse, so
+it sits at the repository root rather than inside any single paper's
+folder.
 
 The notebook is regenerated from `_build_notebook.py` — direct edits to
 the `.ipynb` will be overwritten the next time the script runs. The
@@ -47,12 +53,15 @@ the paper"):
 
 ## Reference data
 
-`reference_data/katongole_2023_monthly.csv` (54 stations × 16 columns):
-the **2017–2022 monthly-mean GHI climatology** extracted from figures
-3a–3d of Katongole et al. (2023, *Tanzania Journal of Science*). Used
-as out-of-distribution validation for the bias-corrected model.
-Katongole et al. do not distribute the underlying values; the numbers
-were transcribed from the published figures.
+[`data/external_references/katongole_2023_monthly.csv`](../../../data/external_references/katongole_2023_monthly.csv)
+(54 stations × 16 columns): the **2017–2022 monthly-mean GHI
+climatology** extracted from figures 3a–3d of Katongole et al. (2023,
+*Tanzania Journal of Science*). Used as out-of-distribution validation
+for the bias-corrected model. Katongole et al. do not distribute the
+underlying values; the numbers were transcribed from the published
+figures. The file lives in `data/external_references/` (not inside this
+folder) so future papers in `notebooks/papers/` can validate against
+the same benchmark without copying or symlinking.
 
 | Column | Notes |
 |---|---|
