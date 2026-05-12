@@ -43,9 +43,9 @@ def eval_frame() -> pd.DataFrame:
             obs = intercept + rng.normal(scale=0.3)
             rows.append(
                 {
-                    "date":   d,
+                    "date": d,
                     "location": loc,
-                    "y_obs":  obs,
+                    "y_obs": obs,
                     "y_pred": obs + rng.normal(scale=0.1),
                     "sat_ghi_nasa_kwh_m2_day": obs + 0.5 + rng.normal(scale=0.2),
                     "sat_ghi_cams_kwh_m2_day": obs + 0.3 + rng.normal(scale=0.2),
@@ -59,7 +59,9 @@ def eval_frame() -> pd.DataFrame:
 
 def test_plot_target_distribution_per_station(eval_frame: pd.DataFrame) -> None:
     plot_target_distribution_per_station(
-        eval_frame, target_column="y_obs", location_column="location",
+        eval_frame,
+        target_column="y_obs",
+        location_column="location",
     )
 
 
@@ -87,15 +89,19 @@ def test_plot_pca_by_station(eval_frame: pd.DataFrame) -> None:
     plot_pca_by_station(
         eval_frame,
         feature_columns=(
-            "feat_a", "feat_b",
-            "sat_ghi_nasa_kwh_m2_day", "sat_ghi_cams_kwh_m2_day",
+            "feat_a",
+            "feat_b",
+            "sat_ghi_nasa_kwh_m2_day",
+            "sat_ghi_cams_kwh_m2_day",
         ),
     )
 
 
 def test_plot_training_fit_scatter(eval_frame: pd.DataFrame) -> None:
     plot_training_fit_scatter(
-        eval_frame, observed_column="y_obs", predicted_column="y_pred",
+        eval_frame,
+        observed_column="y_obs",
+        predicted_column="y_pred",
     )
 
 
@@ -130,8 +136,8 @@ def test_plot_predicted_vs_observed_panels(eval_frame: pd.DataFrame) -> None:
         observed_column="y_obs",
         predictions={
             "Model": "y_pred",
-            "NASA":  "sat_ghi_nasa_kwh_m2_day",
-            "CAMS":  "sat_ghi_cams_kwh_m2_day",
+            "NASA": "sat_ghi_nasa_kwh_m2_day",
+            "CAMS": "sat_ghi_cams_kwh_m2_day",
         },
     )
 

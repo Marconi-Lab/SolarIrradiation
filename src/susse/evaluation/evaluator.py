@@ -47,9 +47,7 @@ class Evaluator:
         )
     """
 
-    def __init__(
-        self, *, metrics: Sequence[Metric] = DEFAULT_METRICS
-    ) -> None:
+    def __init__(self, *, metrics: Sequence[Metric] = DEFAULT_METRICS) -> None:
         if not metrics:
             raise ValueError(
                 "Evaluator needs at least one Metric. Pass "

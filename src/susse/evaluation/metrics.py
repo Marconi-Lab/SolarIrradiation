@@ -37,7 +37,9 @@ import pandas as pd
 ArrayLike = pd.Series | np.ndarray | list[float]
 
 
-def _aligned_arrays(y_true: ArrayLike, y_pred: ArrayLike) -> tuple[np.ndarray, np.ndarray]:
+def _aligned_arrays(
+    y_true: ArrayLike, y_pred: ArrayLike
+) -> tuple[np.ndarray, np.ndarray]:
     """Coerce inputs to aligned 1-D float arrays with NaN rows dropped.
 
     Args:

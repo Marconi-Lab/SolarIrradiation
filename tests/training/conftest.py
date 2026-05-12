@@ -103,11 +103,11 @@ def geo_processed(toy_manifest: DatasetManifest) -> PreprocessedDataset:
     rng = np.random.default_rng(seed=7)
     stations = [
         # name,        lat,   lon,    country
-        ("kampala",    0.33, 32.57, "uganda"),
-        ("nairobi",   -1.29, 36.82, "kenya"),
-        ("accra",      5.65, -0.10, "ghana"),
-        ("arctic",    78.92, 11.93, "svalbard"),
-        ("cape_town",-33.92, 18.42, "south_africa"),
+        ("kampala", 0.33, 32.57, "uganda"),
+        ("nairobi", -1.29, 36.82, "kenya"),
+        ("accra", 5.65, -0.10, "ghana"),
+        ("arctic", 78.92, 11.93, "svalbard"),
+        ("cape_town", -33.92, 18.42, "south_africa"),
     ]
     rows: list[dict] = []
     for name, lat, lon, country in stations:

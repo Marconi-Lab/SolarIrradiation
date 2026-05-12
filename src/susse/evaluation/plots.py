@@ -38,8 +38,11 @@ def plot_target_distribution_per_station(
     """Boxplot + per-station KDE of the target value."""
     fig, axes = plt.subplots(1, 2, figsize=(15, 4))
     df.boxplot(
-        column=target_column, by=location_column,
-        rot=90, ax=axes[0], grid=False,
+        column=target_column,
+        by=location_column,
+        rot=90,
+        ax=axes[0],
+        grid=False,
     )
     axes[0].set_title(f"{value_label} per station")
     axes[0].set_ylabel(value_label)
@@ -80,8 +83,11 @@ def plot_predictor_vs_observed_scatter(
     """
     y_obs = df[observed_column]
     fig, axes = plt.subplots(
-        1, len(predictor_columns), figsize=(6 * len(predictor_columns), 5.5),
-        sharex=True, sharey=True,
+        1,
+        len(predictor_columns),
+        figsize=(6 * len(predictor_columns), 5.5),
+        sharex=True,
+        sharey=True,
     )
     if len(predictor_columns) == 1:
         axes = [axes]
@@ -153,8 +159,12 @@ def plot_pca_by_station(
     for i, loc in enumerate(unique_locs):
         mask = loc_arr == loc
         ax.scatter(
-            pcs[mask, 0], pcs[mask, 1], s=4, alpha=0.5,
-            color=cmap(i % cmap.N), label=loc,
+            pcs[mask, 0],
+            pcs[mask, 1],
+            s=4,
+            alpha=0.5,
+            color=cmap(i % cmap.N),
+            label=loc,
         )
     ax.set_xlabel(f"PC1 ({explained[0]:.0%} var)")
     ax.set_ylabel(f"PC2 ({explained[1]:.0%} var)")
@@ -175,7 +185,11 @@ def plot_training_fit_scatter(
     """In-sample predicted-vs-observed scatter; tight diagonal = healthy training."""
     fig, ax = plt.subplots(figsize=(7, 7))
     ax.scatter(
-        df[observed_column], df[predicted_column], s=2, alpha=0.25, color="C3",
+        df[observed_column],
+        df[predicted_column],
+        s=2,
+        alpha=0.25,
+        color="C3",
     )
     hi = max(df[observed_column].max(), df[predicted_column].max()) * 1.05
     ax.plot([0, hi], [0, hi], "k--", lw=1, label="y = x")
@@ -233,11 +247,15 @@ def plot_training_fit_timeseries(
         value_label: Y-axis label unit.
     """
     plot_stations = (
-        df.groupby(location_column).size()
-        .sort_values(ascending=False).head(n_stations).index.tolist()
+        df.groupby(location_column)
+        .size()
+        .sort_values(ascending=False)
+        .head(n_stations)
+        .index.tolist()
     )
     fig, axes = plt.subplots(
-        (n_stations + 1) // 2, 2,
+        (n_stations + 1) // 2,
+        2,
         figsize=(16, 3 * ((n_stations + 1) // 2)),
         sharey=True,
     )
@@ -245,9 +263,7 @@ def plot_training_fit_timeseries(
     reference_palette = ["C2", "C1", "C6"]
     refs = reference_series or {}
     all_cols = (
-        [observed_column]
-        + list(prediction_series.values())
-        + list(refs.values())
+        [observed_column] + list(prediction_series.values()) + list(refs.values())
     )
     for ax, loc in zip(np.atleast_1d(axes).flat, plot_stations):
         sub = df[df[location_column] == loc].sort_values(date_column).copy()
@@ -256,20 +272,31 @@ def plot_training_fit_timeseries(
         sub = sub[sub[date_column].dt.year == last_year]
         weekly = sub.set_index(date_column)[all_cols].resample("W").mean()
         ax.plot(
-            weekly.index, weekly[observed_column], "-o",
-            ms=3, label="Observed", color="C0",
+            weekly.index,
+            weekly[observed_column],
+            "-o",
+            ms=3,
+            label="Observed",
+            color="C0",
         )
-        for color, (label, col) in zip(
-            prediction_palette, prediction_series.items()
-        ):
+        for color, (label, col) in zip(prediction_palette, prediction_series.items()):
             ax.plot(
-                weekly.index, weekly[col], "-o",
-                ms=3, label=label, color=color,
+                weekly.index,
+                weekly[col],
+                "-o",
+                ms=3,
+                label=label,
+                color=color,
             )
         for color, (label, col) in zip(reference_palette, refs.items()):
             ax.plot(
-                weekly.index, weekly[col], "-",
-                lw=0.7, alpha=0.4, label=label, color=color,
+                weekly.index,
+                weekly[col],
+                "-",
+                lw=0.7,
+                alpha=0.4,
+                label=label,
+                color=color,
             )
         ax.set_title(f"{loc} ({last_year}, n={len(sub):,})", fontsize=10)
         ax.grid(alpha=0.3)
@@ -303,8 +330,11 @@ def plot_predicted_vs_observed_panels(
     )
     palette = ["C3", "C2", "C1", "C4", "C5"]
     fig, axes = plt.subplots(
-        1, len(predictions), figsize=(5.5 * len(predictions), 5.5),
-        sharex=True, sharey=True,
+        1,
+        len(predictions),
+        figsize=(5.5 * len(predictions), 5.5),
+        sharex=True,
+        sharey=True,
     )
     if len(predictions) == 1:
         axes = [axes]
@@ -317,8 +347,7 @@ def plot_predicted_vs_observed_panels(
         ax.set_ylabel(f"{label} ({value_label})")
         err = (df[col] - obs).dropna()
         ax.set_title(
-            f"{label}\nMBE={err.mean():.2f}  "
-            f"RMSE={np.sqrt((err ** 2).mean()):.2f}"
+            f"{label}\nMBE={err.mean():.2f}  " f"RMSE={np.sqrt((err ** 2).mean()):.2f}"
         )
         ax.grid(alpha=0.3)
     fig.tight_layout()
@@ -356,15 +385,17 @@ def plot_per_station_metric(
         if highlight_column is not None:
             row["_highlight"] = bool(sub[highlight_column].iloc[0])
         rows.append(row)
-    per_station = pd.DataFrame(rows).set_index(location_column).sort_values(
-        metric.name
-    )
+    per_station = pd.DataFrame(rows).set_index(location_column).sort_values(metric.name)
     fig, ax = plt.subplots(figsize=(15, 6))
     if highlight_column is None:
-        ax.bar(range(len(per_station)), per_station[metric.name], color="C0", alpha=0.75)
+        ax.bar(
+            range(len(per_station)), per_station[metric.name], color="C0", alpha=0.75
+        )
     else:
         colors = ["C2" if h else "C0" for h in per_station["_highlight"]]
-        ax.bar(range(len(per_station)), per_station[metric.name], color=colors, alpha=0.75)
+        ax.bar(
+            range(len(per_station)), per_station[metric.name], color=colors, alpha=0.75
+        )
     ax.axhline(0, color="k", lw=0.7)
     ax.set_xticks(range(len(per_station)))
     ax.set_xticklabels(per_station.index, rotation=90, fontsize=7)
@@ -405,16 +436,24 @@ def plot_covariate_shift_kde(
         lo = float(np.nanquantile(np.r_[t, v], 0.005))
         hi = float(np.nanquantile(np.r_[t, v], 0.995))
         ax.hist(
-            t, bins=40, range=(lo, hi), alpha=0.5,
-            density=True, label=f"{train_label} (n={len(t):,})",
+            t,
+            bins=40,
+            range=(lo, hi),
+            alpha=0.5,
+            density=True,
+            label=f"{train_label} (n={len(t):,})",
         )
         ax.hist(
-            v, bins=40, range=(lo, hi), alpha=0.5,
-            density=True, label=f"{val_label} (n={len(v):,})",
+            v,
+            bins=40,
+            range=(lo, hi),
+            alpha=0.5,
+            density=True,
+            label=f"{val_label} (n={len(v):,})",
         )
         ax.set_title(feat, fontsize=10)
         ax.legend(fontsize=7)
-    for ax in np.array(axes).flat[len(keep):]:
+    for ax in np.array(axes).flat[len(keep) :]:
         ax.axis("off")
     fig.suptitle(f"Feature distributions: {train_label} vs {val_label}")
     fig.tight_layout()
@@ -455,9 +494,7 @@ def plot_feature_importances_top_n(
             f"Tree-based models (RandomForest, GradientBoosting) "
             f"expose this; linear models do not."
         )
-    importances = importances_fn(tuple(feature_columns)).sort_values(
-        ascending=False
-    )
+    importances = importances_fn(tuple(feature_columns)).sort_values(ascending=False)
     fig, ax = plt.subplots(figsize=(10, 5))
     importances.head(top_n).plot.bar(ax=ax)
     ax.set_ylabel("Feature importance")

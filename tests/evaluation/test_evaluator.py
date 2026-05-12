@@ -18,10 +18,10 @@ def comparison_frame() -> pd.DataFrame:
     obs = pd.Series(rng.normal(loc=4.5, scale=0.4, size=n))
     return pd.DataFrame(
         {
-            "obs":         obs,
-            "pred_good":   obs + rng.normal(scale=0.1, size=n),
+            "obs": obs,
+            "pred_good": obs + rng.normal(scale=0.1, size=n),
             "pred_biased": obs + 0.8 + rng.normal(scale=0.1, size=n),
-            "group":       ["A"] * 30 + ["B"] * 30,
+            "group": ["A"] * 30 + ["B"] * 30,
         }
     )
 
@@ -33,7 +33,7 @@ class TestEvaluatorOutput:
         result = Evaluator().score(
             observed=comparison_frame["obs"],
             predictions={
-                "good":   comparison_frame["pred_good"],
+                "good": comparison_frame["pred_good"],
                 "biased": comparison_frame["pred_biased"],
             },
         )
@@ -51,23 +51,19 @@ class TestEvaluatorOutput:
         result = Evaluator().score(
             observed=comparison_frame["obs"],
             predictions={
-                "good":   comparison_frame["pred_good"],
+                "good": comparison_frame["pred_good"],
                 "biased": comparison_frame["pred_biased"],
             },
             splits=splits,
         )
         assert len(result) == 4
 
-    def test_columns_include_every_metric(
-        self, comparison_frame: pd.DataFrame
-    ) -> None:
+    def test_columns_include_every_metric(self, comparison_frame: pd.DataFrame) -> None:
         result = Evaluator().score(
             observed=comparison_frame["obs"],
             predictions={"good": comparison_frame["pred_good"]},
         )
-        expected_cols = ["split", "prediction", "n"] + [
-            m.name for m in DEFAULT_METRICS
-        ]
+        expected_cols = ["split", "prediction", "n"] + [m.name for m in DEFAULT_METRICS]
         assert list(result.columns) == expected_cols
 
     def test_custom_metric_tuple_controls_columns(
@@ -87,19 +83,15 @@ class TestEvaluatorSemantics:
         result = Evaluator().score(
             observed=comparison_frame["obs"],
             predictions={
-                "good":   comparison_frame["pred_good"],
+                "good": comparison_frame["pred_good"],
                 "biased": comparison_frame["pred_biased"],
             },
         )
         rmse_good = result.loc[result["prediction"] == "good", "RMSE"].iloc[0]
-        rmse_biased = result.loc[
-            result["prediction"] == "biased", "RMSE"
-        ].iloc[0]
+        rmse_biased = result.loc[result["prediction"] == "biased", "RMSE"].iloc[0]
         assert rmse_biased > rmse_good
 
-    def test_n_counts_only_non_nan_rows(
-        self, comparison_frame: pd.DataFrame
-    ) -> None:
+    def test_n_counts_only_non_nan_rows(self, comparison_frame: pd.DataFrame) -> None:
         # Introduce two NaN-paired rows on the prediction side.
         pred = comparison_frame["pred_good"].copy()
         pred.iloc[:2] = math.nan
@@ -111,13 +103,9 @@ class TestEvaluatorSemantics:
 
 
 class TestEvaluatorErrors:
-    def test_empty_predictions_raises(
-        self, comparison_frame: pd.DataFrame
-    ) -> None:
+    def test_empty_predictions_raises(self, comparison_frame: pd.DataFrame) -> None:
         with pytest.raises(ValueError, match="empty"):
-            Evaluator().score(
-                observed=comparison_frame["obs"], predictions={}
-            )
+            Evaluator().score(observed=comparison_frame["obs"], predictions={})
 
     def test_empty_metrics_raises(self) -> None:
         with pytest.raises(ValueError, match="at least one Metric"):

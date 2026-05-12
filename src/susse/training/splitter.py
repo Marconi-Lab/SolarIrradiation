@@ -62,9 +62,7 @@ class Splitter(ABC):
         """Stable identifier of this splitter's configuration."""
 
     @abstractmethod
-    def split(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def split(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         """Return ``(train_idx, val_idx)`` — disjoint subsets of ``processed.df.index``.
 
         Args:
@@ -84,9 +82,7 @@ class Splitter(ABC):
                 remediation step.
         """
 
-    def __call__(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def __call__(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         """Alias for :meth:`split`. Lets a :class:`Splitter` be passed to
         any callable-typed slot."""
         return self.split(processed)
@@ -123,9 +119,7 @@ class RandomSplitter(Splitter):
     def name(self) -> str:
         return f"random[val={self.val_fraction:.2f},seed={self.random_state}]"
 
-    def split(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def split(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         rng = np.random.default_rng(self.random_state)
         shuffled = rng.permutation(processed.df.index.to_numpy())
         n_val = max(1, int(round(self.val_fraction * len(shuffled))))
@@ -154,9 +148,7 @@ class TemporalSplitter(Splitter):
     def name(self) -> str:
         return f"temporal[val>={self.split_date.isoformat()}]"
 
-    def split(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def split(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         if self.date_column not in processed.df.columns:
             raise ValueError(
                 f"TemporalSplitter needs column {self.date_column!r} on "
@@ -189,9 +181,7 @@ class StationLOSOSplitter(Splitter):
     def name(self) -> str:
         return f"station_loso[{self.held_out_station}]"
 
-    def split(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def split(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         if self.location_column not in processed.df.columns:
             raise ValueError(
                 f"StationLOSOSplitter needs column {self.location_column!r} "
@@ -239,9 +229,7 @@ class StationLOSOSplitter(Splitter):
             raise ValueError(
                 "PreprocessedDataset is empty; cannot pick a holdout station."
             )
-        sorted_counts = counts.sort_index().sort_values(
-            ascending=False, kind="stable"
-        )
+        sorted_counts = counts.sort_index().sort_values(ascending=False, kind="stable")
         return cls(
             held_out_station=str(sorted_counts.index[0]),
             location_column=location_column,
@@ -284,9 +272,7 @@ class SpatialSpreadHoldoutSplitter(Splitter):
     def name(self) -> str:
         return f"spatial_spread[n={self.n_holdout}]"
 
-    def split(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def split(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         needed = (self.location_column, self.lat_column, self.lon_column)
         missing = [c for c in needed if c not in processed.df.columns]
         if missing:
@@ -314,9 +300,7 @@ class SpatialSpreadHoldoutSplitter(Splitter):
             processed.df.index[mask],
         )
 
-    def _greedy_spread_selection(
-        self, station_coords: pd.DataFrame
-    ) -> tuple[str, ...]:
+    def _greedy_spread_selection(self, station_coords: pd.DataFrame) -> tuple[str, ...]:
         """Pick stations by greedy max-min haversine spread."""
         lats = station_coords[self.lat_column].to_numpy()
         lons = station_coords[self.lon_column].to_numpy()
@@ -332,9 +316,7 @@ class SpatialSpreadHoldoutSplitter(Splitter):
         return tuple(str(names[k]) for k in selected_indices)
 
     @classmethod
-    def _haversine_matrix(
-        cls, lats: np.ndarray, lons: np.ndarray
-    ) -> np.ndarray:
+    def _haversine_matrix(cls, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
         """Pairwise haversine distance matrix in kilometres."""
         phi = np.radians(lats)
         lam = np.radians(lons)
@@ -374,9 +356,7 @@ class SpatialBlockSplitter(Splitter):
     def name(self) -> str:
         return f"spatial_block[val={','.join(self.val_blocks)}]"
 
-    def split(
-        self, processed: PreprocessedDataset
-    ) -> tuple[pd.Index, pd.Index]:
+    def split(self, processed: PreprocessedDataset) -> tuple[pd.Index, pd.Index]:
         if self.block_column not in processed.df.columns:
             raise ValueError(
                 f"SpatialBlockSplitter needs column {self.block_column!r} "

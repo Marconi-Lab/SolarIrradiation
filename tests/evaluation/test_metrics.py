@@ -33,8 +33,15 @@ from susse.evaluation import (
 
 @pytest.mark.parametrize(
     "metric",
-    [RMSE(), MAE(), R2(), IndexOfAgreement(), MeanBiasError(),
-     NormalisedRMSE(), NormalisedMAE()],
+    [
+        RMSE(),
+        MAE(),
+        R2(),
+        IndexOfAgreement(),
+        MeanBiasError(),
+        NormalisedRMSE(),
+        NormalisedMAE(),
+    ],
 )
 class TestSharedContract:
     def test_shape_mismatch_raises(self, metric: Metric) -> None:
@@ -51,8 +58,9 @@ class TestSharedContract:
         # give a known outcome:
         #   RMSE, MAE, MBE, NormalisedRMSE, NormalisedMAE → 0
         #   R², IndexOfAgreement                            → 1 (or NaN)
-        if isinstance(metric, (RMSE, MAE, MeanBiasError,
-                                NormalisedRMSE, NormalisedMAE)):
+        if isinstance(
+            metric, (RMSE, MAE, MeanBiasError, NormalisedRMSE, NormalisedMAE)
+        ):
             assert score == pytest.approx(0.0, abs=1e-12)
         elif isinstance(metric, (R2, IndexOfAgreement)):
             # 2 perfect rows: R² formula reduces to 1.0 if variance > 0,
@@ -135,9 +143,7 @@ class TestIndexOfAgreement:
         # numerator == denominator → 0.
         yt = pd.Series([3.0, 4.0, 5.0, 6.0])
         yp = pd.Series([4.5, 4.5, 4.5, 4.5])
-        assert IndexOfAgreement().compute(yt, yp) == pytest.approx(
-            0.0, abs=1e-12
-        )
+        assert IndexOfAgreement().compute(yt, yp) == pytest.approx(0.0, abs=1e-12)
 
     def test_constant_match_returns_nan(self) -> None:
         # numerator == denominator == 0 — IOA must be NaN, not 1.0
@@ -175,9 +181,7 @@ class TestNormalisedRMSE:
         yp = pd.Series([5.0, 5.0, 5.0])
         rmse = float(np.sqrt(((yp - yt) ** 2).mean()))
         expected = 100.0 * rmse / yt.mean()
-        assert NormalisedRMSE().compute(yt, yp) == pytest.approx(
-            expected, abs=1e-12
-        )
+        assert NormalisedRMSE().compute(yt, yp) == pytest.approx(expected, abs=1e-12)
 
     def test_zero_mean_observed_returns_nan(self) -> None:
         yt = pd.Series([-1.0, 0.0, 1.0])  # mean = 0
@@ -191,9 +195,7 @@ class TestNormalisedMAE:
         yp = pd.Series([5.0, 5.0, 5.0])
         mae = float(np.abs(yp - yt).mean())
         expected = 100.0 * mae / yt.mean()
-        assert NormalisedMAE().compute(yt, yp) == pytest.approx(
-            expected, abs=1e-12
-        )
+        assert NormalisedMAE().compute(yt, yp) == pytest.approx(expected, abs=1e-12)
 
     def test_zero_mean_observed_returns_nan(self) -> None:
         yt = pd.Series([-1.0, 0.0, 1.0])
