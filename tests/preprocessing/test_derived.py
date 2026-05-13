@@ -202,9 +202,9 @@ class TestLongitudeFeature:
 
     def test_kind_dispatches_to_longitude_feature(self) -> None:
         # Pins that adding LONGITUDE to FeatureKind also wired up the
-        # feature_class() lookup. Otherwise from_dict would silently
+        # spec_class() lookup. Otherwise from_dict would silently
         # return the wrong subclass.
-        assert FeatureKind.LONGITUDE.feature_class() is LongitudeFeature
+        assert FeatureKind.LONGITUDE.spec_class() is LongitudeFeature
 
 
 class TestDispatchByKind:

@@ -11,22 +11,21 @@ Parallel to :class:`DerivedFeature` but on a different axis:
 * :meth:`DerivedFeature.compute` adds new columns (row count unchanged).
 * :meth:`DataCleaner.apply` modifies rows (column count unchanged).
 
-Two parallel ABCs (no shared base) keep the verb distinction load-bearing
-in the type system: a reader sees ``cleaner.apply(df)`` and immediately
-knows the row set may change; a reader sees ``feature.compute(df)`` and
-knows new columns are emitted. The shared *pattern* (frozen dataclass +
-``kind`` enum + JSON roundtrip) is duplicated by convention; lifting it
-to a common base would force a generic verb and lose the signal.
+Both share :class:`KindTaggedSpec` as a base (kind tag + JSON roundtrip
++ required-input declaration). The verb distinction — ``apply`` vs
+``compute`` — lives on each family's concrete ABC, so a reader still
+sees ``cleaner.apply(df)`` and immediately knows the row set may
+change, and ``feature.compute(df)`` and knows new columns are emitted.
 
 Adding a new cleaner type is one new subclass: register a
 :class:`CleanerKind` value, add the subclass with its own ``apply``
-implementation, and reference it from
-:meth:`CleanerKind.cleaner_class`. Nothing else in the codebase changes.
+implementation, and reference it from :meth:`CleanerKind.spec_class`.
+Nothing else in the codebase changes.
 """
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Optional
@@ -34,13 +33,15 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from ._kind_tagged import KindTaggedSpec, kind_dispatched_from_dict
+
 
 class CleanerKind(StrEnum):
     """Persistence + dispatch tag for :class:`DataCleaner` subclasses.
 
     The string value ends up in ``feature_spec.json`` under each
     cleaner entry's ``kind`` key. New subclasses register here and in
-    :meth:`cleaner_class`; nothing else needs to learn the new kind.
+    :meth:`spec_class`; nothing else needs to learn the new kind.
     """
 
     GHI_UPPER_BOUND = "ghi_upper_bound"
@@ -49,8 +50,12 @@ class CleanerKind(StrEnum):
     KNN_YEAR_GAP_IMPUTE = "knn_year_gap_impute"
     PER_STATION_MEAN_IMPUTE = "per_station_mean_impute"
 
-    def cleaner_class(self) -> type["DataCleaner"]:
-        """Return the concrete :class:`DataCleaner` subclass for this kind."""
+    def spec_class(self) -> type["DataCleaner"]:
+        """Return the concrete :class:`DataCleaner` subclass for this kind.
+
+        Implements the protocol :func:`kind_dispatched_from_dict`
+        consumes; the same method name appears on :class:`FeatureKind`.
+        """
         if self is CleanerKind.GHI_UPPER_BOUND:
             return GhiUpperBoundCleaner
         if self is CleanerKind.IQR_LOWER_BOUND:
@@ -64,24 +69,18 @@ class CleanerKind(StrEnum):
         raise AssertionError(f"Unhandled CleanerKind: {self!r}")  # pragma: no cover
 
 
-class DataCleaner(ABC):
+class DataCleaner(KindTaggedSpec[CleanerKind]):
     """ABC for one row-level cleaning step.
 
     Subclasses are frozen-dataclass value objects (configuration only,
     no fitted state). :meth:`apply` may shrink the row set or fill
     values within existing rows; the column schema is preserved
     end-to-end.
+
+    Inherits the kind/required-input/to_dict/_from_dict contract from
+    :class:`KindTaggedSpec`; this ABC adds the cleaner-specific
+    ``apply`` verb.
     """
-
-    @property
-    @abstractmethod
-    def kind(self) -> CleanerKind:
-        """The :class:`CleanerKind` tag for this cleaner."""
-
-    @property
-    @abstractmethod
-    def required_input_columns(self) -> tuple[str, ...]:
-        """Columns the cleaner needs in the input DataFrame."""
 
     @abstractmethod
     def apply(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -92,22 +91,6 @@ class DataCleaner(ABC):
         and ordering are preserved.
         """
 
-    @abstractmethod
-    def to_dict(self) -> dict[str, Any]:
-        """Serialise to a JSON-safe dict including a ``"kind"`` tag."""
-
-    @classmethod
-    @abstractmethod
-    def _from_dict(
-        cls, d: dict[str, Any], *, providers: dict[str, Any]
-    ) -> "DataCleaner":
-        """Inverse of :meth:`to_dict` for this concrete subclass.
-
-        Called by :func:`data_cleaner_from_dict` after kind-dispatch.
-        ``providers`` is accepted uniformly across the family even when
-        a particular cleaner doesn't use it.
-        """
-
 
 def data_cleaner_from_dict(
     d: dict[str, Any],
@@ -116,19 +99,19 @@ def data_cleaner_from_dict(
 ) -> DataCleaner:
     """Inverse of :meth:`DataCleaner.to_dict` — kind-dispatched.
 
-    Mirrors :func:`derived_feature_from_dict`. ``providers`` is accepted
-    for forward compatibility (no current cleaner needs it) so
+    Thin wrapper around :func:`kind_dispatched_from_dict` that narrows
+    the return type to :class:`DataCleaner` and supplies the
+    family-specific error-message hint. ``providers`` is accepted for
+    forward compatibility (no current cleaner needs it) so
     :class:`FeatureSpec.from_dict` can pass one dict through to both
     families uniformly.
     """
-    if "kind" not in d:
-        raise ValueError(
-            "data_cleaner_from_dict expects a 'kind' tag identifying the "
-            "cleaner type. Pass a dict produced by DataCleaner.to_dict()."
-        )
-    kind = CleanerKind(d["kind"])
-    cls = kind.cleaner_class()
-    return cls._from_dict(d, providers=providers or {})
+    return kind_dispatched_from_dict(  # type: ignore[no-any-return]
+        d,
+        kind_enum=CleanerKind,
+        providers=providers,
+        family_name="cleaner",
+    )
 
 
 # ---------------------------------------------------------------------------

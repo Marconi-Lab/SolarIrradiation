@@ -6,10 +6,11 @@ deployment-friendly API the portal needs: given a list of coordinates
 plus a date range, return a long-format DataFrame of bias-corrected
 daily GHI predictions.
 
-The implementation pulls features from the warehouse with one batched
-query per source (irradiance + per-source aux), applies the bundle's
-:class:`FeatureSpec` (with cleaners disabled — predictions, not
-training pairs), and runs the regressor in a single batched call.
+The implementation pulls features from the warehouse via
+:meth:`FeatureService.build_satellite_features`, applies the bundle's
+``FeatureSpec`` through :meth:`Preprocessor.apply_to_dataframe`
+(inference shape — no cleaners, no NaN-drop), and runs the regressor
+in a single batched call.
 
 Cache misses (geohash5 cells absent from the warehouse for some of
 the requested dates) are surfaced loudly by default. With
@@ -24,17 +25,16 @@ invocation.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence
 
-import numpy as np
 import pandas as pd
 import pygeohash
 
-from ..datasets import FeatureService, FeatureSelection
-from ..preprocessing import FeatureSpec, PreprocessedDataset, Preprocessor
+from ..datasets import FeatureSelection, FeatureService
+from ..preprocessing import Preprocessor
 from ..training import TrainedBundle, load_bundle
 from ..warehouse_ops.io.bq import BigQueryClient
 from ..warehouse_ops.io.config import WarehouseConfig
@@ -96,9 +96,7 @@ class PredictionRequest:
                     f"(lat, lon) tuples."
                 )
             if not -180.0 <= lon <= 180.0:
-                raise ValueError(
-                    f"Longitude {lon} is outside [-180, 180]."
-                )
+                raise ValueError(f"Longitude {lon} is outside [-180, 180].")
         if self.end_date < self.start_date:
             raise ValueError(
                 f"PredictionRequest: end_date {self.end_date} precedes "
@@ -137,9 +135,7 @@ class Predictor:
         self._bq = bq
         self._service = service if service is not None else FeatureService(bq)
         self._on_cache_miss: CacheMissPolicy = on_cache_miss
-        self._selection: FeatureSelection = (
-            bundle.source_manifest.feature_selection
-        )
+        self._selection: FeatureSelection = bundle.source_manifest.feature_selection
         if on_cache_miss == "fetch":
             self._validate_fetch_mode_credentials()
 
@@ -277,11 +273,12 @@ class Predictor:
                         ),
                     )
         inference_df = self._merge_coords_with_warehouse(coords_df, warehouse_df)
-        processed = self._apply_bundle_spec(inference_df)
-        processed.df[_PREDICTION_COLUMN] = self._bundle.regressor.predict(
-            processed.X()
+        spec = self._bundle.feature_spec
+        processed = Preprocessor(spec).apply_to_dataframe(inference_df)
+        processed[_PREDICTION_COLUMN] = self._bundle.regressor.predict(
+            processed[list(spec.output_feature_names)]
         )
-        return self._format_output(processed.df)
+        return self._format_output(processed)
 
     # ------------------------------------------------------------------
     # Internal — coord prep
@@ -347,7 +344,8 @@ class Predictor:
             present_dates = pd.to_datetime(warehouse_df["date"]).dt.date
             present_gh = warehouse_df["geohash5"]
         present = pd.MultiIndex.from_arrays(
-            [present_gh, present_dates], names=["geohash5", "date"],
+            [present_gh, present_dates],
+            names=["geohash5", "date"],
         )
         missing = expected.difference(present)
         return list(missing)
@@ -360,16 +358,18 @@ class Predictor:
     ) -> None:
         """Build the canonical cache-miss error message."""
         sample = missing[:5]
-        head = prefix if prefix is not None else (
-            f"Predictor: {len(missing)} warehouse cell-day pairs are "
-            f"missing. Apply the corresponding warehouse-ingest "
-            f"migration before calling predict, or construct the "
-            f"Predictor with on_cache_miss='fetch' to fetch on demand "
-            f"(requires CAMS_EMAIL + BQ write perms)."
+        head = (
+            prefix
+            if prefix is not None
+            else (
+                f"Predictor: {len(missing)} warehouse cell-day pairs are "
+                f"missing. Apply the corresponding warehouse-ingest "
+                f"migration before calling predict, or construct the "
+                f"Predictor with on_cache_miss='fetch' to fetch on demand "
+                f"(requires CAMS_EMAIL + BQ write perms)."
+            )
         )
-        raise RuntimeError(
-            f"{head} First few missing (geohash5, date): {sample}."
-        )
+        raise RuntimeError(f"{head} First few missing (geohash5, date): {sample}.")
 
     def _fetch_and_persist(
         self,
@@ -397,10 +397,9 @@ class Predictor:
         # Recover (lat, lon, name) for each missing geohash5 from the
         # coords_df. Multiple coords sharing one geohash5 contribute one
         # LocationSpec.
-        gh_to_coord = (
-            coords_df.drop_duplicates(subset="geohash5")
-            .set_index("geohash5")[["lat", "lon", "location"]]
-        )
+        gh_to_coord = coords_df.drop_duplicates(subset="geohash5").set_index(
+            "geohash5"
+        )[["lat", "lon", "location"]]
         locations = tuple(
             LocationSpec(
                 name=str(gh_to_coord.loc[gh, "location"]),
@@ -441,9 +440,7 @@ class Predictor:
             ids = selection.cams_variable_ids
         elif source is Source.MERRA_2:
             ids = selection.merra_variable_ids
-        aux = tuple(
-            VariableCatalog.get(variable_id=vid, source=source) for vid in ids
-        )
+        aux = tuple(VariableCatalog.get(variable_id=vid, source=source) for vid in ids)
         irradiance: tuple[VariableSpec, ...] = ()
         if source in selection.include_satellite_irradiance:
             band_specs = []
@@ -471,43 +468,15 @@ class Predictor:
             return coords_df.assign(date=pd.NaT).iloc[0:0]
         return coords_df.merge(warehouse_df, on="geohash5", how="inner")
 
-    def _apply_bundle_spec(self, inference_df: pd.DataFrame) -> PreprocessedDataset:
-        """Apply the bundle's FeatureSpec with cleaners + dropna disabled.
-
-        We can't use the spec as-is — its cleaners would drop rows whose
-        target column is NaN (which is *every* row here, since we don't
-        have ground truth at inference). The :func:`dataclasses.replace`
-        below produces an inference-shaped twin: same feature columns,
-        same derived features, no cleaners, no NaN-drop.
-        """
-        spec = self._bundle.feature_spec
-        inference_spec: FeatureSpec = replace(
-            spec, cleaners=(), dropna_target=False, dropna_features=False,
-        )
-        # Preprocessor.apply expects the target column to exist; we have
-        # no ground truth at inference, so we materialise a NaN column
-        # the cleaners-disabled spec will pass through untouched.
-        df = inference_df.copy()
-        if spec.target_column not in df.columns:
-            df[spec.target_column] = np.nan
-        from ..datasets import DatasetManifest, TrainingDataset
-
-        # The Preprocessor consumes a TrainingDataset; we wrap with the
-        # bundle's own source_manifest so any provenance logging upstream
-        # sees a consistent identity.
-        fake_dataset = TrainingDataset(
-            df=df, manifest=self._bundle.source_manifest,
-        )
-        _ = DatasetManifest  # keep import; some derived features use it
-        return Preprocessor(inference_spec).apply(fake_dataset)
-
     def _format_output(self, processed_df: pd.DataFrame) -> pd.DataFrame:
         """Order columns + drop internal scaffolding from the result."""
         front = [
-            c for c in ("lat", "lon", "geohash5", "date", "location")
+            c
+            for c in ("lat", "lon", "geohash5", "date", "location")
             if c in processed_df.columns
         ]
-        rest = [c for c in processed_df.columns if c not in front + [_PREDICTION_COLUMN]]
+        rest = [
+            c for c in processed_df.columns if c not in front + [_PREDICTION_COLUMN]
+        ]
         out = processed_df[front + rest + [_PREDICTION_COLUMN]].copy()
         return out.reset_index(drop=True)
-

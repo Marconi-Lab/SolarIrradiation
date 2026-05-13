@@ -11,9 +11,11 @@ change.
 Design points worth preserving across edits:
 
 * Each subclass is a frozen-dataclass-style value object, JSON
-  roundtrippable via :meth:`to_dict` / :meth:`from_dict`. Fields that
+  roundtrippable via :meth:`to_dict` / :meth:`_from_dict`. Fields that
   are not JSON-serialisable (e.g. an :class:`ElevationProvider`) are
   re-injected at deserialisation time via the ``providers`` kwarg.
+  The roundtrip contract is inherited from :class:`KindTaggedSpec`,
+  shared with :class:`DataCleaner`.
 * Multi-column outputs are first-class:
   :class:`CyclicalDayOfYearFeature` produces both ``doy_sin`` and
   ``doy_cos`` from a single ``compute()``.
@@ -26,7 +28,7 @@ Design points worth preserving across edits:
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Optional
@@ -34,6 +36,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 import pandas as pd
 
+from ._kind_tagged import KindTaggedSpec, kind_dispatched_from_dict
 from .derived_features import clear_sky_index, cyclical_day_of_year
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -45,7 +48,7 @@ class FeatureKind(StrEnum):
 
     The string value ends up in ``feature_spec.json`` under the ``kind``
     key on each derived-feature entry. New subclasses register here and
-    in the lookup methods; nothing else in the codebase needs to learn
+    in the lookup method; nothing else in the codebase needs to learn
     about the new feature type.
     """
 
@@ -54,10 +57,14 @@ class FeatureKind(StrEnum):
     ALTITUDE = "altitude"
     LONGITUDE = "longitude"
 
-    def feature_class(self) -> type["DerivedFeature"]:
-        """Return the concrete :class:`DerivedFeature` subclass for this kind."""
-        # Local imports avoid the import cycle: each subclass references
-        # FeatureKind for its own ``kind`` property.
+    def spec_class(self) -> type["DerivedFeature"]:
+        """Return the concrete :class:`DerivedFeature` subclass for this kind.
+
+        Implements the protocol :func:`kind_dispatched_from_dict`
+        consumes; the same method name appears on :class:`CleanerKind`.
+        """
+        # Local references avoid the import cycle: each subclass below
+        # references FeatureKind for its own ``kind`` property.
         if self is FeatureKind.CLEAR_SKY_INDEX:
             return ClearSkyIndexFeature
         if self is FeatureKind.CYCLICAL_DOY:
@@ -69,7 +76,7 @@ class FeatureKind(StrEnum):
         raise AssertionError(f"Unhandled FeatureKind: {self!r}")  # pragma: no cover
 
 
-class DerivedFeature(ABC):
+class DerivedFeature(KindTaggedSpec[FeatureKind]):
     """ABC for one computed model input.
 
     Subclasses are frozen value objects (carry only configuration, no
@@ -77,22 +84,16 @@ class DerivedFeature(ABC):
     elevation lookup — are constructor-captured fields, not fitted
     state, so the same subclass can be both serialised (provider
     dropped) and re-hydrated at load time.
-    """
 
-    @property
-    @abstractmethod
-    def kind(self) -> FeatureKind:
-        """The :class:`FeatureKind` tag for this feature."""
+    Inherits the kind/required-input/to_dict/_from_dict contract from
+    :class:`KindTaggedSpec`; this ABC adds the feature-specific
+    ``output_columns`` and ``compute`` contracts.
+    """
 
     @property
     @abstractmethod
     def output_columns(self) -> tuple[str, ...]:
         """Column names this feature produces, in deterministic order."""
-
-    @property
-    @abstractmethod
-    def required_input_columns(self) -> tuple[str, ...]:
-        """Source columns this feature needs from the input DataFrame."""
 
     @abstractmethod
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -103,27 +104,6 @@ class DerivedFeature(ABC):
         injected provider) is missing.
         """
 
-    @abstractmethod
-    def to_dict(self) -> dict[str, Any]:
-        """Serialise to a JSON-safe dict including a ``"kind"`` tag.
-
-        Non-serialisable fields (providers, etc.) are dropped. The
-        :func:`derived_feature_from_dict` inverse re-injects them from
-        the caller-supplied providers dict.
-        """
-
-    @classmethod
-    @abstractmethod
-    def _from_dict(
-        cls, d: dict[str, Any], *, providers: dict[str, Any]
-    ) -> "DerivedFeature":
-        """Inverse of :meth:`to_dict` for this concrete subclass.
-
-        Called by :func:`derived_feature_from_dict` after kind-dispatch.
-        Subclasses re-inject any provider-style dependencies they
-        captured at construction time (e.g. an :class:`ElevationProvider`).
-        """
-
 
 def derived_feature_from_dict(
     d: dict[str, Any],
@@ -131,6 +111,10 @@ def derived_feature_from_dict(
     providers: Optional[dict[str, Any]] = None,
 ) -> DerivedFeature:
     """Inverse of :meth:`DerivedFeature.to_dict` — kind-dispatched.
+
+    Thin wrapper around :func:`kind_dispatched_from_dict` that narrows
+    the return type to :class:`DerivedFeature` and supplies the
+    family-specific error-message hint.
 
     Args:
         d: Output of :meth:`DerivedFeature.to_dict`. Must include
@@ -141,18 +125,15 @@ def derived_feature_from_dict(
 
     Raises:
         ValueError: If ``"kind"`` is missing or names an unknown kind.
-            Concrete :meth:`from_dict` impls also raise if a required
-            provider is absent — see e.g. :meth:`AltitudeFeature.from_dict`.
+            Concrete ``_from_dict`` impls also raise if a required
+            provider is absent — see e.g. :meth:`AltitudeFeature._from_dict`.
     """
-    if "kind" not in d:
-        raise ValueError(
-            "derived_feature_from_dict expects a 'kind' tag identifying "
-            "the feature type. Pass a dict produced by "
-            "DerivedFeature.to_dict()."
-        )
-    kind = FeatureKind(d["kind"])
-    cls = kind.feature_class()
-    return cls._from_dict(d, providers=providers or {})
+    return kind_dispatched_from_dict(  # type: ignore[no-any-return]
+        d,
+        kind_enum=FeatureKind,
+        providers=providers,
+        family_name="derived feature",
+    )
 
 
 # ---------------------------------------------------------------------------
