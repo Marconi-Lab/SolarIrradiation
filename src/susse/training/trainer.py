@@ -27,6 +27,11 @@ import pandas as pd
 from ..models import BaseModelParams, ModelFactory
 from ..preprocessing import PreprocessedDataset
 from ..provenance import git_sha, susse_version
+from ..warehouse_ops.population.types import (
+    IrradianceBand,
+    Source,
+    satellite_irradiance_column,
+)
 from .bundle import TrainedBundle
 from .metadata import ScoreSet, TrainingMetadata
 from .splitter import Splitter
@@ -35,8 +40,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from pathlib import Path
 
 _DEFAULT_BASELINE_COLUMNS: tuple[str, ...] = (
-    "sat_ghi_nasa_kwh_m2_day",
-    "sat_ghi_cams_kwh_m2_day",
+    satellite_irradiance_column(Source.NASA_POWER, IrradianceBand.GHI),
+    satellite_irradiance_column(Source.CAMS, IrradianceBand.GHI),
 )
 
 

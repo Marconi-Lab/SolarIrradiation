@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
-from ..population.types import IrradianceBand
+from ..population.types import IrradianceBand, Source, satellite_irradiance_column
 from .bq import BigQueryClient
 from .config import TableRefs
 
@@ -113,7 +113,7 @@ class SatelliteRepository:
             return pd.DataFrame()
         select_cols = [
             f"MAX(IF(source = '{src}', {band.value}_kwh_m2_day, NULL)) "
-            f"AS sat_{band.value}_{src.lower()}_kwh_m2_day"
+            f"AS {satellite_irradiance_column(Source(src), band)}"
             for band in bands
             for src in sources
         ]

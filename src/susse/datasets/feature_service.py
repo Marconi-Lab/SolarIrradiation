@@ -13,10 +13,11 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
+from .. import schema
 from ..warehouse_ops.io.bq import BigQueryClient
 from ..warehouse_ops.io.config import TableRefs, TableSchemas, WarehouseOptions
 from ..warehouse_ops.io.repositories import GroundRepository, SatelliteRepository
-from ..warehouse_ops.population.types import Source
+from ..warehouse_ops.population.types import Source, satellite_irradiance_column
 from .feature_selection import FeatureSelection
 
 # Source-id → (TableRefs attr, column prefix). Single source of truth for
@@ -131,9 +132,9 @@ class FeatureService:
             # (date, geohash5) pairs. If a cell has aux data but no
             # irradiance, callers must treat it as missing — the Predictor
             # cache-miss detector relies on this definition.
-            df = self._merge_left(df, aux, on=("date", "geohash5"))
+            df = self._merge_left(df, aux, on=(schema.DATE, schema.GEOHASH5))
         if df.empty:
-            return pd.DataFrame(columns=["date", "geohash5"])
+            return pd.DataFrame(columns=[schema.DATE, schema.GEOHASH5])
         return df
 
     # ------------------------------------------------------------------
@@ -174,18 +175,19 @@ class FeatureService:
             locations=locations,
             qc_levels=selection.qc_levels,
         )
+        rename_map = {schema.GROUND_GHI: schema.TRAINING_TARGET}
         if ground.empty:
-            return ground.rename(columns={"ghi_kwh_m2_day": "y_ghi_kwh_m2_day"})
-        ground = ground.rename(columns={"ghi_kwh_m2_day": "y_ghi_kwh_m2_day"})
-        plan_geohashes = tuple(ground["geohash5"].unique())
+            return ground.rename(columns=rename_map)
+        ground = ground.rename(columns=rename_map)
+        plan_geohashes = tuple(ground[schema.GEOHASH5].unique())
         satellite = self.build_satellite_features(
             selection=selection,
             date_start=date_start,
             date_end=date_end,
             geohash5s=plan_geohashes,
         )
-        df = self._merge_left(ground, satellite, on=("date", "geohash5"))
-        return df.sort_values(["date", "location"]).reset_index(drop=True)
+        df = self._merge_left(ground, satellite, on=(schema.DATE, schema.GEOHASH5))
+        return df.sort_values([schema.DATE, schema.LOCATION]).reset_index(drop=True)
 
     # ------------------------------------------------------------------
     # Inference features
@@ -221,8 +223,8 @@ class FeatureService:
             )
         else:
             df = satellite
-        df["lat"] = float(lat)
-        df["lon"] = float(lon)
+        df[schema.LAT] = float(lat)
+        df[schema.LON] = float(lon)
         return df
 
     @staticmethod
@@ -237,10 +239,10 @@ class FeatureService:
         Used by :meth:`build_inference_features` so the caller always gets
         exactly one row even when the warehouse has nothing for this cell.
         """
-        row: dict[str, object] = {"date": target_date, "geohash5": geohash5}
+        row: dict[str, object] = {schema.DATE: target_date, schema.GEOHASH5: geohash5}
         for band in selection.include_satellite_bands:
             for src in selection.include_satellite_irradiance:
-                row[f"sat_{band.value}_{src.value.lower()}_kwh_m2_day"] = pd.NA
+                row[satellite_irradiance_column(src, band)] = pd.NA
         return pd.DataFrame([row])
 
     # ------------------------------------------------------------------

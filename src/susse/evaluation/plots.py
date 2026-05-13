@@ -271,7 +271,8 @@ def plot_training_fit_timeseries(
         n_cols = 2
     n_rows = (actual_n + n_cols - 1) // n_cols
     fig, axes = plt.subplots(
-        n_rows, n_cols,
+        n_rows,
+        n_cols,
         figsize=(8 * n_cols, 3 * n_rows),
         sharey=True,
         squeeze=False,
@@ -293,8 +294,10 @@ def plot_training_fit_timeseries(
             ax.plot(
                 weekly.index,
                 weekly[observed_column],
-                "-o", ms=3,
-                label="Observed", color="C0",
+                "-o",
+                ms=3,
+                label="Observed",
+                color="C0",
             )
         for color, (label, col) in zip(prediction_palette, prediction_series.items()):
             ax.plot(

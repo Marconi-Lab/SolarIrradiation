@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 import pandas as pd
 
+from .. import schema
 from ._kind_tagged import KindTaggedSpec, kind_dispatched_from_dict
 from .derived_features import clear_sky_index, cyclical_day_of_year
 
@@ -223,10 +224,10 @@ class CyclicalDayOfYearFeature(DerivedFeature):
 
     @property
     def required_input_columns(self) -> tuple[str, ...]:
-        return ("date",)
+        return (schema.DATE,)
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
-        return cyclical_day_of_year(df["date"])
+        return cyclical_day_of_year(df[schema.DATE])
 
     def to_dict(self) -> dict[str, Any]:
         return {"kind": self.kind.value}
@@ -282,18 +283,21 @@ class AltitudeFeature(DerivedFeature):
 
     @property
     def required_input_columns(self) -> tuple[str, ...]:
-        return ("lat", "lon")
+        return (schema.LAT, schema.LON)
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         # Dedupe on (lat, lon) so the provider is invoked once per
         # unique station / grid point, not once per row.
-        unique = df[["lat", "lon"]].drop_duplicates()
+        unique = df[[schema.LAT, schema.LON]].drop_duplicates()
         elev_map: dict[tuple[float, float], float] = {
             (lat, lon): self.provider(lat, lon)
-            for lat, lon in zip(unique["lat"], unique["lon"])
+            for lat, lon in zip(unique[schema.LAT], unique[schema.LON])
         }
         values = np.array(
-            [elev_map[(lat, lon)] for lat, lon in zip(df["lat"], df["lon"])],
+            [
+                elev_map[(lat, lon)]
+                for lat, lon in zip(df[schema.LAT], df[schema.LON])
+            ],
             dtype=float,
         )
         return pd.DataFrame(
@@ -366,11 +370,11 @@ class LongitudeFeature(DerivedFeature):
 
     @property
     def required_input_columns(self) -> tuple[str, ...]:
-        return ("lon",)
+        return (schema.LON,)
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(
-            {self.output_column: df["lon"].astype(float).to_numpy()},
+            {self.output_column: df[schema.LON].astype(float).to_numpy()},
             index=df.index,
         )
 

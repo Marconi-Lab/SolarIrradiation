@@ -18,11 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from susse.datasets import (
-    DatasetManifest,
-    FeatureSelection,
-    TrainingDataset,
-)
+from susse.datasets import DatasetManifest, FeatureSelection, TrainingDataset
 from susse.inference import PredictionRequest, Predictor
 from susse.models import RandomForestParams
 from susse.preprocessing import FeatureSpec, Preprocessor
@@ -30,7 +26,6 @@ from susse.training import SpatialBlockSplitter, Trainer
 from susse.warehouse_ops.io.bq import BigQueryClient
 from susse.warehouse_ops.io.repositories import SatelliteRepository
 from susse.warehouse_ops.population.types import IrradianceBand, Source
-
 
 # ---------------------------------------------------------------------------
 # Synthetic training data + bundle.
@@ -61,7 +56,7 @@ def synthetic_training_frame(fake_selection: FeatureSelection) -> pd.DataFrame:
     rng = np.random.default_rng(seed=0)
     rows: list[dict] = []
     for station, lat, lon, gh in [
-        ("sta_a",  0.4, 32.6, "abc12"),
+        ("sta_a", 0.4, 32.6, "abc12"),
         ("sta_b", -1.0, 36.8, "qrs45"),
     ]:
         for d in pd.date_range("2024-01-01", "2024-02-29", freq="D"):
@@ -78,7 +73,9 @@ def synthetic_training_frame(fake_selection: FeatureSelection) -> pd.DataFrame:
                     "sat_ghi_nasa_kwh_m2_day": sat_nasa,
                     "sat_ghi_cams_kwh_m2_day": sat_cams,
                     "nasa_temperature": temp,
-                    "y_ghi_kwh_m2_day": 0.7 * sat_nasa + 0.05 * temp + rng.normal(0, 0.2),
+                    "y_ghi_kwh_m2_day": 0.7 * sat_nasa
+                    + 0.05 * temp
+                    + rng.normal(0, 0.2),
                 }
             )
     return pd.DataFrame(rows)
@@ -122,9 +119,7 @@ def trained_bundle(
     bundle = Trainer().train(
         processed=processed,
         params=RandomForestParams(n_estimators=10, max_depth=4, random_state=0),
-        splitter=SpatialBlockSplitter(
-            val_blocks=("sta_b",), block_column="location"
-        ),
+        splitter=SpatialBlockSplitter(val_blocks=("sta_b",), block_column="location"),
         holdout_label="sta_b holdout",
         bundle_dest=bundle_dest,
     )
@@ -150,14 +145,16 @@ def _make_fake_warehouse(
             sat_cams = sat_nasa + float(rng.normal(0, 0.25))
             irr_rows.append(
                 {
-                    "date": d, "geohash5": gh,
+                    "date": d,
+                    "geohash5": gh,
                     "sat_ghi_nasa_kwh_m2_day": sat_nasa,
                     "sat_ghi_cams_kwh_m2_day": sat_cams,
                 }
             )
             aux_rows.append(
                 {
-                    "date": d, "geohash5": gh,
+                    "date": d,
+                    "geohash5": gh,
                     "nasa_temperature": float(rng.uniform(22.0, 26.0)),
                 }
             )
@@ -216,20 +213,24 @@ def fake_bq() -> MagicMock:
 class TestPredictionRequest:
     def test_empty_coords_raises(self) -> None:
         with pytest.raises(ValueError, match="empty"):
-            PredictionRequest(coords=(), start_date=date(2024, 1, 1), end_date=date(2024, 1, 2))
+            PredictionRequest(
+                coords=(), start_date=date(2024, 1, 1), end_date=date(2024, 1, 2)
+            )
 
     def test_latitude_out_of_range_raises(self) -> None:
         with pytest.raises(ValueError, match="Latitude"):
             PredictionRequest(
                 coords=((200.0, 0.0),),
-                start_date=date(2024, 1, 1), end_date=date(2024, 1, 2),
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 1, 2),
             )
 
     def test_swapped_dates_raise_with_remediation(self) -> None:
         with pytest.raises(ValueError, match="precedes"):
             PredictionRequest(
                 coords=((0.5, 33.0),),
-                start_date=date(2024, 2, 1), end_date=date(2024, 1, 1),
+                start_date=date(2024, 2, 1),
+                end_date=date(2024, 1, 1),
             )
 
 
@@ -250,7 +251,8 @@ class TestPredictHappyPath:
         predictor = Predictor(bundle=trained_bundle, bq=fake_bq)
         result = predictor.predict(
             coords=[(0.333542, 32.56863)],  # → s8p1v
-            start_date=start, end_date=end,
+            start_date=start,
+            end_date=end,
         )
         assert len(result) == 7
         assert "y_pred_kwh_m2_day" in result.columns
@@ -264,8 +266,8 @@ class TestPredictHappyPath:
     ) -> None:
         # Two coords; resolve to distinct geohash5s.
         start, end = date(2024, 1, 1), date(2024, 1, 3)
-        gh_a = "s8p1v"   # Kampala-ish
-        gh_b = "kzdre"   # eastern Kenya
+        gh_a = "s8p1v"  # Kampala-ish
+        gh_b = "kzdre"  # eastern Kenya
         irr, aux = _make_fake_warehouse(
             list(pd.date_range(start, end, freq="D").date),
             geohash5s=(gh_a, gh_b),
@@ -275,7 +277,8 @@ class TestPredictHappyPath:
         predictor = Predictor(bundle=trained_bundle, bq=fake_bq)
         result = predictor.predict(
             coords=[(0.333542, 32.56863), (-1.491302, 37.052862)],
-            start_date=start, end_date=end,
+            start_date=start,
+            end_date=end,
         )
         # 2 coords × 3 days = 6 rows.
         assert len(result) == 6
@@ -296,7 +299,8 @@ class TestPredictHappyPath:
         predictor = Predictor(bundle=trained_bundle, bq=fake_bq)
         result = predictor.predict(
             coords=[(0.333542, 32.56863)],
-            start_date=start, end_date=end,
+            start_date=start,
+            end_date=end,
         )
         assert np.isfinite(result["y_pred_kwh_m2_day"]).all()
 
@@ -318,7 +322,8 @@ class TestCacheMiss:
         with pytest.raises(RuntimeError, match="missing"):
             predictor.predict(
                 coords=[(0.333542, 32.56863)],
-                start_date=date(2024, 1, 1), end_date=date(2024, 1, 7),
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 1, 7),
             )
 
 
@@ -332,9 +337,7 @@ class TestFetchModeCredentials:
         """on_cache_miss='fetch' without CAMS_EMAIL must fail loudly upfront."""
         monkeypatch.delenv("CAMS_EMAIL", raising=False)
         with pytest.raises(ValueError, match="CAMS_EMAIL"):
-            Predictor(
-                bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch"
-            )
+            Predictor(bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch")
 
     def test_present_cams_email_allows_construction(
         self,
@@ -343,9 +346,7 @@ class TestFetchModeCredentials:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("CAMS_EMAIL", "you@example.com")
-        predictor = Predictor(
-            bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch"
-        )
+        predictor = Predictor(bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch")
         assert predictor.on_cache_miss == "fetch"
 
 
@@ -393,17 +394,18 @@ class TestFetchOnDemand:
             return MagicMock(rows_added_long=0, rows_added_irr=0)
 
         from susse.warehouse_ops.population.jobs.satellite_job import (
-            CamsSatelliteJob, NasaPowerSatelliteJob,
+            CamsSatelliteJob,
+            NasaPowerSatelliteJob,
         )
+
         monkeypatch.setattr(NasaPowerSatelliteJob, "run", fake_nasa_run)
         monkeypatch.setattr(CamsSatelliteJob, "run", fake_cams_run)
 
-        predictor = Predictor(
-            bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch"
-        )
+        predictor = Predictor(bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch")
         result = predictor.predict(
             coords=[(0.333542, 32.56863)],
-            start_date=start, end_date=end,
+            start_date=start,
+            end_date=end,
         )
         # Both jobs were invoked.
         assert nasa_call["count"] == 1
@@ -429,15 +431,19 @@ class TestFetchOnDemand:
 
         patched_satellite_repo(
             irradiance=pd.DataFrame(
-                columns=["date", "geohash5", "sat_ghi_nasa_kwh_m2_day", "sat_ghi_cams_kwh_m2_day"]
+                columns=[
+                    "date",
+                    "geohash5",
+                    "sat_ghi_nasa_kwh_m2_day",
+                    "sat_ghi_cams_kwh_m2_day",
+                ]
             ),
             aux=pd.DataFrame(columns=["date", "geohash5", "nasa_temperature"]),
         )
-        predictor = Predictor(
-            bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch"
-        )
+        predictor = Predictor(bundle=trained_bundle, bq=fake_bq, on_cache_miss="fetch")
         with pytest.raises(RuntimeError, match="exceeding the per-invocation cap"):
             predictor.predict(
                 coords=coords,
-                start_date=date(2024, 1, 1), end_date=date(2024, 1, 1),
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 1, 1),
             )

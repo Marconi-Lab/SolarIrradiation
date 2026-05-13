@@ -48,12 +48,35 @@ class IrradianceBand(StrEnum):
     (``ghi_kwh_m2_day``, ``dhi_kwh_m2_day``, ``dni_kwh_m2_day``). The enum
     value matches the column-name prefix, so callers can use it both as
     a selection token and to build the resulting ``sat_<band>_<source>``
-    output column names.
+    output column names — see :func:`satellite_irradiance_column`.
     """
 
     GHI = "ghi"
     DHI = "dhi"
     DNI = "dni"
+
+
+def satellite_irradiance_column(
+    source: Source, band: IrradianceBand = IrradianceBand.GHI
+) -> str:
+    """Wide-table column name for ``(source, band)`` after the pivot from ``irradiance_daily``.
+
+    Single source of truth for the ``sat_<band>_<source>_kwh_m2_day``
+    naming convention. The SQL alias in
+    :meth:`SatelliteRepository.daily_irradiance_by_geohash`, the
+    placeholder synthesis in
+    :meth:`FeatureService._empty_irradiance_placeholder`, the
+    Trainer's default baseline columns, and any downstream code that
+    refers to satellite-irradiance columns all route through here.
+
+    Example::
+
+        >>> satellite_irradiance_column(Source.NASA_POWER, IrradianceBand.GHI)
+        'sat_ghi_nasa_kwh_m2_day'
+        >>> satellite_irradiance_column(Source.CAMS)  # band defaults to GHI
+        'sat_ghi_cams_kwh_m2_day'
+    """
+    return f"sat_{band.value}_{source.value.lower()}_kwh_m2_day"
 
 
 class PhysicalStorage(StrEnum):

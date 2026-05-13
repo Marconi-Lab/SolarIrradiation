@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence
 import pandas as pd
 import pygeohash
 
+from .. import schema
 from ..datasets import FeatureSelection, FeatureService
 from ..preprocessing import Preprocessor
 from ..training import TrainedBundle, load_bundle
@@ -54,7 +55,7 @@ from ..warehouse_ops.population.types import (
 if TYPE_CHECKING:  # pragma: no cover — type-only
     from ..preprocessing.elevation import ElevationProvider
 
-_PREDICTION_COLUMN: str = "y_pred_kwh_m2_day"
+_PREDICTION_COLUMN: str = schema.PREDICTION
 
 MAX_CAMS_CALLS_PER_PREDICT: int = 30
 """Hard cap on per-cell CAMS fetches in a single :meth:`Predictor.predict`
@@ -227,7 +228,7 @@ class Predictor:
             end_date=end_date,
         )
         coords_df = self._coords_to_dataframe(request.coords)
-        unique_geohashes = tuple(coords_df["geohash5"].unique())
+        unique_geohashes = tuple(coords_df[schema.GEOHASH5].unique())
         warehouse_df = self._fetch_warehouse_features(
             geohash5s=unique_geohashes,
             start_date=request.start_date,
@@ -295,10 +296,12 @@ class Predictor:
             rows.append(
                 {
                     "coord_idx": i,
-                    "location": f"point_{i:04d}",
-                    "lat": float(lat),
-                    "lon": float(lon),
-                    "geohash5": pygeohash.encode(lat, lon, precision=precision),
+                    schema.LOCATION: f"point_{i:04d}",
+                    schema.LAT: float(lat),
+                    schema.LON: float(lon),
+                    schema.GEOHASH5: pygeohash.encode(
+                        lat, lon, precision=precision
+                    ),
                 }
             )
         return pd.DataFrame(rows)
@@ -335,17 +338,17 @@ class Predictor:
             return []
         expected_dates = pd.date_range(start_date, end_date, freq="D").date
         expected = pd.MultiIndex.from_product(
-            [geohash5s, expected_dates], names=["geohash5", "date"]
+            [geohash5s, expected_dates], names=[schema.GEOHASH5, schema.DATE]
         )
         if warehouse_df.empty:
             present_dates: pd.Series = pd.Series([], dtype="object")
             present_gh: pd.Series = pd.Series([], dtype=str)
         else:
-            present_dates = pd.to_datetime(warehouse_df["date"]).dt.date
-            present_gh = warehouse_df["geohash5"]
+            present_dates = pd.to_datetime(warehouse_df[schema.DATE]).dt.date
+            present_gh = warehouse_df[schema.GEOHASH5]
         present = pd.MultiIndex.from_arrays(
             [present_gh, present_dates],
-            names=["geohash5", "date"],
+            names=[schema.GEOHASH5, schema.DATE],
         )
         missing = expected.difference(present)
         return list(missing)
@@ -397,14 +400,14 @@ class Predictor:
         # Recover (lat, lon, name) for each missing geohash5 from the
         # coords_df. Multiple coords sharing one geohash5 contribute one
         # LocationSpec.
-        gh_to_coord = coords_df.drop_duplicates(subset="geohash5").set_index(
-            "geohash5"
-        )[["lat", "lon", "location"]]
+        gh_to_coord = coords_df.drop_duplicates(subset=schema.GEOHASH5).set_index(
+            schema.GEOHASH5
+        )[[schema.LAT, schema.LON, schema.LOCATION]]
         locations = tuple(
             LocationSpec(
-                name=str(gh_to_coord.loc[gh, "location"]),
-                lat=float(gh_to_coord.loc[gh, "lat"]),
-                lon=float(gh_to_coord.loc[gh, "lon"]),
+                name=str(gh_to_coord.loc[gh, schema.LOCATION]),
+                lat=float(gh_to_coord.loc[gh, schema.LAT]),
+                lon=float(gh_to_coord.loc[gh, schema.LON]),
             )
             for gh in sorted(missing_geohash5s)
         )
@@ -466,13 +469,13 @@ class Predictor:
         """Cross-join coords × warehouse rows for that geohash5."""
         if warehouse_df.empty:
             return coords_df.assign(date=pd.NaT).iloc[0:0]
-        return coords_df.merge(warehouse_df, on="geohash5", how="inner")
+        return coords_df.merge(warehouse_df, on=schema.GEOHASH5, how="inner")
 
     def _format_output(self, processed_df: pd.DataFrame) -> pd.DataFrame:
         """Order columns + drop internal scaffolding from the result."""
         front = [
             c
-            for c in ("lat", "lon", "geohash5", "date", "location")
+            for c in (schema.LAT, schema.LON, schema.GEOHASH5, schema.DATE, schema.LOCATION)
             if c in processed_df.columns
         ]
         rest = [

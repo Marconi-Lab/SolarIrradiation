@@ -33,6 +33,7 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from .. import schema
 from ._kind_tagged import KindTaggedSpec, kind_dispatched_from_dict
 
 
@@ -131,7 +132,7 @@ class GhiUpperBoundCleaner(DataCleaner):
     Used in: Mukiibi & Mikelson (2026) ground-truth curation.
     """
 
-    column: str = "ghi_kwh_m2_day"
+    column: str = schema.GROUND_GHI
     threshold: float = 12.0
 
     def __post_init__(self) -> None:
@@ -166,7 +167,7 @@ class GhiUpperBoundCleaner(DataCleaner):
     ) -> "GhiUpperBoundCleaner":
         del providers
         return cls(
-            column=d.get("column", "ghi_kwh_m2_day"),
+            column=d.get("column", schema.GROUND_GHI),
             threshold=float(d.get("threshold", 12.0)),
         )
 
@@ -184,7 +185,7 @@ class IqrLowerBoundCleaner(DataCleaner):
     Multiplier 1.5 is the classic Tukey value the paper uses.
     """
 
-    column: str = "ghi_kwh_m2_day"
+    column: str = schema.GROUND_GHI
     multiplier: float = 1.5
 
     def __post_init__(self) -> None:
@@ -229,7 +230,7 @@ class IqrLowerBoundCleaner(DataCleaner):
     ) -> "IqrLowerBoundCleaner":
         del providers
         return cls(
-            column=d.get("column", "ghi_kwh_m2_day"),
+            column=d.get("column", schema.GROUND_GHI),
             multiplier=float(d.get("multiplier", 1.5)),
         )
 
@@ -250,8 +251,8 @@ class HighMissingYearExcluder(DataCleaner):
     remaining smaller gaps.
     """
 
-    station_column: str = "location"
-    date_column: str = "date"
+    station_column: str = schema.LOCATION
+    date_column: str = schema.DATE
     missing_fraction_threshold: float = 0.05
 
     def __post_init__(self) -> None:
@@ -305,8 +306,8 @@ class HighMissingYearExcluder(DataCleaner):
     ) -> "HighMissingYearExcluder":
         del providers
         return cls(
-            station_column=d.get("station_column", "location"),
-            date_column=d.get("date_column", "date"),
+            station_column=d.get("station_column", schema.LOCATION),
+            date_column=d.get("date_column", schema.DATE),
             missing_fraction_threshold=float(d.get("missing_fraction_threshold", 0.05)),
         )
 
@@ -328,9 +329,9 @@ class KnnYearGapImputer(DataCleaner):
     unchanged so the caller can spot the under-served case).
     """
 
-    target_column: str = "ghi_kwh_m2_day"
-    station_column: str = "location"
-    date_column: str = "date"
+    target_column: str = schema.GROUND_GHI
+    station_column: str = schema.LOCATION
+    date_column: str = schema.DATE
     k: int = 5
 
     def __post_init__(self) -> None:
@@ -421,9 +422,9 @@ class KnnYearGapImputer(DataCleaner):
     ) -> "KnnYearGapImputer":
         del providers
         return cls(
-            target_column=d.get("target_column", "ghi_kwh_m2_day"),
-            station_column=d.get("station_column", "location"),
-            date_column=d.get("date_column", "date"),
+            target_column=d.get("target_column", schema.GROUND_GHI),
+            station_column=d.get("station_column", schema.LOCATION),
+            date_column=d.get("date_column", schema.DATE),
             k=int(d.get("k", 5)),
         )
 
@@ -462,7 +463,7 @@ class PerStationMeanImputer(DataCleaner):
     """
 
     columns: tuple[str, ...] = ()
-    station_column: str = "location"
+    station_column: str = schema.LOCATION
 
     def __post_init__(self) -> None:
         if not self.columns:
@@ -511,5 +512,5 @@ class PerStationMeanImputer(DataCleaner):
         del providers
         return cls(
             columns=tuple(d.get("columns", ())),
-            station_column=d.get("station_column", "location"),
+            station_column=d.get("station_column", schema.LOCATION),
         )
