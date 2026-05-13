@@ -37,7 +37,7 @@ from ..datasets import FeatureService, FeatureSelection
 from ..preprocessing import FeatureSpec, PreprocessedDataset, Preprocessor
 from ..training import TrainedBundle, load_bundle
 from ..warehouse_ops.io.bq import BigQueryClient
-from ..warehouse_ops.io.config import TableRefs, WarehouseConfig
+from ..warehouse_ops.io.config import WarehouseConfig
 from ..warehouse_ops.population.dim_variable import VariableCatalog
 from ..warehouse_ops.population.jobs.satellite_job import (
     CamsSatelliteJob,
@@ -45,7 +45,6 @@ from ..warehouse_ops.population.jobs.satellite_job import (
 )
 from ..warehouse_ops.population.types import (
     DateRange,
-    IrradianceBand,
     LocationSpec,
     NamedLocationsPlan,
     Source,
@@ -56,7 +55,6 @@ if TYPE_CHECKING:  # pragma: no cover — type-only
     from ..preprocessing.elevation import ElevationProvider
 
 _PREDICTION_COLUMN: str = "y_pred_kwh_m2_day"
-_DEFAULT_GEOHASH_PRECISION: int = 5
 
 MAX_CAMS_CALLS_PER_PREDICT: int = 30
 """Hard cap on per-cell CAMS fetches in a single :meth:`Predictor.predict`
@@ -138,7 +136,6 @@ class Predictor:
         self._bundle = bundle
         self._bq = bq
         self._service = service if service is not None else FeatureService(bq)
-        self._tables = self._service.tables
         self._on_cache_miss: CacheMissPolicy = on_cache_miss
         self._selection: FeatureSelection = (
             bundle.source_manifest.feature_selection
@@ -290,11 +287,12 @@ class Predictor:
     # Internal — coord prep
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _coords_to_dataframe(
+        self,
         coords: Sequence[tuple[float, float]],
     ) -> pd.DataFrame:
         """Compute geohash5 + synthetic location name per coord."""
+        precision = self._service.geohash_precision
         rows: list[dict[str, object]] = []
         for i, (lat, lon) in enumerate(coords):
             rows.append(
@@ -303,9 +301,7 @@ class Predictor:
                     "location": f"point_{i:04d}",
                     "lat": float(lat),
                     "lon": float(lon),
-                    "geohash5": pygeohash.encode(
-                        lat, lon, precision=_DEFAULT_GEOHASH_PRECISION
-                    ),
+                    "geohash5": pygeohash.encode(lat, lon, precision=precision),
                 }
             )
         return pd.DataFrame(rows)
@@ -322,34 +318,12 @@ class Predictor:
         end_date: date,
     ) -> pd.DataFrame:
         """Pull irradiance + per-source aux for the requested cells in one go."""
-        selection = self._selection
-        irr = self._service._sat.daily_irradiance_by_geohash(  # noqa: SLF001
-            start_date,
-            end_date,
-            sources=tuple(s.value for s in selection.include_satellite_irradiance),
-            bands=selection.include_satellite_bands,
+        return self._service.build_satellite_features(
+            selection=self._selection,
+            date_start=start_date,
+            date_end=end_date,
             geohash5s=geohash5s,
         )
-        merged = irr
-        for source, ids in self._aux_requests(selection):
-            table_attr, prefix = _LONG_AUX_TABLES[source]
-            aux = self._service._sat.long_aux_pivoted(  # noqa: SLF001
-                table_fqn=getattr(self._tables, table_attr),
-                column_prefix=prefix,
-                start=start_date,
-                end=end_date,
-                variable_ids=ids,
-                geohash5s=geohash5s,
-            )
-            if aux.empty:
-                continue
-            merged = (
-                aux if merged.empty
-                else merged.merge(aux, on=["date", "geohash5"], how="left")
-            )
-        if merged.empty:
-            return pd.DataFrame(columns=["date", "geohash5"])
-        return merged
 
     def _detect_cache_misses(
         self,
@@ -537,30 +511,3 @@ class Predictor:
         out = processed_df[front + rest + [_PREDICTION_COLUMN]].copy()
         return out.reset_index(drop=True)
 
-    # ------------------------------------------------------------------
-    # Internal — shared with FeatureService.
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _aux_requests(
-        selection: FeatureSelection,
-    ) -> list[tuple[Source, tuple[str, ...]]]:
-        out: list[tuple[Source, tuple[str, ...]]] = []
-        if selection.nasa_variable_ids:
-            out.append((Source.NASA_POWER, selection.nasa_variable_ids))
-        if selection.cams_variable_ids:
-            out.append((Source.CAMS, selection.cams_variable_ids))
-        if selection.merra_variable_ids:
-            out.append((Source.MERRA_2, selection.merra_variable_ids))
-        return out
-
-
-# Single source of truth for the (source → table accessor, column prefix)
-# mapping. Mirrors the same private constant in FeatureService — kept in
-# sync by hand for now; the day a third consumer appears, lift it into a
-# shared module per CLAUDE.md "shared utilities in neutral modules".
-_LONG_AUX_TABLES: dict[Source, tuple[str, str]] = {
-    Source.NASA_POWER: ("nasa_daily_vars_long", "nasa"),
-    Source.CAMS: ("cams_daily_vars_long", "cams"),
-    Source.MERRA_2: ("merra_daily_vars_long", "merra"),
-}

@@ -19,11 +19,11 @@ from ..warehouse_ops.io.repositories import GroundRepository, SatelliteRepositor
 from ..warehouse_ops.population.types import Source
 from .feature_selection import FeatureSelection
 
-# Source-id → table accessor, prefix used when pivoting that source's
-# long-format aux table. Single source of truth so adding a new aux
-# source is one entry here plus an entry in FeatureSelection.
+# Source-id → (TableRefs attr, column prefix). Single source of truth for
+# every consumer (training pairs, inference features, Predictor): they all
+# go through :meth:`FeatureService.build_satellite_features`, so no other
+# module needs to import this.
 _LONG_AUX_TABLES: dict[Source, tuple[str, str]] = {
-    # Source: (TableRefs attr, column prefix)
     Source.NASA_POWER: ("nasa_daily_vars_long", "nasa"),
     Source.CAMS: ("cams_daily_vars_long", "cams"),
     Source.MERRA_2: ("merra_daily_vars_long", "merra"),
@@ -53,6 +53,89 @@ class FeatureService:
     def tables(self) -> TableRefs:
         return self._t
 
+    @property
+    def geohash_precision(self) -> int:
+        """Geohash precision the warehouse + queries use, e.g. ``5``."""
+        return self._opts.geohash_precision
+
+    # ------------------------------------------------------------------
+    # Satellite features — the one loop every other method composes on top of.
+    # ------------------------------------------------------------------
+
+    def build_satellite_features(
+        self,
+        *,
+        selection: FeatureSelection,
+        date_start: date,
+        date_end: date,
+        geohash5s: Sequence[str],
+    ) -> pd.DataFrame:
+        """Wide ``(date, geohash5)`` frame: irradiance + per-source aux.
+
+        The single place the satellite-side fetch + pivot + merge loop
+        lives. :meth:`build_training_pairs`, :meth:`build_inference_features`,
+        and :class:`~susse.inference.Predictor` all delegate here.
+
+        Args:
+            selection: What to pull, per source.
+            date_start, date_end: Inclusive date bounds.
+            geohash5s: Geohash5 cells to query. Must be non-empty.
+
+        Returns:
+            Wide DataFrame with columns ``date``, ``geohash5``, one
+            ``sat_<band>_<source>_kwh_m2_day`` per requested (band, source),
+            and ``<prefix>_<variable_id>`` per requested aux variable.
+            Rows are present only for (date, geohash5) the warehouse
+            actually has — callers that need placeholder rows synthesize
+            them after this returns.
+
+        Raises:
+            ValueError: If ``geohash5s`` is empty.
+            NotImplementedError: If ``selection.modis_variable_ids`` is
+                non-empty. MODIS lives at composite cadence in a separate
+                table and is not yet wired through this assembler.
+        """
+        if not geohash5s:
+            raise ValueError(
+                "build_satellite_features: geohash5s is empty. Pass at "
+                "least one geohash5 string."
+            )
+        if selection.modis_variable_ids:
+            raise NotImplementedError(
+                "FeatureSelection.modis_variable_ids is not yet wired "
+                "through FeatureService. MODIS data lives at composite-"
+                "cadence dates in modis_observations; the forward-fill "
+                "semantics will land with NB 03 once C8 has populated "
+                "the table. Leave modis_variable_ids empty for now."
+            )
+        gh_tuple = tuple(geohash5s)
+        irr = self._sat.daily_irradiance_by_geohash(
+            date_start,
+            date_end,
+            sources=tuple(s.value for s in selection.include_satellite_irradiance),
+            bands=selection.include_satellite_bands,
+            geohash5s=gh_tuple,
+        )
+        df = irr
+        for source, ids in self._aux_requests(selection):
+            table_attr, prefix = _LONG_AUX_TABLES[source]
+            aux = self._sat.long_aux_pivoted(
+                table_fqn=getattr(self._t, table_attr),
+                column_prefix=prefix,
+                start=date_start,
+                end=date_end,
+                variable_ids=ids,
+                geohash5s=gh_tuple,
+            )
+            # LEFT-join: rows of the result are exactly irradiance's
+            # (date, geohash5) pairs. If a cell has aux data but no
+            # irradiance, callers must treat it as missing — the Predictor
+            # cache-miss detector relies on this definition.
+            df = self._merge_left(df, aux, on=("date", "geohash5"))
+        if df.empty:
+            return pd.DataFrame(columns=["date", "geohash5"])
+        return df
+
     # ------------------------------------------------------------------
     # Training pairs
     # ------------------------------------------------------------------
@@ -81,11 +164,8 @@ class FeatureService:
               * ``date, location, lat, lon, geohash5`` — base.
               * ``y_ghi_kwh_m2_day`` — ground target.
               * ``sat_<band>_<source>_kwh_m2_day`` per requested
-                (band, source) pair. ``band`` defaults to ``ghi``; set
-                :attr:`FeatureSelection.include_satellite_bands` to
-                additionally project DHI / DNI from the wide table.
-              * ``<prefix>_<variable_id>`` per requested aux variable
-                (prefix matches source: ``nasa_``, ``cams_``, ``merra_``).
+                (band, source) pair.
+              * ``<prefix>_<variable_id>`` per requested aux variable.
               * ``qc_level`` — kept for traceability.
         """
         ground = self._ground.fetch(
@@ -98,43 +178,13 @@ class FeatureService:
             return ground.rename(columns={"ghi_kwh_m2_day": "y_ghi_kwh_m2_day"})
         ground = ground.rename(columns={"ghi_kwh_m2_day": "y_ghi_kwh_m2_day"})
         plan_geohashes = tuple(ground["geohash5"].unique())
-
-        irr = self._sat.daily_irradiance_by_geohash(
-            date_start,
-            date_end,
-            sources=tuple(s.value for s in selection.include_satellite_irradiance),
-            bands=selection.include_satellite_bands,
+        satellite = self.build_satellite_features(
+            selection=selection,
+            date_start=date_start,
+            date_end=date_end,
             geohash5s=plan_geohashes,
         )
-        df = self._merge_left(ground, irr, on=("date", "geohash5"))
-
-        for source, ids in self._aux_requests(selection):
-            table_attr, prefix = _LONG_AUX_TABLES[source]
-            aux = self._sat.long_aux_pivoted(
-                table_fqn=getattr(self._t, table_attr),
-                column_prefix=prefix,
-                start=date_start,
-                end=date_end,
-                variable_ids=ids,
-                geohash5s=plan_geohashes,
-            )
-            df = self._merge_left(df, aux, on=("date", "geohash5"))
-
-        if selection.modis_variable_ids:
-            # MODIS lives in modis_observations with composite-cadence
-            # rows (date = composite end). The forward-fill / as-of join
-            # belongs in preprocessing (NB 03), not in materialisation —
-            # that way the snapshot stores only what BigQuery actually
-            # has, and the daily upsampling decision is documented in
-            # the preprocessing config.
-            raise NotImplementedError(
-                "FeatureSelection.modis_variable_ids is not yet wired "
-                "through FeatureService.build_training_pairs. MODIS data "
-                "lives at composite-cadence dates in modis_observations; "
-                "the forward-fill semantics will land with NB 03 once C8 "
-                "has populated the table. Leave modis_variable_ids empty "
-                "for now."
-            )
+        df = self._merge_left(ground, satellite, on=("date", "geohash5"))
         return df.sort_values(["date", "location"]).reset_index(drop=True)
 
     # ------------------------------------------------------------------
@@ -151,51 +201,47 @@ class FeatureService:
     ) -> pd.DataFrame:
         """Single-row feature frame for inference at ``(lat, lon, target_date)``.
 
-        Uses geohash-binned joins (same precision as the warehouse
-        default). No ground truth is included — that's what the model is
-        going to predict.
+        Uses geohash-binned joins (same precision as the warehouse default).
+        If the warehouse has no row for this (geohash, date), a placeholder
+        row with NaN satellite columns is returned so callers always get
+        exactly one row.
         """
-        if selection.modis_variable_ids:
-            raise NotImplementedError(
-                "FeatureSelection.modis_variable_ids is not yet wired "
-                "through FeatureService.build_inference_features. See "
-                "build_training_pairs for the same constraint."
-            )
         import pygeohash
 
         gh = pygeohash.encode(lat, lon, precision=self._opts.geohash_precision)
-
-        irr = self._sat.daily_irradiance_by_geohash(
-            target_date,
-            target_date,
-            sources=tuple(s.value for s in selection.include_satellite_irradiance),
-            bands=selection.include_satellite_bands,
+        satellite = self.build_satellite_features(
+            selection=selection,
+            date_start=target_date,
+            date_end=target_date,
             geohash5s=(gh,),
         )
-        if irr.empty:
-            base = pd.DataFrame([{"date": target_date, "geohash5": gh}])
-            for band in selection.include_satellite_bands:
-                for src in selection.include_satellite_irradiance:
-                    base[f"sat_{band.value}_{src.value.lower()}_kwh_m2_day"] = pd.NA
-            df = base
-        else:
-            df = irr
-
-        for source, ids in self._aux_requests(selection):
-            table_attr, prefix = _LONG_AUX_TABLES[source]
-            aux = self._sat.long_aux_pivoted(
-                table_fqn=getattr(self._t, table_attr),
-                column_prefix=prefix,
-                start=target_date,
-                end=target_date,
-                variable_ids=ids,
-                geohash5s=(gh,),
+        if satellite.empty:
+            df = self._empty_irradiance_placeholder(
+                target_date=target_date, geohash5=gh, selection=selection
             )
-            df = self._merge_left(df, aux, on=("date", "geohash5"))
-
+        else:
+            df = satellite
         df["lat"] = float(lat)
         df["lon"] = float(lon)
         return df
+
+    @staticmethod
+    def _empty_irradiance_placeholder(
+        *,
+        target_date: date,
+        geohash5: str,
+        selection: FeatureSelection,
+    ) -> pd.DataFrame:
+        """Synthesise a single-row frame with NaN sat columns.
+
+        Used by :meth:`build_inference_features` so the caller always gets
+        exactly one row even when the warehouse has nothing for this cell.
+        """
+        row: dict[str, object] = {"date": target_date, "geohash5": geohash5}
+        for band in selection.include_satellite_bands:
+            for src in selection.include_satellite_irradiance:
+                row[f"sat_{band.value}_{src.value.lower()}_kwh_m2_day"] = pd.NA
+        return pd.DataFrame([row])
 
     # ------------------------------------------------------------------
     # Manifest support
