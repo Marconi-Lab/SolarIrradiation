@@ -299,9 +299,7 @@ class Predictor:
                     schema.LOCATION: f"point_{i:04d}",
                     schema.LAT: float(lat),
                     schema.LON: float(lon),
-                    schema.GEOHASH5: pygeohash.encode(
-                        lat, lon, precision=precision
-                    ),
+                    schema.GEOHASH5: pygeohash.encode(lat, lon, precision=precision),
                 }
             )
         return pd.DataFrame(rows)
@@ -475,7 +473,13 @@ class Predictor:
         """Order columns + drop internal scaffolding from the result."""
         front = [
             c
-            for c in (schema.LAT, schema.LON, schema.GEOHASH5, schema.DATE, schema.LOCATION)
+            for c in (
+                schema.LAT,
+                schema.LON,
+                schema.GEOHASH5,
+                schema.DATE,
+                schema.LOCATION,
+            )
             if c in processed_df.columns
         ]
         rest = [

@@ -294,10 +294,7 @@ class AltitudeFeature(DerivedFeature):
             for lat, lon in zip(unique[schema.LAT], unique[schema.LON])
         }
         values = np.array(
-            [
-                elev_map[(lat, lon)]
-                for lat, lon in zip(df[schema.LAT], df[schema.LON])
-            ],
+            [elev_map[(lat, lon)] for lat, lon in zip(df[schema.LAT], df[schema.LON])],
             dtype=float,
         )
         return pd.DataFrame(
