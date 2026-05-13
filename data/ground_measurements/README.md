@@ -13,9 +13,17 @@ end-to-end immediately after `git clone`.
 
 | Subfolder | Source | Coverage |
 |---|---|---|
-| `CBE_Data/` | CrossBoundary Energy daily GHI exports | 6 country files: `egypt.csv`, `ghana.csv`, `kenya.csv`, `madagascar.csv`, `nigeria.csv`, `somalia.csv`. ~18,000 rows total across multiple sites per country. |
 | `MAK_physics_dept/` | Makerere University Physics Department station archive (Uganda) | 3 station files: `kampala.csv`, `lira.csv`, `tororo.csv`. ~5,000 rows each. |
 | `ministry_energy_ug/` | Uganda Ministry of Energy and Mineral Development | 2 station files: `soroti.csv`, `wadelai.csv`. ~700 rows each. |
+
+> **CrossBoundary Energy data is *not* checked in.** The 6 country files
+> (egypt / ghana / kenya / madagascar / nigeria / somalia) are covered by a
+> non-disclosure agreement and may not be distributed publicly. They have
+> already been ingested into the BigQuery warehouse and the model bundle
+> the portal serves; the originals are retained on Google Drive for
+> internal use. The directory is also listed in `.gitignore` so dropping a
+> fresh copy into `data/ground_measurements/CBE_Data/` does not
+> accidentally re-introduce it.
 
 ## Schema
 
@@ -26,7 +34,7 @@ Every CSV in every subfolder shares the same schema — handled by a single
 |---|---|---|
 | `datetime` | ISO date string | Daily-resolution; one row per (date, location). |
 | `ghi` | float | **Daily total GHI in Wh/m²/day** (raw values; curation converts to kWh/m²/day during warehouse ingest). |
-| `location` | string | Station identifier. CBE country files use `<country>_location<N>`; the rest use the station name (`kampala`, `soroti`, …). |
+| `location` | string | Station identifier. Makerere / Ministry-of-Energy files use the station name (`kampala`, `soroti`, …); the (private) CBE country files use `<country>_location<N>`. |
 | `latitude` | float | Decimal degrees. |
 | `longitude` | float | Decimal degrees. |
 

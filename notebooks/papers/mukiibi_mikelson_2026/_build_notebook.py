@@ -266,7 +266,7 @@ from susse.warehouse_ops.population.types import IrradianceBand, Source
 # `solar_zenith_angle` (NASA POWER doesn't serve it daily) and replace
 # the paper's integer `day_of_year` with a sin/cos pair below (§3).
 # The land-only EVLAND / EVPTRNS are also dropped here — they're NaN
-# at oceanic stations (e.g. ghana_location3 in the Gulf of Guinea) and
+# at stations in the Gulf of Guinea and
 # the rest of the recomputation is more robust without them. Re-add
 # them in combination with `PerStationMeanImputer` from
 # susse.preprocessing if you need them back.
@@ -902,7 +902,7 @@ so the on-disk bundle is portable to the portal as-is."""
 | Outlier curation | inline (paper text §II.A) | `cleaners` chain on the `FeatureSpec` | Architectural — the paper's rules now compose like any other cleaner. |
 | `day_of_year` integer | included alongside sin/cos | sin/cos only via `CyclicalDayOfYearFeature` | Cyclical encoding is information-equivalent; raw doy adds collinearity. |
 | Solar zenith angle | included as a predictor | dropped | NASA POWER doesn't serve daily SZA. |
-| `evaporation_land`, `evapotranspiration_energy` | included | dropped | NaN at oceanic stations (ghana_location3 in the Gulf of Guinea); land-only by design. Add `PerStationMeanImputer` if you re-include them. |
+| `evaporation_land`, `evapotranspiration_energy` | included | dropped | NaN at oceanic stations in the Gulf of Guinea; land-only by design. Add `PerStationMeanImputer` if you re-include them. |
 
 ## What's next
 
