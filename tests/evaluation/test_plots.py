@@ -130,6 +130,32 @@ def test_plot_training_fit_timeseries_no_references(
     )
 
 
+def test_plot_training_fit_timeseries_no_observed(
+    eval_frame: pd.DataFrame,
+) -> None:
+    """observed_column=None is the inference use case (no ground truth)."""
+    plot_training_fit_timeseries(
+        eval_frame,
+        observed_column=None,
+        prediction_series={"Model": "y_pred"},
+        reference_series={"NASA": "sat_ghi_nasa_kwh_m2_day"},
+        n_stations=2,
+    )
+
+
+def test_plot_training_fit_timeseries_single_station(
+    eval_frame: pd.DataFrame,
+) -> None:
+    """n_stations=1 must draw exactly one panel (no empty second column)."""
+    plot_training_fit_timeseries(
+        eval_frame,
+        observed_column=None,
+        prediction_series={"Model": "y_pred"},
+        reference_series={"NASA": "sat_ghi_nasa_kwh_m2_day"},
+        n_stations=1,
+    )
+
+
 def test_plot_predicted_vs_observed_panels(eval_frame: pd.DataFrame) -> None:
     plot_predicted_vs_observed_panels(
         eval_frame,

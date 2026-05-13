@@ -214,7 +214,7 @@ def plot_training_fit_scatter(
 def plot_training_fit_timeseries(
     df: pd.DataFrame,
     *,
-    observed_column: str,
+    observed_column: str | None = None,
     prediction_series: Mapping[str, str],
     reference_series: Mapping[str, str] | None = None,
     location_column: str = "location",
@@ -222,17 +222,20 @@ def plot_training_fit_timeseries(
     n_stations: int = 6,
     value_label: str = "kWh/m²/day",
 ) -> None:
-    """Weekly-resampled time series of observed + named comparison series.
+    """Weekly-resampled time series of predictions + named comparison series.
 
     Picks the ``n_stations`` stations with the most rows and restricts
     each station's panel to its most recent calendar year for
     legibility.
 
     Args:
-        df: Frame holding the observed + per-row date / location columns
-            and every named series.
-        observed_column: Ground-truth column. Rendered prominently
-            (blue line + circle markers).
+        df: Frame holding the per-row date / location columns and every
+            named series.
+        observed_column: Optional ground-truth column. When provided,
+            rendered prominently (blue line + circle markers); when
+            ``None`` (the inference use case), the observed line is
+            omitted entirely and the legend is built from
+            predictions + references only.
         prediction_series: Mapping ``{display_label: column_name}`` of
             model outputs to render with the same prominence as the
             observed series (line + circle markers).
@@ -253,32 +256,46 @@ def plot_training_fit_timeseries(
         .head(n_stations)
         .index.tolist()
     )
+    actual_n = len(plot_stations)
+    if actual_n == 0:
+        raise ValueError(
+            "plot_training_fit_timeseries: no stations found in "
+            f"column {location_column!r}. Check the input DataFrame."
+        )
+    # Tight subplot grid that doesn't leave empty cells for small n.
+    if actual_n == 1:
+        n_cols = 1
+    elif actual_n <= 4:
+        n_cols = 2
+    else:
+        n_cols = 2
+    n_rows = (actual_n + n_cols - 1) // n_cols
     fig, axes = plt.subplots(
-        (n_stations + 1) // 2,
-        2,
-        figsize=(16, 3 * ((n_stations + 1) // 2)),
+        n_rows, n_cols,
+        figsize=(8 * n_cols, 3 * n_rows),
         sharey=True,
+        squeeze=False,
     )
+    flat_axes = axes.flatten()
     prediction_palette = ["C3", "C4", "C5"]
     reference_palette = ["C2", "C1", "C6"]
     refs = reference_series or {}
-    all_cols = (
-        [observed_column] + list(prediction_series.values()) + list(refs.values())
-    )
-    for ax, loc in zip(np.atleast_1d(axes).flat, plot_stations):
+    series_cols = list(prediction_series.values()) + list(refs.values())
+    if observed_column is not None:
+        series_cols = [observed_column] + series_cols
+    for ax, loc in zip(flat_axes, plot_stations):
         sub = df[df[location_column] == loc].sort_values(date_column).copy()
         sub[date_column] = pd.to_datetime(sub[date_column])
         last_year = sub[date_column].dt.year.max()
         sub = sub[sub[date_column].dt.year == last_year]
-        weekly = sub.set_index(date_column)[all_cols].resample("W").mean()
-        ax.plot(
-            weekly.index,
-            weekly[observed_column],
-            "-o",
-            ms=3,
-            label="Observed",
-            color="C0",
-        )
+        weekly = sub.set_index(date_column)[series_cols].resample("W").mean()
+        if observed_column is not None:
+            ax.plot(
+                weekly.index,
+                weekly[observed_column],
+                "-o", ms=3,
+                label="Observed", color="C0",
+            )
         for color, (label, col) in zip(prediction_palette, prediction_series.items()):
             ax.plot(
                 weekly.index,
@@ -300,7 +317,9 @@ def plot_training_fit_timeseries(
             )
         ax.set_title(f"{loc} ({last_year}, n={len(sub):,})", fontsize=10)
         ax.grid(alpha=0.3)
-    np.atleast_1d(axes).flat[0].legend(fontsize=8, loc="lower left")
+    for ax in flat_axes[actual_n:]:
+        ax.set_visible(False)
+    flat_axes[0].legend(fontsize=8, loc="lower left")
     fig.supylabel(value_label)
     fig.tight_layout()
     plt.show()
