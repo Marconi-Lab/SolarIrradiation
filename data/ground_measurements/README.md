@@ -41,9 +41,8 @@ only thing that knows about the partner's column layout.
 
 ## What does NOT live here
 
-- **External validation datasets** (e.g. Katongole 2023) live alongside their
-  validation notebook under `notebooks/papers/<paper>/`, not here. This
-  directory is reserved for ground truth that we curate ourselves and feed
-  into training.
+- **External validation datasets** (e.g. Katongole 2023) live under
+  `data/external_references/`, not here. This directory is reserved for
+  ground truth that we curate ourselves and feed into training.
 - **Generated artifacts** (training-snapshot parquets, fitted-model bundles)
   live under `data/training_snapshots/` and `data/bundles/`, both gitignored.

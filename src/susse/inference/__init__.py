@@ -8,11 +8,13 @@ Public entry points:
 * :class:`PredictionRequest` — validated request object exposed for
   callers that want to construct requests programmatically.
 
-The current implementation requires every requested ``(geohash5,
-date)`` cell to be present in the warehouse. Arbitrary-lat/lon
-queries against uncached regions need the on-demand fetch path
-(Phase B), which is reserved as a constructor option but not yet
-implemented.
+Cache misses (geohash5 cells absent from the warehouse for some of
+the requested dates) are surfaced loudly by default
+(``on_cache_miss="raise"``). With ``on_cache_miss="fetch"``, the
+predictor synchronously reuses :class:`NasaPowerSatelliteJob` and
+:class:`CamsSatelliteJob` to populate the missing cells, then
+re-queries the warehouse before predicting. Per-invocation CAMS
+fetches are capped to keep within the daily quota.
 """
 
 from .predictor import PredictionRequest, Predictor

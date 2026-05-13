@@ -4,7 +4,7 @@ Three lanes, distinct audiences:
 
 ```
 notebooks/
-  tutorial/      ← system overview; read 01 → 05 in order to learn the codebase
+  tutorial/      ← system overview; read 01 → 07 in order to learn the codebase
   inspection/    ← day-to-day model & data inspection (one question per file)
   papers/        ← per-publication validation analyses, with data co-located
 ```

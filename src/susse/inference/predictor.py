@@ -119,9 +119,11 @@ class Predictor:
         bundle: The trained-model artifact loaded into memory.
         on_cache_miss: ``"raise"`` (default) fails loudly when a
             requested ``(geohash5, date)`` cell is missing from the
-            warehouse. ``"fetch"`` is reserved for Phase B (on-demand
-            NASA POWER + CAMS fetch) and raises ``NotImplementedError``
-            today.
+            warehouse. ``"fetch"`` synchronously runs the existing
+            NASA POWER and CAMS satellite jobs to populate the missing
+            cells, then re-queries the warehouse. ``"fetch"`` requires
+            ``CAMS_EMAIL`` to be set and caps per-invocation CAMS calls
+            at :data:`MAX_CAMS_CALLS_PER_PREDICT`.
     """
 
     def __init__(
@@ -218,9 +220,11 @@ class Predictor:
                 date order, out-of-range lat/lon).
             RuntimeError: When ``on_cache_miss="raise"`` and the
                 warehouse is missing any requested ``(geohash5, date)``
-                cell. The error names the missing cells.
-            NotImplementedError: When ``on_cache_miss="fetch"`` is
-                requested — Phase B will add the on-demand fetch path.
+                cell, or when ``on_cache_miss="fetch"`` would exceed
+                :data:`MAX_CAMS_CALLS_PER_PREDICT`, or when an
+                on-demand fetch completes but the requested cells are
+                still missing afterwards (e.g. dates outside CAMS
+                coverage). The error names the missing cells.
         """
         request = PredictionRequest(
             coords=tuple(coords),

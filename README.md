@@ -24,10 +24,10 @@ a `TrainedBundle` and serves bias-corrected GHI predictions at any
 
 ```
 src/susse/                Library code (warehouse_ops, datasets, preprocessing,
-                          models, training, api_clients).
+                          models, training, evaluation, inference, api_clients).
 tests/                    pytest suite — mirrors src/susse/ one-to-one.
 notebooks/
-  tutorial/               01–05 end-to-end walk-through of the pipeline.
+  tutorial/               01–07 end-to-end walk-through of the pipeline.
   inspection/             Day-to-day analysis (one notebook = one question).
   papers/<paper>/         Per-publication validation, data co-located.
 warehouse/
@@ -49,9 +49,10 @@ docs/architecture.md      Library-internals reference for contributors.
 | `FeatureSpec` cleaners + derived features (clear-sky index, day-of-year, altitude) | shipped |
 | Random Forest / Linear / Mean Baseline models with the unified `Trainer` | shipped |
 | `TrainedBundle` save/load + W&B artifact integration | shipped |
+| Tutorial 06 (evaluation: `Splitter` ABC, `Metric` ABC, `Evaluator`, generic eval plots) | shipped |
+| Tutorial 07 (inference API: `Predictor.from_bundle_dir` + `predict(coords, start_date, end_date)`) | shipped |
+| `susse.inference.Predictor` with `on_cache_miss="raise"` and on-demand `"fetch"` mode | shipped |
 | Recomputation of Mukiibi & Mikelson (2026) | shipped — see `notebooks/papers/mukiibi_mikelson_2026/` |
-| Tutorial 06 (evaluation: splitter abstraction + metrics class) | **planned** |
-| Tutorial 07 (inference API: portal-facing `predict(lat, lon, date)`) | **planned** |
 | `inspection/` notebooks (variable distributions, residual analysis, …) | **planned** — built on demand |
 
 ## Install
@@ -91,12 +92,16 @@ EARTHDATA_PASSWORD=<NASA Earthdata password>
 2. `notebooks/tutorial/02_query_the_warehouse.ipynb` →
    `03_preprocessing.ipynb` → `04_models.ipynb` → `05_training.ipynb`
    — the assembly → training → bundle path, in order.
-3. `notebooks/papers/mukiibi_mikelson_2026/01_recomputation.ipynb` — a
+3. `notebooks/tutorial/06_evaluation.ipynb` →
+   `07_inference.ipynb` — evaluation (splitters, metrics, plots) and
+   the portal-facing `Predictor` (coords + date range → bias-corrected
+   daily GHI), including the on-demand warehouse-fetch fallback.
+4. `notebooks/papers/mukiibi_mikelson_2026/01_recomputation.ipynb` — a
    complete worked example: warehouse → preprocessor → RF → Katongole
    validation, with deliberate paper-faithful choices documented inline.
-4. `warehouse/extending_the_warehouse.ipynb` — for contributors who
+5. `warehouse/extending_the_warehouse.ipynb` — for contributors who
    need to add new variables, sources, or stations to the warehouse.
-5. `docs/architecture.md` — library internals.
+6. `docs/architecture.md` — library internals.
 
 ## Developer workflow
 
