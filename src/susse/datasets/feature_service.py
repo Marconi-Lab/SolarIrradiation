@@ -27,7 +27,11 @@ from .. import schema
 from ..warehouse_ops.io.bq import BigQueryClient
 from ..warehouse_ops.io.config import TableRefs, TableSchemas, WarehouseOptions
 from ..warehouse_ops.io.repositories import GroundRepository, SatelliteRepository
-from ..warehouse_ops.population.types import Source, satellite_irradiance_column
+from ..warehouse_ops.population.types import (
+    IrradianceBand,
+    Source,
+    satellite_irradiance_column,
+)
 from ..warehouse_ops.snapping import NearestPixelSnapper
 from .feature_selection import FeatureSelection
 
@@ -352,7 +356,7 @@ class FeatureService:
         *,
         date_start: date,
         date_end: date,
-        bands: Sequence[object],
+        bands: Sequence[IrradianceBand],
     ) -> Optional[pd.DataFrame]:
         """Snap → fetch → relabel one source's irradiance, or None if nothing."""
         mapping = self._snap_mapping(source, self._t.irradiance_daily, query)
@@ -362,7 +366,7 @@ class FeatureService:
             date_start,
             date_end,
             sources=(source.value,),
-            bands=bands,  # type: ignore[arg-type]
+            bands=bands,
             geohash5s=tuple(mapping[schema.GEOHASH5].unique()),
         )
         if result.empty:
