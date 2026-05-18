@@ -234,7 +234,7 @@ class Predictor:
         coords_df = self._coords_to_dataframe(request.coords)
         unique_geohashes = tuple(coords_df[schema.GEOHASH5].unique())
         warehouse_df = self._fetch_warehouse_features(
-            geohash5s=unique_geohashes,
+            points=request.coords,
             start_date=request.start_date,
             end_date=request.end_date,
         )
@@ -255,9 +255,12 @@ class Predictor:
                     start_date=request.start_date,
                     end_date=request.end_date,
                 )
+                # The fetch added native pixels; drop cached snappers so the
+                # re-query snaps against the freshly-ingested set.
+                self._service.invalidate_snapper_cache()
                 # Re-query the now-warm warehouse for the fresh rows.
                 warehouse_df = self._fetch_warehouse_features(
-                    geohash5s=unique_geohashes,
+                    points=request.coords,
                     start_date=request.start_date,
                     end_date=request.end_date,
                 )
@@ -315,16 +318,22 @@ class Predictor:
     def _fetch_warehouse_features(
         self,
         *,
-        geohash5s: tuple[str, ...],
+        points: Sequence[tuple[float, float]],
         start_date: date,
         end_date: date,
     ) -> pd.DataFrame:
-        """Pull irradiance + per-source aux for the requested cells in one go."""
+        """Pull irradiance + per-source aux for the requested points in one go.
+
+        The FeatureService snaps each point onto every source's native grid
+        internally and returns rows keyed by the query point's own
+        ``geohash5`` — so the cache-miss detector below can keep comparing
+        against ``geohash5`` exactly as before.
+        """
         return self._service.build_satellite_features(
             selection=self._selection,
             date_start=start_date,
             date_end=end_date,
-            geohash5s=geohash5s,
+            points=points,
         )
 
     def _detect_cache_misses(

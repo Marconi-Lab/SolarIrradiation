@@ -319,6 +319,43 @@ class GridPlan(FetchPlan):
 
 
 @dataclass(frozen=True)
+class RegionPlan(FetchPlan):
+    """Fetch a satellite source for a bounding-box region in one shot.
+
+    Used by region-shaped jobs whose upstream API exposes a bbox endpoint
+    (e.g. :class:`NasaPowerRegionJob` over NASA POWER's ``/regional``
+    endpoint). Unlike :class:`GridPlan` it carries no sampling step: the
+    job stores the source's *native pixels* inside the bbox verbatim, with
+    no densification onto a finer grid.
+    """
+
+    source: Source
+    date_range: DateRange
+    bbox: BoundingBox
+    variables: tuple[VariableSpec, ...]
+
+    def __post_init__(self) -> None:
+        if not self.variables:
+            raise ValueError("RegionPlan requires at least one variable.")
+        for v in self.variables:
+            if v.source is not self.source:
+                raise ValueError(
+                    f"Variable '{v.variable_id}' is from source {v.source} but "
+                    f"plan source is {self.source}. Variables must match the "
+                    f"plan's source."
+                )
+
+    def describe(self) -> str:
+        return (
+            f"Region[source={self.source.value}, "
+            f"bbox=({self.bbox.min_lat},{self.bbox.min_lon})"
+            f"..({self.bbox.max_lat},{self.bbox.max_lon}), "
+            f"vars={len(self.variables)}, "
+            f"dates={self.date_range.start}..{self.date_range.end}]"
+        )
+
+
+@dataclass(frozen=True)
 class GroundFilePlan(FetchPlan):
     """Parse and ingest a heterogeneous ground-measurement file."""
 

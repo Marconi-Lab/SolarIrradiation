@@ -182,6 +182,34 @@ class SatelliteRepository:
         """
         return self._bq.query(sql)
 
+    def native_pixels(
+        self, *, table_fqn: str, source: Optional[Source] = None
+    ) -> pd.DataFrame:
+        """Distinct ``(geohash5, latitude, longitude)`` pixels stored for a source.
+
+        Returns the native-pixel set a
+        :class:`~susse.warehouse_ops.snapping.NearestPixelSnapper` is built
+        from — every cell the table physically holds for ``source``. The
+        scan touches only the three location columns, so it is cheap even
+        on the multi-GB long tables.
+
+        Args:
+            table_fqn: Fully-qualified BQ table name.
+            source: Optional ``source``-column filter. ``None`` returns the
+                whole table's pixels (use for single-source tables).
+
+        Returns:
+            DataFrame with columns ``geohash5, latitude, longitude``, one
+            row per distinct native pixel. Empty if the table holds nothing
+            for ``source``.
+        """
+        where = f" WHERE source = '{source.value}'" if source is not None else ""
+        sql = (
+            f"SELECT DISTINCT geohash5, latitude, longitude "
+            f"FROM `{table_fqn}`{where}"
+        )
+        return self._bq.query(sql)
+
     def warehouse_table_mods(self, table_ids: Sequence[str]) -> dict[str, str]:
         """Return ``{table_id: last_modified_time_iso}`` for each table.
 

@@ -23,9 +23,15 @@ from susse.inference import PredictionRequest, Predictor
 from susse.models import RandomForestParams
 from susse.preprocessing import FeatureSpec, Preprocessor
 from susse.training import SpatialBlockSplitter, Trainer
+import pygeohash
+
 from susse.warehouse_ops.io.bq import BigQueryClient
 from susse.warehouse_ops.io.repositories import SatelliteRepository
-from susse.warehouse_ops.population.types import IrradianceBand, Source
+from susse.warehouse_ops.population.types import (
+    IrradianceBand,
+    Source,
+    satellite_irradiance_column,
+)
 
 # ---------------------------------------------------------------------------
 # Synthetic training data + bundle.
@@ -173,17 +179,44 @@ def patched_satellite_repo(monkeypatch: pytest.MonkeyPatch):
     }
 
     def fake_irradiance(self, start, end, *, sources, bands, geohash5s):
-        return state["irradiance"].copy()
+        # The real method projects one sat_<band>_<source> column per
+        # requested source; FeatureService now calls it once per source,
+        # so the fake must honour the `sources` filter too.
+        df = state["irradiance"]
+        if df.empty:
+            return df.copy()
+        keep = ["date", "geohash5"]
+        for band in bands:
+            for src in sources:
+                col = satellite_irradiance_column(Source(src), band)
+                if col in df.columns:
+                    keep.append(col)
+        return df[keep].copy()
 
     def fake_aux(
         self, *, table_fqn, column_prefix, start, end, variable_ids, geohash5s
     ):
         return state["aux"].copy()
 
+    def fake_native_pixels(self, *, table_fqn, source=None):
+        # The native-grid snapper is built from the warehouse's own pixels.
+        # Derive one pixel per fake-warehouse geohash5, placed at the cell
+        # centre, so a query coord inside that cell snaps back to it.
+        df = state["irradiance"]
+        cols = ["geohash5", "latitude", "longitude"]
+        if df.empty:
+            return pd.DataFrame(columns=cols)
+        rows = []
+        for gh in df["geohash5"].unique():
+            lat, lon = pygeohash.decode(gh)
+            rows.append({"geohash5": gh, "latitude": lat, "longitude": lon})
+        return pd.DataFrame(rows, columns=cols)
+
     monkeypatch.setattr(
         SatelliteRepository, "daily_irradiance_by_geohash", fake_irradiance
     )
     monkeypatch.setattr(SatelliteRepository, "long_aux_pivoted", fake_aux)
+    monkeypatch.setattr(SatelliteRepository, "native_pixels", fake_native_pixels)
 
     def set_response(*, irradiance: pd.DataFrame, aux: pd.DataFrame) -> None:
         state["irradiance"] = irradiance
