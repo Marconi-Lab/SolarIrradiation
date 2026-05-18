@@ -25,7 +25,6 @@ from ...io.bq import BigQueryClient
 from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
-from ..loaders import DerivedColumn, MergeLoader, MergeSpec
 from ..types import (
     FetchPlan,
     GridPlan,
@@ -34,14 +33,9 @@ from ..types import (
     Source,
     VariableSpec,
 )
+from .satellite_loading import load_long
 
 _logger = logging.getLogger(__name__)
-
-# Server-side derivation: GEOGRAPHY column built from staging lat/lon.
-# Same convention as the long-format satellite jobs.
-_GEOG_DERIVATION: tuple[DerivedColumn, ...] = (
-    DerivedColumn(name="geog", sql_expr="ST_GEOGPOINT(longitude, latitude)"),
-)
 
 
 class MerraRegionJob(BaseJob):
@@ -232,21 +226,10 @@ class MerraRegionJob(BaseJob):
         return df[~keys.isin(existing_keys)]
 
     def _load(self, df: pd.DataFrame) -> int:
-        loader = MergeLoader(
-            bq=self._bq,
+        return load_long(
+            self._bq,
             table_fqn=self.table_fqn,
-            spec=MergeSpec(
-                schema=TableSchemas.MERRA_DAILY_VARS_LONG,
-                derived_columns=_GEOG_DERIVATION,
-            ),
+            schema=TableSchemas.MERRA_DAILY_VARS_LONG,
+            df=df,
+            context=self.name,
         )
-        cols = [
-            "date",
-            "latitude",
-            "longitude",
-            "geohash5",
-            "variable_id",
-            "value",
-            "source",
-        ]
-        return loader.load(df[cols])

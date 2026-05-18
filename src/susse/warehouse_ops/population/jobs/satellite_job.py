@@ -32,7 +32,6 @@ from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
 from ..dim_variable import VariableCatalog
-from ..loaders import DerivedColumn, MergeLoader, MergeSpec
 from ..types import (
     DateRange,
     FetchPlan,
@@ -42,7 +41,7 @@ from ..types import (
     Source,
     VariableSpec,
 )
-from ..validators import validate_long_format
+from .satellite_loading import irradiance_long_to_wide, load_irradiance, load_long
 
 try:
     from geopy import Point
@@ -70,12 +69,6 @@ def _location_spec_to_geopy(loc: LocationSpec):
 
 
 _logger = logging.getLogger(__name__)
-
-
-# Server-side derivation: GEOGRAPHY column built from staging lat/lon.
-_GEOG_DERIVATION: tuple[DerivedColumn, ...] = (
-    DerivedColumn(name="geog", sql_expr="ST_GEOGPOINT(longitude, latitude)"),
-)
 
 
 class BaseSatelliteJob(BaseJob):
@@ -288,79 +281,26 @@ class BaseSatelliteJob(BaseJob):
     def _extract_irradiance(
         self, long_df: pd.DataFrame, irradiance_vars: tuple[VariableSpec, ...]
     ) -> pd.DataFrame:
-        """Pivot irradiance rows from long → wide for ``irradiance_daily``."""
+        """Pivot the requested irradiance rows from long → wide."""
         wanted_ids = [v.variable_id for v in irradiance_vars]
         sub = long_df[long_df["variable_id"].isin(wanted_ids)].copy()
         if sub.empty:
             return sub
-        wide = sub.pivot_table(
-            index=["date", "latitude", "longitude", "geohash5", "source"],
-            columns="variable_id",
-            values="value",
-            aggfunc="first",
-        ).reset_index()
-        wide.columns.name = None
-        # Map to the wide-table column names.
-        rename_map = {
-            "ghi": "ghi_kwh_m2_day",
-            "dhi": "dhi_kwh_m2_day",
-            "dni": "dni_kwh_m2_day",
-        }
-        wide = wide.rename(columns=rename_map)
-        # Ensure all expected columns exist (missing variables → NaN).
-        for col in ("ghi_kwh_m2_day", "dhi_kwh_m2_day", "dni_kwh_m2_day"):
-            if col not in wide.columns:
-                wide[col] = pd.NA
-        # Reliability is wide-only and not in our long output; leave NULL.
-        if "reliability" not in wide.columns:
-            wide["reliability"] = pd.NA
-        return wide
+        return irradiance_long_to_wide(sub)
 
     def _load_long(self, df: pd.DataFrame) -> int:
-        validate_long_format(df, context=f"{self.name} long")
-        loader = MergeLoader(
-            bq=self._bq,
+        return load_long(
+            self._bq,
             table_fqn=self.long_table_fqn,
-            spec=MergeSpec(
-                schema=self._long_schema,
-                derived_columns=_GEOG_DERIVATION,
-            ),
-        )
-        return loader.load(
-            df[
-                [
-                    "date",
-                    "latitude",
-                    "longitude",
-                    "geohash5",
-                    "variable_id",
-                    "value",
-                    "source",
-                ]
-            ]
+            schema=self._long_schema,
+            df=df,
+            context=f"{self.name} long",
         )
 
     def _load_irradiance(self, df: pd.DataFrame) -> int:
-        loader = MergeLoader(
-            bq=self._bq,
-            table_fqn=self._refs.irradiance_daily,
-            spec=MergeSpec(
-                schema=TableSchemas.IRRADIANCE_DAILY,
-                derived_columns=_GEOG_DERIVATION,
-            ),
+        return load_irradiance(
+            self._bq, table_fqn=self._refs.irradiance_daily, df=df
         )
-        cols = [
-            "date",
-            "latitude",
-            "longitude",
-            "geohash5",
-            "source",
-            "ghi_kwh_m2_day",
-            "dhi_kwh_m2_day",
-            "dni_kwh_m2_day",
-            "reliability",
-        ]
-        return loader.load(df[cols])
 
     @property
     def _long_schema(self):

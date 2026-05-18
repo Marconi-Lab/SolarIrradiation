@@ -18,7 +18,6 @@ import pytest
 from susse.warehouse_ops.io.config import WarehouseConfig
 from susse.warehouse_ops.population.jobs.nasa_power_region_job import (
     NasaPowerRegionJob,
-    _irradiance_long_to_wide,
 )
 from susse.warehouse_ops.population.types import (
     BoundingBox,
@@ -197,35 +196,6 @@ class TestEnrich:
               "variable_id": "UNKNOWN_CODE", "value": 1.0}]
         )
         assert job._enrich(df, {"T2M": "temperature"}).empty
-
-
-# ---------------------------------------------------------------------------
-# Long → wide irradiance pivot
-# ---------------------------------------------------------------------------
-
-
-class TestIrradianceLongToWide:
-    def test_pivots_bands_and_fills_absent_band_with_null(self) -> None:
-        # Only ghi + dhi present → dni column must still exist (NULL), as
-        # must reliability (NASA POWER publishes no reliability series).
-        gh = pygeohash.encode(0.5, 32.5, 5)
-        long_df = pd.DataFrame(
-            [
-                {"date": date(2024, 1, 1), "latitude": 0.5, "longitude": 32.5,
-                 "geohash5": gh, "source": "NASA", "variable_id": "ghi",
-                 "value": 5.0},
-                {"date": date(2024, 1, 1), "latitude": 0.5, "longitude": 32.5,
-                 "geohash5": gh, "source": "NASA", "variable_id": "dhi",
-                 "value": 2.0},
-            ]
-        )
-        wide = _irradiance_long_to_wide(long_df)
-        assert len(wide) == 1
-        row = wide.iloc[0]
-        assert row["ghi_kwh_m2_day"] == 5.0
-        assert row["dhi_kwh_m2_day"] == 2.0
-        assert pd.isna(row["dni_kwh_m2_day"])
-        assert pd.isna(row["reliability"])
 
 
 # ---------------------------------------------------------------------------

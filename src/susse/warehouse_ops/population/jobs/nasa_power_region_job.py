@@ -5,7 +5,8 @@ NASA POWER's ``/regional`` endpoint returns one HTTP call per (tile, variable)
 covering a whole bounding box, instead of the per-point pattern. This job
 wraps :class:`NASAPowerRegionalFetcher`, then routes the returned rows into
 the wide ``irradiance_daily`` table (GHI/DHI/DNI) and the long
-``nasa_daily_vars_long`` table (auxiliary variables).
+``nasa_daily_vars_long`` table (auxiliary variables) via the shared
+:mod:`satellite_loading` helpers.
 
 Crucially, the job stores **NASA's own native pixel centres verbatim** — no
 densification onto a finer grid. NASA POWER irradiance comes off CERES' 1°
@@ -31,24 +32,10 @@ from ...io.bq import BigQueryClient
 from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..dim_variable import VariableCatalog
-from ..loaders import DerivedColumn, MergeLoader, MergeSpec
 from ..types import FetchPlan, RegionPlan, Source
-from ..validators import validate_long_format
+from .satellite_loading import irradiance_long_to_wide, load_irradiance, load_long
 
 _logger = logging.getLogger(__name__)
-
-# Server-side derivation: GEOGRAPHY column built from staging lat/lon.
-# Same convention as the per-point satellite jobs and MerraRegionJob.
-_GEOG_DERIVATION: tuple[DerivedColumn, ...] = (
-    DerivedColumn(name="geog", sql_expr="ST_GEOGPOINT(longitude, latitude)"),
-)
-
-# Long-format variable_id → wide irradiance_daily column name.
-_IRRADIANCE_COLUMN_BY_VARIABLE: dict[str, str] = {
-    "ghi": "ghi_kwh_m2_day",
-    "dhi": "dhi_kwh_m2_day",
-    "dni": "dni_kwh_m2_day",
-}
 
 
 class NasaPowerRegionJob(BaseJob):
@@ -134,11 +121,19 @@ class NasaPowerRegionJob(BaseJob):
             irradiance_long = enriched[is_irradiance]
             aux_long = enriched[~is_irradiance]
             if not irradiance_long.empty:
-                rows_added_irr = self._load_irradiance(
-                    _irradiance_long_to_wide(irradiance_long)
+                rows_added_irr = load_irradiance(
+                    self._bq,
+                    table_fqn=self._refs.irradiance_daily,
+                    df=irradiance_long_to_wide(irradiance_long),
                 )
             if not aux_long.empty:
-                rows_added_long = self._load_long(aux_long)
+                rows_added_long = load_long(
+                    self._bq,
+                    table_fqn=self._refs.nasa_daily_vars_long,
+                    schema=TableSchemas.NASA_DAILY_VARS_LONG,
+                    df=aux_long,
+                    context=f"{self.name} long",
+                )
 
         finished = datetime.now(timezone.utc)
         result = JobResult(
@@ -187,75 +182,3 @@ class NasaPowerRegionJob(BaseJob):
         out = out.merge(pixels, on=["latitude", "longitude"], how="left")
         out["source"] = self.source.value
         return out
-
-    def _load_long(self, df: pd.DataFrame) -> int:
-        validate_long_format(df, context=f"{self.name} long")
-        loader = MergeLoader(
-            bq=self._bq,
-            table_fqn=self._refs.nasa_daily_vars_long,
-            spec=MergeSpec(
-                schema=TableSchemas.NASA_DAILY_VARS_LONG,
-                derived_columns=_GEOG_DERIVATION,
-            ),
-        )
-        return loader.load(
-            df[
-                [
-                    "date",
-                    "latitude",
-                    "longitude",
-                    "geohash5",
-                    "variable_id",
-                    "value",
-                    "source",
-                ]
-            ]
-        )
-
-    def _load_irradiance(self, df: pd.DataFrame) -> int:
-        loader = MergeLoader(
-            bq=self._bq,
-            table_fqn=self._refs.irradiance_daily,
-            spec=MergeSpec(
-                schema=TableSchemas.IRRADIANCE_DAILY,
-                derived_columns=_GEOG_DERIVATION,
-            ),
-        )
-        return loader.load(
-            df[
-                [
-                    "date",
-                    "latitude",
-                    "longitude",
-                    "geohash5",
-                    "source",
-                    "ghi_kwh_m2_day",
-                    "dhi_kwh_m2_day",
-                    "dni_kwh_m2_day",
-                    "reliability",
-                ]
-            ]
-        )
-
-
-def _irradiance_long_to_wide(long_df: pd.DataFrame) -> pd.DataFrame:
-    """Pivot long-format irradiance rows into the wide ``irradiance_daily`` shape.
-
-    Input rows carry ``variable_id`` ∈ {``ghi``, ``dhi``, ``dni``}; the output
-    has one row per (date, pixel) with named ``*_kwh_m2_day`` columns. Bands
-    absent from the input become NULL, as does ``reliability`` (NASA POWER
-    publishes no reliability series).
-    """
-    wide = long_df.pivot_table(
-        index=["date", "latitude", "longitude", "geohash5", "source"],
-        columns="variable_id",
-        values="value",
-        aggfunc="first",
-    ).reset_index()
-    wide.columns.name = None
-    wide = wide.rename(columns=_IRRADIANCE_COLUMN_BY_VARIABLE)
-    for col in _IRRADIANCE_COLUMN_BY_VARIABLE.values():
-        if col not in wide.columns:
-            wide[col] = pd.NA
-    wide["reliability"] = pd.NA
-    return wide
