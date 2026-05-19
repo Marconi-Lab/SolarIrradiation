@@ -17,6 +17,7 @@ from susse.preprocessing import (
     AltitudeFeature,
     ClearSkyIndexFeature,
     CyclicalDayOfYearFeature,
+    DerivedColumnMetadata,
     DerivedFeature,
     FeatureKind,
     LongitudeFeature,
@@ -236,3 +237,69 @@ class TestProtocolCompliance:
             assert len(f.output_columns) >= 1
             assert len(f.required_input_columns) >= 1
             assert "kind" in f.to_dict()
+
+    def test_output_metadata_covers_every_output_column(self) -> None:
+        # The output_metadata contract: exactly one DerivedColumnMetadata
+        # per output column, matched by name. A consumer (the portal's
+        # variable inspector) relies on this 1:1 correspondence.
+        instances: list[DerivedFeature] = [
+            ClearSkyIndexFeature(
+                ghi_column="g",
+                ghi_clear_column="gc",
+                output_column="kt",
+            ),
+            CyclicalDayOfYearFeature(),
+            AltitudeFeature(provider=_StubProvider()),
+            LongitudeFeature(),
+        ]
+        for f in instances:
+            metadata = f.output_metadata
+            assert all(isinstance(m, DerivedColumnMetadata) for m in metadata)
+            assert tuple(m.column for m in metadata) == f.output_columns
+            for m in metadata:
+                assert m.label, f"{type(f).__name__}: empty label"
+                assert m.unit, f"{type(f).__name__}: empty unit"
+                assert m.description, f"{type(f).__name__}: empty description"
+
+
+class TestOutputMetadata:
+    """Each feature reports the right output column and unit.
+
+    Exact label/description prose is not asserted — it is editorial
+    copy, not a contract, and pinning it would only make harmless
+    rewording break tests. The protocol test already guards that every
+    label/unit/description is non-empty.
+    """
+
+    def test_clear_sky_index_metadata_tracks_configured_column(self) -> None:
+        f = ClearSkyIndexFeature(
+            ghi_column="g",
+            ghi_clear_column="gc",
+            output_column="kt_cams",
+        )
+        (meta,) = f.output_metadata
+        # The column name tracks the configured output_column, not a
+        # hardcoded default — this is the real logic worth pinning.
+        assert meta.column == "kt_cams"
+        assert meta.unit == "unitless"
+
+    def test_cyclical_doy_metadata_describes_both_components(self) -> None:
+        f = CyclicalDayOfYearFeature()
+        metadata = f.output_metadata
+        assert tuple(m.column for m in metadata) == ("doy_sin", "doy_cos")
+        # The two components get distinct labels so the inspector can
+        # tell them apart.
+        labels = {m.label for m in metadata}
+        assert len(labels) == 2
+
+    def test_altitude_metadata(self) -> None:
+        f = AltitudeFeature(provider=_StubProvider())
+        (meta,) = f.output_metadata
+        assert meta.column == "altitude_m"
+        assert meta.unit == "m"
+
+    def test_longitude_metadata(self) -> None:
+        f = LongitudeFeature()
+        (meta,) = f.output_metadata
+        assert meta.column == "longitude"
+        assert meta.unit == "degrees"
