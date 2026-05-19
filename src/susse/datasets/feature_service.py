@@ -30,19 +30,20 @@ from ..warehouse_ops.io.repositories import GroundRepository, SatelliteRepositor
 from ..warehouse_ops.population.types import (
     IrradianceBand,
     Source,
+    aux_column_prefix,
     satellite_irradiance_column,
 )
 from ..warehouse_ops.snapping import NearestPixelSnapper
 from .feature_selection import FeatureSelection
 
-# Source-id → (TableRefs attr, column prefix). Single source of truth for
-# every consumer (training pairs, inference features, Predictor): they all
-# go through :meth:`FeatureService.build_satellite_features`, so no other
-# module needs to import this.
-_LONG_AUX_TABLES: dict[Source, tuple[str, str]] = {
-    Source.NASA_POWER: ("nasa_daily_vars_long", "nasa"),
-    Source.CAMS: ("cams_daily_vars_long", "cams"),
-    Source.MERRA_2: ("merra_daily_vars_long", "merra"),
+# Source-id → TableRefs attr for the long-format aux table. The column
+# prefix that pairs with each table is owned by :func:`aux_column_prefix`
+# (the single source of truth for the prefix convention) and is *not*
+# duplicated here.
+_LONG_AUX_TABLES: dict[Source, str] = {
+    Source.NASA_POWER: "nasa_daily_vars_long",
+    Source.CAMS: "cams_daily_vars_long",
+    Source.MERRA_2: "merra_daily_vars_long",
 }
 
 # Internal column carrying the query point's own geohash5 through the
@@ -170,12 +171,12 @@ class FeatureService:
         # the result rows stay exactly the irradiance (date, geohash5) pairs
         # — the Predictor cache-miss detector relies on this definition.
         for source, ids in self._aux_requests(selection):
-            table_attr, prefix = _LONG_AUX_TABLES[source]
+            table_attr = _LONG_AUX_TABLES[source]
             aux = self._aux_for_source(
                 source,
                 query,
                 table_fqn=getattr(self._t, table_attr),
-                prefix=prefix,
+                prefix=aux_column_prefix(source),
                 variable_ids=ids,
                 date_start=date_start,
                 date_end=date_end,
@@ -314,7 +315,7 @@ class FeatureService:
         if selection.include_satellite_irradiance:
             ids.append(TableSchemas.IRRADIANCE_DAILY.table_id)
         for source, _ in self._aux_requests(selection):
-            attr, _ = _LONG_AUX_TABLES[source]
+            attr = _LONG_AUX_TABLES[source]
             ids.append(getattr(TableSchemas, attr.upper()).table_id)
         if selection.modis_variable_ids:
             ids.append(TableSchemas.MODIS_OBSERVATIONS.table_id)
@@ -410,9 +411,7 @@ class FeatureService:
         to a far, unrelated pixel.
         """
         snapper = self._snapper_for(source, snapper_table_fqn)
-        snapped = snapper.snap_or_none(
-            list(query[schema.LAT]), list(query[schema.LON])
-        )
+        snapped = snapper.snap_or_none(list(query[schema.LAT]), list(query[schema.LON]))
         mapping = pd.DataFrame(
             {
                 schema.GEOHASH5: snapped,
@@ -434,9 +433,7 @@ class FeatureService:
             columns={_QUERY_GEOHASH5: schema.GEOHASH5}
         )
 
-    def _snapper_for(
-        self, source: Source, table_fqn: str
-    ) -> NearestPixelSnapper:
+    def _snapper_for(self, source: Source, table_fqn: str) -> NearestPixelSnapper:
         """Return (and cache) the snapper for one ``(table, source)`` pair.
 
         Built from the table's own distinct cells for that source, so query

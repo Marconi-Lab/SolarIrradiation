@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import date
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence
 
@@ -51,6 +52,7 @@ from ..warehouse_ops.population.types import (
     Source,
     VariableSpec,
 )
+from .feature_catalog import FeatureCatalog
 
 if TYPE_CHECKING:  # pragma: no cover — type-only
     from ..preprocessing.elevation import ElevationProvider
@@ -190,6 +192,21 @@ class Predictor:
     @property
     def on_cache_miss(self) -> CacheMissPolicy:
         return self._on_cache_miss
+
+    @cached_property
+    def feature_catalog(self) -> FeatureCatalog:
+        """Human-facing metadata for every model-input column.
+
+        One :class:`~susse.inference.FeatureMetadata` entry per feature
+        column :meth:`predict` returns — label, unit, description, and
+        presentation group — so a UI can show what each input is and
+        where it comes from. Derived purely from the bundle (no
+        warehouse access) and cached after first use.
+        """
+        return FeatureCatalog.build(
+            selection=self._selection,
+            feature_spec=self._bundle.feature_spec,
+        )
 
     # ------------------------------------------------------------------
     # Public API

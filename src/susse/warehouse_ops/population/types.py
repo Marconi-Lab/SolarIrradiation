@@ -79,6 +79,59 @@ def satellite_irradiance_column(
     return f"sat_{band.value}_{source.value.lower()}_kwh_m2_day"
 
 
+# Per-source prefix for auxiliary (non-irradiance) feature columns. The
+# naming convention is genuinely warehouse-wide, hence module scope.
+# Note the prefixes are bespoke — MERRA-2's is "merra", not the "merra2"
+# that Source.MERRA_2.value.lower() would yield.
+_SOURCE_FEATURE_PREFIX: dict[Source, str] = {
+    Source.NASA_POWER: "nasa",
+    Source.CAMS: "cams",
+    Source.MERRA_2: "merra",
+    Source.MODIS: "modis",
+}
+
+
+def aux_column_prefix(source: Source) -> str:
+    """Column-name prefix for one source's auxiliary feature columns.
+
+    Single source of truth for the per-source prefix (``"nasa"``,
+    ``"cams"``, ``"merra"``, ``"modis"``). The prefix is bespoke —
+    MERRA-2's is ``"merra"``, not the ``"merra2"`` that
+    ``source.value.lower()`` yields — so every consumer (the warehouse
+    aux-table pivot in :class:`FeatureService`, :func:`aux_feature_column`,
+    :attr:`FeatureSelection.aux_columns`) routes through here.
+
+    Raises:
+        KeyError: If ``source`` has no registered prefix — add an entry
+            to :data:`_SOURCE_FEATURE_PREFIX`.
+    """
+    if source not in _SOURCE_FEATURE_PREFIX:
+        raise KeyError(
+            f"Source {source.value} has no auxiliary feature-column "
+            f"prefix. Add an entry to _SOURCE_FEATURE_PREFIX in "
+            f"susse.warehouse_ops.population.types."
+        )
+    return _SOURCE_FEATURE_PREFIX[source]
+
+
+def aux_feature_column(source: Source, variable_id: str) -> str:
+    """Feature-column name for one auxiliary (non-irradiance) variable.
+
+    Single source of truth for the ``<prefix>_<variable_id>`` naming of
+    aux feature columns. Counterpart to :func:`satellite_irradiance_column`
+    for the irradiance bands; the source prefix comes from
+    :func:`aux_column_prefix`.
+
+    Example::
+
+        >>> aux_feature_column(Source.NASA_POWER, "temperature")
+        'nasa_temperature'
+        >>> aux_feature_column(Source.CAMS, "ghi_clear")
+        'cams_ghi_clear'
+    """
+    return f"{aux_column_prefix(source)}_{variable_id}"
+
+
 class PhysicalStorage(StrEnum):
     """Where a catalog variable's values are physically stored in the warehouse.
 

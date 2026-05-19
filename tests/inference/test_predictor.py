@@ -16,15 +16,14 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
+import pygeohash
 import pytest
 
 from susse.datasets import DatasetManifest, FeatureSelection, TrainingDataset
-from susse.inference import PredictionRequest, Predictor
+from susse.inference import FeatureGroup, PredictionRequest, Predictor
 from susse.models import RandomForestParams
 from susse.preprocessing import FeatureSpec, Preprocessor
 from susse.training import SpatialBlockSplitter, Trainer
-import pygeohash
-
 from susse.warehouse_ops.io.bq import BigQueryClient
 from susse.warehouse_ops.io.repositories import SatelliteRepository
 from susse.warehouse_ops.population.types import (
@@ -480,3 +479,32 @@ class TestFetchOnDemand:
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 1, 1),
             )
+
+
+class TestFeatureCatalog:
+    """Predictor.feature_catalog exposes metadata for the bundle's inputs.
+
+    The exhaustive build/grouping logic is covered by
+    test_feature_catalog.py; these tests verify only that the Predictor
+    wires the bundle into FeatureCatalog.build and caches the result.
+    """
+
+    def test_catalog_columns_match_model_inputs(
+        self, trained_bundle, fake_bq: MagicMock
+    ) -> None:
+        predictor = Predictor(bundle=trained_bundle, bq=fake_bq)
+        # The fixture bundle consumes one NASA aux variable plus GHI from
+        # both satellites, and declares no derived features.
+        assert set(predictor.feature_catalog.columns) == set(_FEATURE_COLUMNS)
+
+    def test_catalog_carries_real_metadata(
+        self, trained_bundle, fake_bq: MagicMock
+    ) -> None:
+        predictor = Predictor(bundle=trained_bundle, bq=fake_bq)
+        temperature = predictor.feature_catalog.get("nasa_temperature")
+        assert temperature.group is FeatureGroup.NASA_POWER
+        assert temperature.label  # non-empty display name
+
+    def test_catalog_is_cached(self, trained_bundle, fake_bq: MagicMock) -> None:
+        predictor = Predictor(bundle=trained_bundle, bq=fake_bq)
+        assert predictor.feature_catalog is predictor.feature_catalog
