@@ -44,9 +44,14 @@ version.py
 
 # Generated artifacts under data/ — reproducible from the warehouse + recipes,
 # kept off git so the repo stays small. data/ground_measurements/ IS tracked
-# (canonical raw inputs).
+# (canonical raw inputs), with one exception below.
 /data/bundles/
 /data/training_snapshots/
+
+# CrossBoundary Energy ground measurements are covered by an NDA and must
+# not be checked in. The data is retained in the BigQuery warehouse + on
+# Google Drive for internal modelling; the repo does not redistribute it.
+/data/ground_measurements/CBE_Data/
 
 # Tool caches and editor / venv state
 .mypy_cache/

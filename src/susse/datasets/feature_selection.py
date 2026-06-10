@@ -17,7 +17,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..warehouse_ops.population.dim_variable import VariableCatalog
-from ..warehouse_ops.population.types import IrradianceBand, PhysicalStorage, Source
+from ..warehouse_ops.population.types import (
+    IrradianceBand,
+    PhysicalStorage,
+    Source,
+    aux_feature_column,
+)
 
 
 @dataclass(frozen=True)
@@ -204,12 +209,20 @@ class FeatureSelection:
 
         Source-prefixed to avoid collisions: ``T2M`` from NASA POWER and
         a future ``T2M`` from MERRA-2 would otherwise clobber each other.
+        Names route through :func:`aux_feature_column` — the single
+        source of truth for the prefix convention.
         """
         cols: list[str] = []
-        cols.extend(f"nasa_{v}" for v in self.nasa_variable_ids)
-        cols.extend(f"cams_{v}" for v in self.cams_variable_ids)
-        cols.extend(f"merra_{v}" for v in self.merra_variable_ids)
-        cols.extend(f"modis_{v}" for v in self.modis_variable_ids)
+        cols.extend(
+            aux_feature_column(Source.NASA_POWER, v) for v in self.nasa_variable_ids
+        )
+        cols.extend(aux_feature_column(Source.CAMS, v) for v in self.cams_variable_ids)
+        cols.extend(
+            aux_feature_column(Source.MERRA_2, v) for v in self.merra_variable_ids
+        )
+        cols.extend(
+            aux_feature_column(Source.MODIS, v) for v in self.modis_variable_ids
+        )
         return tuple(cols)
 
     def to_dict(self) -> dict[str, Any]:

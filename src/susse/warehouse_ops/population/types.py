@@ -48,12 +48,88 @@ class IrradianceBand(StrEnum):
     (``ghi_kwh_m2_day``, ``dhi_kwh_m2_day``, ``dni_kwh_m2_day``). The enum
     value matches the column-name prefix, so callers can use it both as
     a selection token and to build the resulting ``sat_<band>_<source>``
-    output column names.
+    output column names — see :func:`satellite_irradiance_column`.
     """
 
     GHI = "ghi"
     DHI = "dhi"
     DNI = "dni"
+
+
+def satellite_irradiance_column(
+    source: Source, band: IrradianceBand = IrradianceBand.GHI
+) -> str:
+    """Wide-table column name for ``(source, band)`` after the pivot from ``irradiance_daily``.
+
+    Single source of truth for the ``sat_<band>_<source>_kwh_m2_day``
+    naming convention. The SQL alias in
+    :meth:`SatelliteRepository.daily_irradiance_by_geohash`, the
+    placeholder synthesis in
+    :meth:`FeatureService._empty_irradiance_placeholder`, the
+    Trainer's default baseline columns, and any downstream code that
+    refers to satellite-irradiance columns all route through here.
+
+    Example::
+
+        >>> satellite_irradiance_column(Source.NASA_POWER, IrradianceBand.GHI)
+        'sat_ghi_nasa_kwh_m2_day'
+        >>> satellite_irradiance_column(Source.CAMS)  # band defaults to GHI
+        'sat_ghi_cams_kwh_m2_day'
+    """
+    return f"sat_{band.value}_{source.value.lower()}_kwh_m2_day"
+
+
+# Per-source prefix for auxiliary (non-irradiance) feature columns. The
+# naming convention is genuinely warehouse-wide, hence module scope.
+# Note the prefixes are bespoke — MERRA-2's is "merra", not the "merra2"
+# that Source.MERRA_2.value.lower() would yield.
+_SOURCE_FEATURE_PREFIX: dict[Source, str] = {
+    Source.NASA_POWER: "nasa",
+    Source.CAMS: "cams",
+    Source.MERRA_2: "merra",
+    Source.MODIS: "modis",
+}
+
+
+def aux_column_prefix(source: Source) -> str:
+    """Column-name prefix for one source's auxiliary feature columns.
+
+    Single source of truth for the per-source prefix (``"nasa"``,
+    ``"cams"``, ``"merra"``, ``"modis"``). The prefix is bespoke —
+    MERRA-2's is ``"merra"``, not the ``"merra2"`` that
+    ``source.value.lower()`` yields — so every consumer (the warehouse
+    aux-table pivot in :class:`FeatureService`, :func:`aux_feature_column`,
+    :attr:`FeatureSelection.aux_columns`) routes through here.
+
+    Raises:
+        KeyError: If ``source`` has no registered prefix — add an entry
+            to :data:`_SOURCE_FEATURE_PREFIX`.
+    """
+    if source not in _SOURCE_FEATURE_PREFIX:
+        raise KeyError(
+            f"Source {source.value} has no auxiliary feature-column "
+            f"prefix. Add an entry to _SOURCE_FEATURE_PREFIX in "
+            f"susse.warehouse_ops.population.types."
+        )
+    return _SOURCE_FEATURE_PREFIX[source]
+
+
+def aux_feature_column(source: Source, variable_id: str) -> str:
+    """Feature-column name for one auxiliary (non-irradiance) variable.
+
+    Single source of truth for the ``<prefix>_<variable_id>`` naming of
+    aux feature columns. Counterpart to :func:`satellite_irradiance_column`
+    for the irradiance bands; the source prefix comes from
+    :func:`aux_column_prefix`.
+
+    Example::
+
+        >>> aux_feature_column(Source.NASA_POWER, "temperature")
+        'nasa_temperature'
+        >>> aux_feature_column(Source.CAMS, "ghi_clear")
+        'cams_ghi_clear'
+    """
+    return f"{aux_column_prefix(source)}_{variable_id}"
 
 
 class PhysicalStorage(StrEnum):
@@ -290,6 +366,43 @@ class GridPlan(FetchPlan):
         return (
             f"Grid[source={self.source.value}, "
             f"points={self.grid.n_points}, "
+            f"vars={len(self.variables)}, "
+            f"dates={self.date_range.start}..{self.date_range.end}]"
+        )
+
+
+@dataclass(frozen=True)
+class RegionPlan(FetchPlan):
+    """Fetch a satellite source for a bounding-box region in one shot.
+
+    Used by region-shaped jobs whose upstream API exposes a bbox endpoint
+    (e.g. :class:`NasaPowerRegionJob` over NASA POWER's ``/regional``
+    endpoint). Unlike :class:`GridPlan` it carries no sampling step: the
+    job stores the source's *native pixels* inside the bbox verbatim, with
+    no densification onto a finer grid.
+    """
+
+    source: Source
+    date_range: DateRange
+    bbox: BoundingBox
+    variables: tuple[VariableSpec, ...]
+
+    def __post_init__(self) -> None:
+        if not self.variables:
+            raise ValueError("RegionPlan requires at least one variable.")
+        for v in self.variables:
+            if v.source is not self.source:
+                raise ValueError(
+                    f"Variable '{v.variable_id}' is from source {v.source} but "
+                    f"plan source is {self.source}. Variables must match the "
+                    f"plan's source."
+                )
+
+    def describe(self) -> str:
+        return (
+            f"Region[source={self.source.value}, "
+            f"bbox=({self.bbox.min_lat},{self.bbox.min_lon})"
+            f"..({self.bbox.max_lat},{self.bbox.max_lon}), "
             f"vars={len(self.variables)}, "
             f"dates={self.date_range.start}..{self.date_range.end}]"
         )

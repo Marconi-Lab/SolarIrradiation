@@ -32,7 +32,6 @@ from ...io.config import TableRefs, TableSchemas
 from ..base_job import BaseJob, JobResult
 from ..coverage import CoverageRepository
 from ..dim_variable import VariableCatalog
-from ..loaders import DerivedColumn, MergeLoader, MergeSpec
 from ..types import (
     DateRange,
     FetchPlan,
@@ -42,7 +41,7 @@ from ..types import (
     Source,
     VariableSpec,
 )
-from ..validators import validate_long_format
+from .satellite_loading import irradiance_long_to_wide, load_irradiance, load_long
 
 try:
     from geopy import Point
@@ -70,12 +69,6 @@ def _location_spec_to_geopy(loc: LocationSpec):
 
 
 _logger = logging.getLogger(__name__)
-
-
-# Server-side derivation: GEOGRAPHY column built from staging lat/lon.
-_GEOG_DERIVATION: tuple[DerivedColumn, ...] = (
-    DerivedColumn(name="geog", sql_expr="ST_GEOGPOINT(longitude, latitude)"),
-)
 
 
 class BaseSatelliteJob(BaseJob):
@@ -288,79 +281,26 @@ class BaseSatelliteJob(BaseJob):
     def _extract_irradiance(
         self, long_df: pd.DataFrame, irradiance_vars: tuple[VariableSpec, ...]
     ) -> pd.DataFrame:
-        """Pivot irradiance rows from long → wide for ``irradiance_daily``."""
+        """Pivot the requested irradiance rows from long → wide."""
         wanted_ids = [v.variable_id for v in irradiance_vars]
         sub = long_df[long_df["variable_id"].isin(wanted_ids)].copy()
         if sub.empty:
             return sub
-        wide = sub.pivot_table(
-            index=["date", "latitude", "longitude", "geohash5", "source"],
-            columns="variable_id",
-            values="value",
-            aggfunc="first",
-        ).reset_index()
-        wide.columns.name = None
-        # Map to the wide-table column names.
-        rename_map = {
-            "ghi": "ghi_kwh_m2_day",
-            "dhi": "dhi_kwh_m2_day",
-            "dni": "dni_kwh_m2_day",
-        }
-        wide = wide.rename(columns=rename_map)
-        # Ensure all expected columns exist (missing variables → NaN).
-        for col in ("ghi_kwh_m2_day", "dhi_kwh_m2_day", "dni_kwh_m2_day"):
-            if col not in wide.columns:
-                wide[col] = pd.NA
-        # Reliability is wide-only and not in our long output; leave NULL.
-        if "reliability" not in wide.columns:
-            wide["reliability"] = pd.NA
-        return wide
+        return irradiance_long_to_wide(sub)
 
     def _load_long(self, df: pd.DataFrame) -> int:
-        validate_long_format(df, context=f"{self.name} long")
-        loader = MergeLoader(
-            bq=self._bq,
+        return load_long(
+            self._bq,
             table_fqn=self.long_table_fqn,
-            spec=MergeSpec(
-                schema=self._long_schema,
-                derived_columns=_GEOG_DERIVATION,
-            ),
-        )
-        return loader.load(
-            df[
-                [
-                    "date",
-                    "latitude",
-                    "longitude",
-                    "geohash5",
-                    "variable_id",
-                    "value",
-                    "source",
-                ]
-            ]
+            schema=self._long_schema,
+            df=df,
+            context=f"{self.name} long",
         )
 
     def _load_irradiance(self, df: pd.DataFrame) -> int:
-        loader = MergeLoader(
-            bq=self._bq,
-            table_fqn=self._refs.irradiance_daily,
-            spec=MergeSpec(
-                schema=TableSchemas.IRRADIANCE_DAILY,
-                derived_columns=_GEOG_DERIVATION,
-            ),
+        return load_irradiance(
+            self._bq, table_fqn=self._refs.irradiance_daily, df=df
         )
-        cols = [
-            "date",
-            "latitude",
-            "longitude",
-            "geohash5",
-            "source",
-            "ghi_kwh_m2_day",
-            "dhi_kwh_m2_day",
-            "dni_kwh_m2_day",
-            "reliability",
-        ]
-        return loader.load(df[cols])
 
     @property
     def _long_schema(self):
@@ -442,6 +382,17 @@ class NasaPowerSatelliteJob(BaseSatelliteJob):
     def _result_to_long(
         self, result, variables: tuple[VariableSpec, ...]
     ) -> pd.DataFrame:
+        """Flatten a NASA POWER multi-product result into a long DataFrame.
+
+        Unit assumption: NASA POWER's daily irradiance parameters
+        (e.g. ``ALLSKY_SFC_SW_DWN``) are returned as **daily-integrated
+        energy in kWh/m²/day**, which is the warehouse convention for
+        ``ghi_kwh_m2_day``. Values are therefore passed through without
+        scaling. If a future NASA POWER variable is added with a different
+        native unit (e.g. MJ/m²/day or W/m² 24h-mean), an explicit conversion
+        must be added here — silently round-tripping a mismatched unit would
+        corrupt the irradiance pipeline downstream.
+        """
         api_to_var = {v.api_code: v.variable_id for v in variables}
         rows: list[dict] = []
         for product in result.products:
@@ -495,11 +446,31 @@ class CamsSatelliteJob(BaseSatelliteJob):
     def long_table_fqn(self) -> str:
         return self._refs.cams_daily_vars_long
 
-    # CAMS via pvlib's get_cams returns daily irradiance values as the
-    # mean power in W/m² over a 24-hour observation period. The warehouse
-    # column convention is total energy in kWh/m²/day, so we multiply by
-    # (24 hours / 1000 W/kW) = 0.024. Validated empirically against the
-    # legacy CSV ingest path in migration A4.
+    # Unit conversion from pvlib's get_cams output to the warehouse column
+    # convention (kWh/m²/day).
+    #
+    # Upstream unit assumption — verified against pvlib source (sodapro.py,
+    # ``get_cams``): with the default ``integrated=False``, the irradiance
+    # columns ("Global Horiz", "BHI", "DHI", "BNI") are returned as the
+    # **mean power in W/m² over the time step**. For ``time_step='1d'``,
+    # pvlib divides the native CAMS Wh/m² daily integral by 24 hours to
+    # produce a 24-hour-mean W/m² value (i.e. nighttime hours of zero are
+    # included in the mean).
+    #
+    # ``CAMSClient.fetch_data`` (api_clients/cams/cams_client.py) does NOT
+    # pass ``integrated``, so it relies on this default. If a future change
+    # sets ``integrated=True``, the unit becomes Wh/m²/day and this factor
+    # would be wrong by 1000×.
+    #
+    # Conversion: W/m² (24h-mean) × 24 h / 1000 W/kW = kWh/m²/day. The
+    # daily integral is identical whether the average is taken over 24h or
+    # only daytime hours (nighttime contributes zero), so the result is a
+    # true daily energy integral.
+    #
+    # Empirically validated against the legacy CSV ingest path in
+    # migration A4 (``2026-05-08_a4_backfill_cams_aux_uganda_2024.py``);
+    # migration A9 (``2026-05-08_a9_fix_cams_units.py``) backfilled older
+    # rows that had been stored before this conversion was added.
     _W_M2_TO_KWH_M2_DAY: ClassVar[float] = 0.024
 
     def _fetch_long_for_location(
@@ -524,6 +495,15 @@ class CamsSatelliteJob(BaseSatelliteJob):
     def _cams_dataframe_to_long(
         cls, df: pd.DataFrame, variables: tuple[VariableSpec, ...]
     ) -> pd.DataFrame:
+        """Reshape a CAMS wide DataFrame to long form and convert units.
+
+        Input ``df`` is the post-processed output of ``CAMSClient.fetch_data``,
+        carrying irradiance columns in **W/m² (24-hour mean)** per pvlib's
+        default ``integrated=False`` convention. This method multiplies every
+        value by :attr:`_W_M2_TO_KWH_M2_DAY` (0.024) to land in the warehouse
+        unit kWh/m²/day. See the class-level comment on that constant for the
+        full derivation and the pvlib source reference.
+        """
         api_to_var = {v.api_code: v.variable_id for v in variables}
         # The pvlib output's first column is timestamp (already ISO string after
         # CAMSClient processing); rename to a known name for melt convenience.

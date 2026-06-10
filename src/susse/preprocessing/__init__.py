@@ -12,6 +12,9 @@ Public surface:
   Concrete subclasses: :class:`ClearSkyIndexFeature`,
   :class:`CyclicalDayOfYearFeature`, :class:`AltitudeFeature`, and
   :class:`LongitudeFeature` (paper-faithful only — see its docstring).
+* :class:`DerivedColumnMetadata` — human-facing label / unit /
+  description for one column a :class:`DerivedFeature` emits, exposed
+  via :attr:`DerivedFeature.output_metadata`.
 * :class:`CleanerKind`, :class:`FeatureKind` — persistence + dispatch
   tags for the two ABC families.
 * :func:`data_cleaner_from_dict`, :func:`derived_feature_from_dict` —
@@ -44,6 +47,7 @@ from .derived import (
     AltitudeFeature,
     ClearSkyIndexFeature,
     CyclicalDayOfYearFeature,
+    DerivedColumnMetadata,
     DerivedFeature,
     FeatureKind,
     LongitudeFeature,
@@ -60,6 +64,7 @@ __all__ = [
     "ClearSkyIndexFeature",
     "CyclicalDayOfYearFeature",
     "DataCleaner",
+    "DerivedColumnMetadata",
     "DerivedFeature",
     "ElevationProvider",
     "FeatureKind",

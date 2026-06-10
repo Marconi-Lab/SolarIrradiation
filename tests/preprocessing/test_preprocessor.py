@@ -1,4 +1,4 @@
-"""Tests for the Preprocessor: TrainingDataset → PreprocessedDataset."""
+"""Tests for the Preprocessor: training-shape and inference-shape transforms."""
 
 from __future__ import annotations
 
@@ -366,3 +366,96 @@ class TestCleanerOrdering:
         )
         with pytest.raises(ValueError, match="not_in_frame"):
             Preprocessor(spec).apply(_toy_dataset())
+
+
+class TestApplyToDataframe:
+    """Inference-shape transform: bare DataFrame in, bare DataFrame out."""
+
+    def test_computes_derived_features_without_target(self) -> None:
+        # Inference frames have no ground truth. apply_to_dataframe must
+        # produce features anyway — no missing-target error, no NaN target
+        # padding required at the call site.
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1), date(2024, 1, 2)],
+                "geohash5": ["s8p1v", "s8p1v"],
+                "sat_ghi_nasa_kwh_m2_day": [4.5, 5.5],
+                "nasa_ghi_clear": [6.0, 6.0],
+                "nasa_aod_550": [0.3, 0.25],
+            }
+        )
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            derived_features=(_kt(), CyclicalDayOfYearFeature()),
+        )
+        result = Preprocessor(spec).apply_to_dataframe(df)
+        assert list(result.columns)[-3:] == ["kt_nasa", "doy_sin", "doy_cos"]
+        assert spec.target_column not in result.columns
+        # Two input rows → two output rows. No silent drops at inference.
+        assert len(result) == 2
+
+    def test_skips_cleaners_in_inference_shape(self) -> None:
+        # The cleaner would drop the row with ghi=20 in training shape;
+        # in inference shape the row must survive — we predict whatever
+        # the model says, the caller can decide what to do with it.
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1), date(2024, 1, 2)],
+                "geohash5": ["s8p1v", "s8p1v"],
+                "sat_ghi_nasa_kwh_m2_day": [20.0, 5.5],  # 20 > threshold
+                "nasa_ghi_clear": [6.0, 6.0],
+                "nasa_aod_550": [0.3, 0.25],
+            }
+        )
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            cleaners=(
+                GhiUpperBoundCleaner(column="sat_ghi_nasa_kwh_m2_day", threshold=10.0),
+            ),
+            derived_features=(_kt(),),
+        )
+        result = Preprocessor(spec).apply_to_dataframe(df)
+        assert len(result) == 2  # cleaner did not run
+
+    def test_skips_dropna_in_inference_shape(self) -> None:
+        # A NaN feature would be dropped in training shape; in inference
+        # shape the row must survive with NaN propagating to the prediction.
+        # Silently dropping inference rows would surface as missing rows in
+        # the output, which is the bug this contract exists to prevent.
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1), date(2024, 1, 2)],
+                "geohash5": ["s8p1v", "s8p1v"],
+                "sat_ghi_nasa_kwh_m2_day": [4.5, 5.5],
+                "nasa_ghi_clear": [6.0, 6.0],
+                "nasa_aod_550": [np.nan, 0.25],  # one NaN
+            }
+        )
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            derived_features=(_kt(),),
+            dropna_features=True,
+        )
+        result = Preprocessor(spec).apply_to_dataframe(df)
+        assert len(result) == 2
+        assert pd.isna(result["nasa_aod_550"].iloc[0])
+
+    def test_validates_required_feature_columns(self) -> None:
+        # Validation still runs in inference shape — but only for
+        # feature_columns and derived-feature inputs, not for cleaner
+        # inputs or the dropna-target rule.
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1)],
+                "geohash5": ["s8p1v"],
+                # nasa_aod_550 missing
+                "sat_ghi_nasa_kwh_m2_day": [4.5],
+                "nasa_ghi_clear": [6.0],
+            }
+        )
+        spec = FeatureSpec(
+            feature_columns=("nasa_aod_550",),
+            derived_features=(_kt(),),
+        )
+        with pytest.raises(ValueError, match="nasa_aod_550"):
+            Preprocessor(spec).apply_to_dataframe(df)

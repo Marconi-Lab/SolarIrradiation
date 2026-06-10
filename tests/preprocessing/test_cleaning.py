@@ -376,7 +376,7 @@ class TestDispatchByKind:
             PerStationMeanImputer(columns=("temperature",)),
         ]
         for original in instances:
-            assert original.kind.cleaner_class() is type(original)
+            assert original.kind.spec_class() is type(original)
             rebuilt = data_cleaner_from_dict(original.to_dict())
             assert type(rebuilt) is type(original)
 
