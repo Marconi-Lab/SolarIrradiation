@@ -17,7 +17,6 @@ import pytest
 
 from susse.warehouse_ops.snapping import NearestPixelSnapper, OutOfCoverageError
 
-
 # A patch of NASA POWER's MERRA-2 native grid (0.5° lat × 0.625° lon) over
 # Uganda. Real grid geometry — the snapper carries no hard-coded grid, so
 # this doubles as both fixture and the thing under test.
@@ -44,7 +43,9 @@ def grid_snapper() -> NearestPixelSnapper:
 
 
 class TestSnap:
-    def test_exact_pixel_snaps_to_itself(self, grid_snapper: NearestPixelSnapper) -> None:
+    def test_exact_pixel_snaps_to_itself(
+        self, grid_snapper: NearestPixelSnapper
+    ) -> None:
         # A coordinate sitting exactly on a pixel centre must return that
         # pixel's geohash5 — the degenerate, zero-distance case.
         expected = pygeohash.encode(0.5, 33.125, precision=5)
@@ -75,14 +76,10 @@ class TestSnapOrNone:
         per_point = [grid_snapper.snap(la, lo) for la, lo in zip(lats, lons)]
         assert batch == per_point
 
-    def test_empty_batch_returns_empty(
-        self, grid_snapper: NearestPixelSnapper
-    ) -> None:
+    def test_empty_batch_returns_empty(self, grid_snapper: NearestPixelSnapper) -> None:
         assert grid_snapper.snap_or_none([], []) == []
 
-    def test_mismatched_lengths_raise(
-        self, grid_snapper: NearestPixelSnapper
-    ) -> None:
+    def test_mismatched_lengths_raise(self, grid_snapper: NearestPixelSnapper) -> None:
         with pytest.raises(ValueError, match="must align"):
             grid_snapper.snap_or_none([0.0, 0.5], [32.5])
 
@@ -115,9 +112,7 @@ class TestConstruction:
 
     def test_out_of_range_latitude_raises(self) -> None:
         with pytest.raises(ValueError, match=r"latitudes.*\[-90, 90\]"):
-            NearestPixelSnapper(
-                geohash5s=["a"], latitudes=[123.0], longitudes=[32.5]
-            )
+            NearestPixelSnapper(geohash5s=["a"], latitudes=[123.0], longitudes=[32.5])
 
     def test_non_positive_guard_raises(self) -> None:
         with pytest.raises(ValueError, match="must be positive"):
@@ -134,9 +129,7 @@ class TestFromDataFrame:
 
     def test_round_trips_through_dataframe(self) -> None:
         ghs, lats, lons = _grid_pixels()
-        df = pd.DataFrame(
-            {"geohash5": ghs, "latitude": lats, "longitude": lons}
-        )
+        df = pd.DataFrame({"geohash5": ghs, "latitude": lats, "longitude": lons})
         snapper = NearestPixelSnapper.from_dataframe(df)
         assert snapper.n_pixels == len(ghs)
         assert snapper.snap(0.3, 32.6) == pygeohash.encode(0.5, 32.5, precision=5)

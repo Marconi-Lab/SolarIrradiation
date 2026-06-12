@@ -26,7 +26,10 @@ from susse.api_clients.NASA_Power.nasa_power_regional_fetcher import _RegionalTi
 class _Bbox:
     def __init__(
         self,
-        min_lat: float, max_lat: float, min_lon: float, max_lon: float,
+        min_lat: float,
+        max_lat: float,
+        min_lon: float,
+        max_lon: float,
     ) -> None:
         self.min_lat, self.max_lat = min_lat, max_lat
         self.min_lon, self.max_lon = min_lon, max_lon
@@ -61,7 +64,10 @@ def short_dates() -> tuple[date, date]:
 
 def _tile(bb: _Bbox) -> list:
     return NASAPowerRegionalFetcher._tile_bbox(
-        bb.min_lat, bb.max_lat, bb.min_lon, bb.max_lon,
+        bb.min_lat,
+        bb.max_lat,
+        bb.min_lon,
+        bb.max_lon,
     )
 
 
@@ -77,9 +83,7 @@ class TestTileBbox:
         assert tiles[0].min_lon == small_bbox.min_lon
         assert tiles[0].max_lon == small_bbox.max_lon
 
-    def test_uganda_bbox_splits_into_four_tiles(
-        self, uganda_bbox: _Bbox
-    ) -> None:
+    def test_uganda_bbox_splits_into_four_tiles(self, uganda_bbox: _Bbox) -> None:
         # 6° × 5.55° must split into a 2×2 grid because either span exceeds
         # the 4° safety margin (4.5° hard cap minus headroom).
         assert len(_tile(uganda_bbox)) == 4
@@ -92,9 +96,7 @@ class TestTileBbox:
             assert tile.span_lat <= cap + 1e-9
             assert tile.span_lon <= cap + 1e-9
 
-    def test_tiles_cover_bbox_without_gaps(
-        self, uganda_bbox: _Bbox
-    ) -> None:
+    def test_tiles_cover_bbox_without_gaps(self, uganda_bbox: _Bbox) -> None:
         # Union of tile spans along each axis must equal the bbox span;
         # gaps would leave native pixels unfetched.
         tiles = _tile(uganda_bbox)
@@ -117,9 +119,7 @@ class TestBuildRegionalUrl:
     def test_url_uses_regional_path_and_query_schema(
         self, short_dates: tuple[date, date]
     ) -> None:
-        tile = _RegionalTile(
-            min_lat=0.0, max_lat=2.0, min_lon=32.0, max_lon=34.0
-        )
+        tile = _RegionalTile(min_lat=0.0, max_lat=2.0, min_lon=32.0, max_lon=34.0)
         url = NASAPowerRegionalFetcher._build_regional_url(
             tile=tile,
             date_start=short_dates[0],
@@ -157,17 +157,22 @@ class TestParseFeatureCollection:
         payload = {
             "features": [
                 _feature(
-                    32.5, 0.5, "ALLSKY_SFC_SW_DWN",
+                    32.5,
+                    0.5,
+                    "ALLSKY_SFC_SW_DWN",
                     {"20240101": 3.995, "20240102": 4.5},
                 ),
                 _feature(
-                    33.5, 0.5, "ALLSKY_SFC_SW_DWN",
+                    33.5,
+                    0.5,
+                    "ALLSKY_SFC_SW_DWN",
                     {"20240101": 3.5198, "20240102": 5.5579},
                 ),
             ],
         }
         rows = NASAPowerRegionalFetcher._parse_feature_collection(
-            payload, api_code="ALLSKY_SFC_SW_DWN",
+            payload,
+            api_code="ALLSKY_SFC_SW_DWN",
         )
         assert len(rows) == 4  # 2 features × 2 days
 
@@ -185,13 +190,16 @@ class TestParseFeatureCollection:
         payload = {
             "features": [
                 _feature(
-                    32.5, 0.5, "T2M",
+                    32.5,
+                    0.5,
+                    "T2M",
                     {"20240101": -999.0, "20240102": 25.5},
                 ),
             ],
         }
         rows = NASAPowerRegionalFetcher._parse_feature_collection(
-            payload, api_code="T2M",
+            payload,
+            api_code="T2M",
         )
         assert len(rows) == 1
         assert rows[0]["date"] == date(2024, 1, 2)
@@ -200,12 +208,20 @@ class TestParseFeatureCollection:
     def test_handles_empty_feature_collection(self) -> None:
         # An all-missing tile returns an empty FeatureCollection. The
         # parser must not crash on a missing `features` key either.
-        assert NASAPowerRegionalFetcher._parse_feature_collection(
-            {}, api_code="T2M",
-        ) == []
-        assert NASAPowerRegionalFetcher._parse_feature_collection(
-            {"features": []}, api_code="T2M",
-        ) == []
+        assert (
+            NASAPowerRegionalFetcher._parse_feature_collection(
+                {},
+                api_code="T2M",
+            )
+            == []
+        )
+        assert (
+            NASAPowerRegionalFetcher._parse_feature_collection(
+                {"features": []},
+                api_code="T2M",
+            )
+            == []
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +235,10 @@ class TestFetchRegionLong:
     comes out."""
 
     def _call(
-        self, bb: _Bbox, dates: tuple[date, date], api_codes: tuple[str, ...],
+        self,
+        bb: _Bbox,
+        dates: tuple[date, date],
+        api_codes: tuple[str, ...],
     ):
         return NASAPowerRegionalFetcher().fetch_region_long(
             min_lat=bb.min_lat,
@@ -245,12 +264,18 @@ class TestFetchRegionLong:
             json={"features": []},
         )
         df = self._call(
-            uganda_bbox, short_dates, ("ALLSKY_SFC_SW_DWN", "T2M"),
+            uganda_bbox,
+            short_dates,
+            ("ALLSKY_SFC_SW_DWN", "T2M"),
         )
         assert requests_mock.call_count == 4 * 2
         assert df.empty
         assert list(df.columns) == [
-            "date", "latitude", "longitude", "variable_id", "value",
+            "date",
+            "latitude",
+            "longitude",
+            "variable_id",
+            "value",
         ]
 
     def test_assembles_long_dataframe_across_tiles(
@@ -264,11 +289,15 @@ class TestFetchRegionLong:
             json={
                 "features": [
                     _feature(
-                        32.5, 0.5, "ALLSKY_SFC_SW_DWN",
+                        32.5,
+                        0.5,
+                        "ALLSKY_SFC_SW_DWN",
                         {"20240101": 3.995, "20240102": 4.0, "20240103": 4.1},
                     ),
                     _feature(
-                        33.5, 0.5, "ALLSKY_SFC_SW_DWN",
+                        33.5,
+                        0.5,
+                        "ALLSKY_SFC_SW_DWN",
                         {"20240101": 5.0, "20240102": 5.1, "20240103": 5.2},
                     ),
                 ],

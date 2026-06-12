@@ -158,9 +158,7 @@ class TestSnapAndRelabel:
         )
         assert df.empty
 
-    def test_empty_points_raises(
-        self, nasa_only_selection: FeatureSelection
-    ) -> None:
+    def test_empty_points_raises(self, nasa_only_selection: FeatureSelection) -> None:
         with pytest.raises(ValueError, match="points is empty"):
             _service().build_satellite_features(
                 selection=nasa_only_selection,

@@ -16,9 +16,7 @@ import pygeohash
 import pytest
 
 from susse.warehouse_ops.io.config import WarehouseConfig
-from susse.warehouse_ops.population.jobs.nasa_power_region_job import (
-    NasaPowerRegionJob,
-)
+from susse.warehouse_ops.population.jobs.nasa_power_region_job import NasaPowerRegionJob
 from susse.warehouse_ops.population.types import (
     BoundingBox,
     DateRange,
@@ -173,10 +171,20 @@ class TestEnrich:
     def test_remaps_api_code_and_geohashes_each_native_pixel(self) -> None:
         job = NasaPowerRegionJob(_FakeBQ(), fetcher=_StubRegionalFetcher())  # type: ignore[arg-type]
         rows = [
-            {"date": date(2024, 1, 1), "latitude": 0.5, "longitude": 32.5,
-             "variable_id": "T2M", "value": 25.0},
-            {"date": date(2024, 1, 1), "latitude": 1.0, "longitude": 33.125,
-             "variable_id": "T2M", "value": 26.0},
+            {
+                "date": date(2024, 1, 1),
+                "latitude": 0.5,
+                "longitude": 32.5,
+                "variable_id": "T2M",
+                "value": 25.0,
+            },
+            {
+                "date": date(2024, 1, 1),
+                "latitude": 1.0,
+                "longitude": 33.125,
+                "variable_id": "T2M",
+                "value": 26.0,
+            },
         ]
         df = pd.DataFrame(rows)
         enriched = job._enrich(df, {"T2M": "temperature"})
@@ -192,8 +200,15 @@ class TestEnrich:
         # under a NaN variable_id.
         job = NasaPowerRegionJob(_FakeBQ(), fetcher=_StubRegionalFetcher())  # type: ignore[arg-type]
         df = pd.DataFrame(
-            [{"date": date(2024, 1, 1), "latitude": 0.5, "longitude": 32.5,
-              "variable_id": "UNKNOWN_CODE", "value": 1.0}]
+            [
+                {
+                    "date": date(2024, 1, 1),
+                    "latitude": 0.5,
+                    "longitude": 32.5,
+                    "variable_id": "UNKNOWN_CODE",
+                    "value": 1.0,
+                }
+            ]
         )
         assert job._enrich(df, {"T2M": "temperature"}).empty
 
@@ -209,14 +224,42 @@ class TestRunSplitsIrradianceFromAux:
         # T2M at two pixels over 2 days → 4 long aux rows.
         rows: list[dict] = []
         for day in (date(2024, 1, 1), date(2024, 1, 2)):
-            rows.append({"date": day, "latitude": 0.5, "longitude": 32.5,
-                         "variable_id": "ALLSKY_SFC_SW_DWN", "value": 5.0})
-            rows.append({"date": day, "latitude": 0.5, "longitude": 32.5,
-                         "variable_id": "ALLSKY_SFC_SW_DIFF", "value": 2.0})
-            rows.append({"date": day, "latitude": 0.5, "longitude": 32.5,
-                         "variable_id": "T2M", "value": 25.0})
-            rows.append({"date": day, "latitude": 1.0, "longitude": 33.125,
-                         "variable_id": "T2M", "value": 26.0})
+            rows.append(
+                {
+                    "date": day,
+                    "latitude": 0.5,
+                    "longitude": 32.5,
+                    "variable_id": "ALLSKY_SFC_SW_DWN",
+                    "value": 5.0,
+                }
+            )
+            rows.append(
+                {
+                    "date": day,
+                    "latitude": 0.5,
+                    "longitude": 32.5,
+                    "variable_id": "ALLSKY_SFC_SW_DIFF",
+                    "value": 2.0,
+                }
+            )
+            rows.append(
+                {
+                    "date": day,
+                    "latitude": 0.5,
+                    "longitude": 32.5,
+                    "variable_id": "T2M",
+                    "value": 25.0,
+                }
+            )
+            rows.append(
+                {
+                    "date": day,
+                    "latitude": 1.0,
+                    "longitude": 33.125,
+                    "variable_id": "T2M",
+                    "value": 26.0,
+                }
+            )
 
         bq = _FakeBQ()
         job = NasaPowerRegionJob(bq, fetcher=_StubRegionalFetcher(rows))  # type: ignore[arg-type]

@@ -114,9 +114,7 @@ def load_long(
     return loader.load(df[list(_LONG_LOAD_COLUMNS)])
 
 
-def load_irradiance(
-    bq: BigQueryClient, *, table_fqn: str, df: pd.DataFrame
-) -> int:
+def load_irradiance(bq: BigQueryClient, *, table_fqn: str, df: pd.DataFrame) -> int:
     """MERGE-load wide irradiance rows into ``irradiance_daily``.
 
     Args:

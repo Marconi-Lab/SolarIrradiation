@@ -298,9 +298,7 @@ class BaseSatelliteJob(BaseJob):
         )
 
     def _load_irradiance(self, df: pd.DataFrame) -> int:
-        return load_irradiance(
-            self._bq, table_fqn=self._refs.irradiance_daily, df=df
-        )
+        return load_irradiance(self._bq, table_fqn=self._refs.irradiance_daily, df=df)
 
     @property
     def _long_schema(self):

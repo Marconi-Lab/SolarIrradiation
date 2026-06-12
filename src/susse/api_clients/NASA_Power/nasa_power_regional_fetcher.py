@@ -94,9 +94,7 @@ class NASAPowerRegionalFetcher:
     """The 'Renewable Energy' community; matches the point endpoint
     used by :class:`NASAPowerFetchData`."""
 
-    _BASE_URL: ClassVar[str] = (
-        "https://power.larc.nasa.gov/api/temporal/daily/regional"
-    )
+    _BASE_URL: ClassVar[str] = "https://power.larc.nasa.gov/api/temporal/daily/regional"
 
     def __init__(self, *, session: requests.Session | None = None) -> None:
         self._session = session or requests.Session()
@@ -156,9 +154,15 @@ class NASAPowerRegionalFetcher:
             "NASA POWER regional fetch plan: bbox lat[%.3f..%.3f] "
             "lon[%.3f..%.3f] → %d tile(s) × %d variable(s) = %d call(s), "
             "dates %s..%s.",
-            min_lat, max_lat, min_lon, max_lon,
-            n_tiles, len(api_codes), n_calls_total,
-            date_start, date_end,
+            min_lat,
+            max_lat,
+            min_lon,
+            max_lon,
+            n_tiles,
+            len(api_codes),
+            n_calls_total,
+            date_start,
+            date_end,
         )
 
         rows: list[dict] = []
@@ -174,9 +178,14 @@ class NASAPowerRegionalFetcher:
                 )
                 _logger.info(
                     "[%d/%d] tile lat[%.2f..%.2f] lon[%.2f..%.2f] %s: %d row(s)",
-                    call_idx, n_calls_total,
-                    tile.min_lat, tile.max_lat, tile.min_lon, tile.max_lon,
-                    api_code, len(tile_rows),
+                    call_idx,
+                    n_calls_total,
+                    tile.min_lat,
+                    tile.max_lat,
+                    tile.min_lon,
+                    tile.max_lon,
+                    api_code,
+                    len(tile_rows),
                 )
                 rows.extend(tile_rows)
 
@@ -260,7 +269,9 @@ class NASAPowerRegionalFetcher:
         payload = response.json()
         _logger.info(
             "NASA POWER regional response: %d bytes in %.1fs (%s).",
-            len(response.content), elapsed, api_code,
+            len(response.content),
+            elapsed,
+            api_code,
         )
         return self._parse_feature_collection(payload, api_code=api_code)
 
@@ -290,7 +301,10 @@ class NASAPowerRegionalFetcher:
 
     @classmethod
     def _parse_feature_collection(
-        cls, payload: dict, *, api_code: str,
+        cls,
+        payload: dict,
+        *,
+        api_code: str,
     ) -> list[dict]:
         """Flatten a NASA POWER FeatureCollection into long-format rows.
 
@@ -309,9 +323,7 @@ class NASAPowerRegionalFetcher:
                 continue
             lon, lat = float(coords[0]), float(coords[1])
             param_block = (
-                feature.get("properties", {})
-                .get("parameter", {})
-                .get(api_code, {})
+                feature.get("properties", {}).get("parameter", {}).get(api_code, {})
             )
             for date_str, raw_value in param_block.items():
                 if raw_value is None:

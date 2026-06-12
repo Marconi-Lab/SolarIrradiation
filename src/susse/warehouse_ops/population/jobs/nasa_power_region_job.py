@@ -158,9 +158,7 @@ class NasaPowerRegionJob(BaseJob):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _enrich(
-        self, df: pd.DataFrame, api_to_var: dict[str, str]
-    ) -> pd.DataFrame:
+    def _enrich(self, df: pd.DataFrame, api_to_var: dict[str, str]) -> pd.DataFrame:
         """Map api_code → variable_id and attach geohash5 + source columns.
 
         The fetcher emits ``variable_id == api_code``; the warehouse uses the
