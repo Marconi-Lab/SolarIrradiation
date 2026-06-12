@@ -32,6 +32,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from .. import schema
 from .cleaning import DataCleaner, data_cleaner_from_dict
 from .derived import DerivedFeature, derived_feature_from_dict
 
@@ -74,11 +75,11 @@ class FeatureSpec:
             for it.
     """
 
-    target_column: str = "y_ghi_kwh_m2_day"
+    target_column: str = schema.TRAINING_TARGET
     feature_columns: tuple[str, ...] = ()
     cleaners: tuple[DataCleaner, ...] = ()
     derived_features: tuple[DerivedFeature, ...] = ()
-    id_columns: tuple[str, ...] = ("date", "location", "geohash5")
+    id_columns: tuple[str, ...] = schema.ID_COLUMNS
     dropna_target: bool = True
     dropna_features: bool = True
 

@@ -4,7 +4,7 @@ Three lanes, distinct audiences:
 
 ```
 notebooks/
-  tutorial/      ← system overview; read 01 → 05 in order to learn the codebase
+  tutorial/      ← system overview; read 01 → 07 in order to learn the codebase
   inspection/    ← day-to-day model & data inspection (one question per file)
   papers/        ← per-publication validation analyses, with data co-located
 ```
@@ -22,8 +22,8 @@ regenerate the canonical artifacts.
 | 03 | `03_preprocessing.ipynb` — `FeatureSpec` → `PreprocessedDataset` | shipped |
 | 04 | `04_models.ipynb` — model factory (mean baseline / RF / linear) and the `Params` pattern | shipped |
 | 05 | `05_training.ipynb` — `Trainer`, `TrainedBundle`, W&B integration | shipped |
-| 06 | `06_evaluation.ipynb` — splitter abstraction (random / temporal / station-LOSO / spatial-block) + a unified metrics class | **planned** |
-| 07 | `07_inference.ipynb` — portal-facing `load_bundle` + `predict(lat, lon, date)` | **planned** |
+| 06 | `06_evaluation.ipynb` — `Splitter` ABC (random / temporal / station-LOSO / spatial-spread / spatial-block) + `Metric` ABC + `Evaluator` + generic eval plots | shipped |
+| 07 | `07_inference.ipynb` — `Predictor` class (`Predictor.from_bundle_dir` + `predict(coords, start_date, end_date)`) + folium choropleth of the Uganda 2024 grid | shipped |
 
 The tutorial notebooks **do** train models and write artifacts (under
 `data/training_snapshots/`, `data/bundles/`); they're the canonical way

@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
-from ..population.types import IrradianceBand
+from ..population.types import IrradianceBand, Source, satellite_irradiance_column
 from .bq import BigQueryClient
 from .config import TableRefs
 
@@ -113,7 +113,7 @@ class SatelliteRepository:
             return pd.DataFrame()
         select_cols = [
             f"MAX(IF(source = '{src}', {band.value}_kwh_m2_day, NULL)) "
-            f"AS sat_{band.value}_{src.lower()}_kwh_m2_day"
+            f"AS {satellite_irradiance_column(Source(src), band)}"
             for band in bands
             for src in sources
         ]
@@ -180,6 +180,34 @@ class SatelliteRepository:
         PIVOT (ANY_VALUE(value) FOR variable_id IN ({pivot_in}))
         ORDER BY date, geohash5
         """
+        return self._bq.query(sql)
+
+    def native_pixels(
+        self, *, table_fqn: str, source: Optional[Source] = None
+    ) -> pd.DataFrame:
+        """Distinct ``(geohash5, latitude, longitude)`` pixels stored for a source.
+
+        Returns the native-pixel set a
+        :class:`~susse.warehouse_ops.snapping.NearestPixelSnapper` is built
+        from — every cell the table physically holds for ``source``. The
+        scan touches only the three location columns, so it is cheap even
+        on the multi-GB long tables.
+
+        Args:
+            table_fqn: Fully-qualified BQ table name.
+            source: Optional ``source``-column filter. ``None`` returns the
+                whole table's pixels (use for single-source tables).
+
+        Returns:
+            DataFrame with columns ``geohash5, latitude, longitude``, one
+            row per distinct native pixel. Empty if the table holds nothing
+            for ``source``.
+        """
+        where = f" WHERE source = '{source.value}'" if source is not None else ""
+        sql = (
+            f"SELECT DISTINCT geohash5, latitude, longitude "
+            f"FROM `{table_fqn}`{where}"
+        )
         return self._bq.query(sql)
 
     def warehouse_table_mods(self, table_ids: Sequence[str]) -> dict[str, str]:

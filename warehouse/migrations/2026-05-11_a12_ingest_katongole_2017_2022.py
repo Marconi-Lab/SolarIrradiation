@@ -3,7 +3,7 @@
 What it changes
 ---------------
 For each of the 54 stations listed in
-``notebooks/papers/mukiibi_mikelson_2026/reference_data/katongole_2023_monthly.csv``:
+``data/external_references/katongole_2023_monthly.csv``:
 
 * Pull NASA POWER for every catalog NASA variable over the fixed window
   ``2017-01-01 .. 2022-12-31`` — the same 7-year window Katongole et al.
@@ -94,8 +94,7 @@ _VAL_END = date(2022, 12, 31)
 # Path to the Katongole CSV, relative to the repository root.
 _KATONGOLE_CSV = (
     Path(__file__).resolve().parents[2]
-    / "notebooks" / "papers" / "mukiibi_mikelson_2026"
-    / "reference_data" / "katongole_2023_monthly.csv"
+    / "data" / "external_references" / "katongole_2023_monthly.csv"
 )
 
 
@@ -105,7 +104,7 @@ def _load_katongole_stations() -> pd.DataFrame:
         raise RuntimeError(
             f"Katongole reference CSV not found at {_KATONGOLE_CSV}. "
             f"Run from a clean clone of the repository — the file is tracked "
-            f"in git under notebooks/papers/mukiibi_mikelson_2026/reference_data/."
+            f"in git under data/external_references/."
         )
     df = pd.read_csv(_KATONGOLE_CSV)
     if df.empty:

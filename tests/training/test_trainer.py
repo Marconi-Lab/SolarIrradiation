@@ -19,10 +19,11 @@ import pytest
 from susse.models import LinearParams, MeanBaselineParams, RandomForestParams
 from susse.preprocessing import PreprocessedDataset
 from susse.training import (
+    Splitter,
+    StationLOSOSplitter,
     Trainer,
     TrainerConfig,
     load_bundle,
-    make_station_loso_splitter,
 )
 
 
@@ -33,7 +34,7 @@ def _train_one(
     held_out: str = "sta_b",
     bundle_dest: Path | None = None,
 ):
-    splitter = make_station_loso_splitter(held_out)
+    splitter = StationLOSOSplitter(held_out)
     return Trainer().train(
         processed=processed,
         params=params,
@@ -41,6 +42,28 @@ def _train_one(
         holdout_label=f"station-LOSO:{held_out}",
         bundle_dest=bundle_dest,
     )
+
+
+class _EmptyTrainSplitter(Splitter):
+    """Pathological splitter: every row in val, none in train."""
+
+    @property
+    def name(self) -> str:
+        return "all_into_val"
+
+    def split(self, p: PreprocessedDataset):
+        return p.df.index[:0], p.df.index
+
+
+class _OverlapSplitter(Splitter):
+    """Pathological splitter: train and val are both the full index."""
+
+    @property
+    def name(self) -> str:
+        return "overlap"
+
+    def split(self, p: PreprocessedDataset):
+        return p.df.index, p.df.index
 
 
 class TestEndToEnd:
@@ -104,17 +127,11 @@ class TestInvalidSplits:
         self,
         toy_processed: PreprocessedDataset,
     ) -> None:
-        # A splitter that puts every row into val.
-        def all_into_val(p: PreprocessedDataset):
-            return p.df.index[:0], p.df.index
-
-        all_into_val.__name__ = "all_into_val"
-
         with pytest.raises(ValueError, match="empty train fold"):
             Trainer().train(
                 processed=toy_processed,
                 params=MeanBaselineParams(),
-                splitter=all_into_val,
+                splitter=_EmptyTrainSplitter(),
                 holdout_label="degenerate",
             )
 
@@ -122,16 +139,11 @@ class TestInvalidSplits:
         self,
         toy_processed: PreprocessedDataset,
     ) -> None:
-        def overlap(p: PreprocessedDataset):
-            return p.df.index, p.df.index  # 100% overlap
-
-        overlap.__name__ = "overlap"
-
         with pytest.raises(ValueError, match="overlapping"):
             Trainer().train(
                 processed=toy_processed,
                 params=MeanBaselineParams(),
-                splitter=overlap,
+                splitter=_OverlapSplitter(),
                 holdout_label="degenerate",
             )
 
@@ -149,7 +161,7 @@ class TestBaselineScoringWithMissingColumn:
         ).train(
             processed=toy_processed,
             params=MeanBaselineParams(),
-            splitter=make_station_loso_splitter("sta_b"),
+            splitter=StationLOSOSplitter("sta_b"),
             holdout_label="station-LOSO:sta_b",
         )
         # Only the existing column got scored.
