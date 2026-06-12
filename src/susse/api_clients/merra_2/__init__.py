@@ -1,7 +1,13 @@
+"""MERRA-2 data access — Earthdata-authenticated OPeNDAP fetcher."""
+
 from .merra_config import Merra2Config
-from .merra_data_fetcher import MerraDataFetcher
-from .merra_download_manager import MerraDownloadManager
+from .merra_daily_fetcher import MerraAuthError, MerraDailyFetcher, cos_zenith_aggregate
 from .merra_product import MerraProducts
-from .merra_stream_config import MerraStreamConfig
-from .merra_stream_data_fetcher import MerraDataStreamFetcher
-from .merra_stream_session_manager import StreamSessionManager
+
+__all__ = [
+    "Merra2Config",
+    "MerraAuthError",
+    "MerraDailyFetcher",
+    "MerraProducts",
+    "cos_zenith_aggregate",
+]

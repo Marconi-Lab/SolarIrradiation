@@ -26,7 +26,10 @@ class MerraProducts(Enum):
     AEROSOL_OPTICAL_DEPTH_ANALYSIS = MerraProductData(
         name="Aerosol Optical Depth",
         database_id="inst3_2d_gas_Nx",
-        database_name="M2I3NXGAS",
+        # GES DISC OPeNDAP requires the version suffix on the collection
+        # path segment; without it every URL 404s. Other entries above
+        # already have ``.5.12.4`` baked in.
+        database_name="M2I3NXGAS.5.12.4",
         product_name="AODANA",
     )
     AEROSOL_EXTINCTION_550nm = MerraProductData(

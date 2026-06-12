@@ -37,19 +37,46 @@ class ModisProductEnum(Enum):
     https://modis.ornl.gov/documentation.html
     """
 
-    EMISSIVITY = "MOD21A2"
-    SURFACE_REFLACTANCE = "MOD09A1"
-    LEAF_AREA_INDEX = "MCD15A3H"
-    LAND_SURFACE_TEMPERATURE = "MOD21A2"
+    SURFACE_REFLECTANCE_8DAY = "MOD09A1"  # 500 m, 8-day composite
+    BRDF_PARAMETERS_16DAY = "MCD43A1"  # BRDF model parameters (RossThick/LiSparse)
+    ALBEDO_16DAY = "MCD43A3"  # White/black-sky & shortwave albedos
+    NBAR_16DAY = "MCD43A4"  # Nadir BRDF-Adjusted Reflectance (bands 1–7)
+
+    # --- Land Surface Temperature & Emissivity ---
+    LAND_SURFACE_TEMPERATURE_DAILY = "MOD11A1"  # 1 km, daily (includes LST_Day_1KM)
+    LAND_SURFACE_TEMPERATURE_8DAY = "MOD11A2"  # 1 km, 8-day composite
+
+    # --- Vegetation state & structure ---
+    VEGETATION_INDEX_16DAY = "MOD13Q1"  # 250 m NDVI/EVI (16-day)
+    LAI_FPAR_4DAY = "MCD15A3H"  # 500 m, 4-day LAI/FPAR
+    LAND_COVER_YEARLY = "MCD12Q1"  # 500 m, yearly IGBP/UMD/etc. classes
+
+    # --- Surface/flux proxies helpful for solar modeling ---
+    EVAPOTRANSPIRATION_8DAY = "MOD16A2"  # 500 m ET (8-day)
+    GPP_8DAY = "MOD17A2H"  # 500 m GPP (8-day)
+
+    # --- Cryosphere / masking (affects albedo & irradiance) ---
+    SNOW_COVER_DAILY = "MOD10A1"  # 500 m snow cover (daily)
 
     # Add relevant products here
 
     def default_band_name(self) -> Optional[str]:
         return {
-            ModisProductEnum.EMISSIVITY: "Emis_29",
-            ModisProductEnum.SURFACE_REFLACTANCE: "sur_refl_b01",
-            ModisProductEnum.LEAF_AREA_INDEX: "Lai_500m",
-            ModisProductEnum.LAND_SURFACE_TEMPERATURE: "LST_Day_1KM",
+            # ORNL DAAC's bands endpoint reports lowercase 'km' for the
+            # 1 km LST band on MOD11A1 / MOD11A2; the previous default
+            # ``LST_Day_1KM`` was case-mismatched and silently fell back
+            # to whatever the validator picked.
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE_DAILY: "LST_Day_1km",
+            ModisProductEnum.LAND_SURFACE_TEMPERATURE_8DAY: "LST_Day_1km",
+            ModisProductEnum.SURFACE_REFLECTANCE_8DAY: "sur_refl_b01",  # red
+            ModisProductEnum.VEGETATION_INDEX_16DAY: "250m_16_days_NDVI",
+            ModisProductEnum.NBAR_16DAY: "Nadir_Reflectance_Band1",
+            ModisProductEnum.ALBEDO_16DAY: "Albedo_BSA_shortwave",
+            ModisProductEnum.LAI_FPAR_4DAY: "Lai_500m",
+            ModisProductEnum.LAND_COVER_YEARLY: "LC_Type1",
+            ModisProductEnum.SNOW_COVER_DAILY: "NDSI_Snow_Cover",
+            ModisProductEnum.EVAPOTRANSPIRATION_8DAY: "ET_500m",
+            ModisProductEnum.GPP_8DAY: "Gpp_500m",
         }.get(self)
 
 

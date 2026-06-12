@@ -1,90 +1,71 @@
-name: Tox CI
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  tox:
+  test:
+    name: pytest (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        python-version: [3.12]  # Specify the Python versions to test against, as per your tox envlist
-
+        python-version: ["3.12"]
     steps:
-      # Step 1: Check out the repository
-      - name: Check out the repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools_scm needs full history for versioning
 
-      # Step 2: Set up Python
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      # Step 3: Install dependencies
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install tox
+      - name: Install tox
+        run: python -m pip install --upgrade pip tox
 
-      # Step 4: Run Tox
-      - name: Run Tox
+      - name: Run pytest
         env:
           NASA_USERNAME: ${{ secrets.NASA_USERNAME }}
           NASA_PASSWORD: ${{ secrets.NASA_PASSWORD }}
-        run: tox
+          EARTHDATA_USERNAME: ${{ secrets.EARTHDATA_USERNAME }}
+          EARTHDATA_PASSWORD: ${{ secrets.EARTHDATA_PASSWORD }}
+          CAMS_EMAIL: ${{ secrets.CAMS_EMAIL }}
+        run: tox -e py${{ matrix.python-version }}
 
-      # Add this to your tox job in tox.yml
-      - name: Run Tests with Coverage
-        env:
-          NASA_USERNAME: ${{ secrets.NASA_USERNAME }}
-          NASA_PASSWORD: ${{ secrets.NASA_PASSWORD }}
-        run: tox -e py312
-
-  format-check:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          python-version: 3.12
+          name: coverage-py${{ matrix.python-version }}
+          path: test-results/coverage
+          if-no-files-found: ignore
 
-      - name: Install dependencies for formatting and linting
-        run: |
-          python -m pip install --upgrade pip
-          pip install tox
-
-      - name: Run Tox Check Format
-        run: tox -e check-format
+  check-format:
+    name: black + isort + flake8 + interrogate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip tox
+      - run: tox -e check-format
 
   static-analysis:
+    name: mypy
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout full Git history
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: 3.12
-
-      - name: Install dependencies for static analysis
-        run: |
-          python -m pip install --upgrade pip
-          pip install tox
-
-      - name: Run Tox Static Analysis
-        run: tox -e static-analysis
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip tox
+      - run: tox -e static-analysis

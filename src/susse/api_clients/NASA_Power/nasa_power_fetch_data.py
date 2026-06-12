@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import datetime
 from typing import List, Union
 
@@ -7,6 +9,13 @@ from geopy.location import Location as GeopyLocation
 from .nasa_power_config import NASAPowerConfig
 from .nasa_power_result import NASAPowerResult
 from .nasa_products import NASAPowerProduct, TemporalResolution
+
+_logger = logging.getLogger(__name__)
+
+# Hard upper bound per HTTP request. NASA POWER usually responds in under a
+# minute even for multi-year, multi-variable requests; anything past 5 minutes
+# is almost certainly a hung connection rather than a slow response.
+_REQUEST_TIMEOUT_SECONDS = 300
 
 
 class NASAPowerFetchData:
@@ -52,8 +61,23 @@ class NASAPowerFetchData:
             location=location,
             products=products,
         )
-        response = requests.get(url)
+        n_days = (end_date - start_date).days + 1
+        _logger.info(
+            "NASA POWER request: lat=%.4f lon=%.4f n_vars=%d n_days=%d",
+            location.latitude,
+            location.longitude,
+            len(products),
+            n_days,
+        )
+        t0 = time.monotonic()
+        response = requests.get(url, timeout=_REQUEST_TIMEOUT_SECONDS)
+        elapsed = time.monotonic() - t0
         response.raise_for_status()
+        _logger.info(
+            "NASA POWER response: %d bytes in %.1fs.",
+            len(response.content),
+            elapsed,
+        )
         json_data = response.json()
         return json_data["properties"]["parameter"]
 
