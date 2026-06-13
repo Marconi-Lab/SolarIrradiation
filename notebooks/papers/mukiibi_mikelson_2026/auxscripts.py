@@ -332,6 +332,7 @@ def plot_figure_2_grid(
     stations: Iterable[str] | None = None,
     validation_label: str = "2017-2022",
     n_panels: int = 16,
+    observed: bool = True,
 ) -> list[str]:
     """Paper-style 4 × 4 monthly GHI grid for 16 stations.
 
@@ -380,9 +381,10 @@ def plot_figure_2_grid(
         sub = comparison_calibrated[
             comparison_calibrated["location"] == station
         ].sort_values("month")
-        ax.plot(sub["month"], sub["monthly_obs"], "-",
-                lw=0.7, color="C0", alpha=0.35,
-                label="Measured (TAHMO, raw)")
+        if observed:
+            ax.plot(sub["month"], sub["monthly_obs"], "-",
+                    lw=0.7, color="C0", alpha=0.35,
+                    label="Measured (TAHMO, raw)")
         ax.plot(sub["month"], sub["monthly_obs_calibrated"], "-o",
                 lw=1.4, ms=4, color="C0",
                 label="Measured (calibrated)")
