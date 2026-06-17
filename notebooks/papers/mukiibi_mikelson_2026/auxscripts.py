@@ -166,9 +166,12 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     )
     return float(2 * r_earth_km * np.arcsin(np.sqrt(a)))
 
-
 def pick_training_and_holdout_stations(
-    station_meta: pd.DataFrame, *, n_training: int, n_holdout: int,
+    station_meta: pd.DataFrame,
+    *,
+    n_training: int,
+    n_holdout: int,
+    holdout_stations: Sequence[str] | None = None,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Select training + spatial-holdout stations by a deterministic rule.
 
@@ -178,6 +181,14 @@ def pick_training_and_holdout_stations(
        top ``n_training`` — drops the shortest-coverage stations first.
     2. From those, pick the ``n_holdout``-station subset with the largest
        pairwise haversine spread; greedy pairwise maximum for ``n_holdout=2``.
+       Skipped entirely if ``holdout_stations`` is given.
+
+    Args:
+        holdout_stations: Optional explicit holdout names (e.g. ``("Site A",
+            "Site B")`` to pin the paper's known split) to use instead of
+            the greedy haversine-max search. Must contain exactly
+            ``n_holdout`` names, each present among the top ``n_training``
+            candidates by row count.
 
     Returns:
         ``(training_stations, holdout_stations)`` as tuples of location
@@ -185,7 +196,9 @@ def pick_training_and_holdout_stations(
 
     Raises:
         ValueError: ``n_training`` exceeds the rows in ``station_meta``,
-            or ``n_holdout`` >= ``n_training``.
+            ``n_holdout`` doesn't satisfy ``1 <= n_holdout < n_training``,
+            or ``holdout_stations`` is malformed / not a subset of the
+            candidate pool.
     """
     if len(station_meta) < n_training:
         raise ValueError(
@@ -197,12 +210,38 @@ def pick_training_and_holdout_stations(
             f"n_holdout={n_holdout} must satisfy 1 <= n_holdout < n_training "
             f"(n_training={n_training})."
         )
+
     candidates = station_meta.nlargest(n_training, "n_rows").reset_index(drop=True)
+    candidate_names = set(candidates["location"])
+
+    if holdout_stations is not None:
+        holdout_stations = tuple(holdout_stations)
+        if len(holdout_stations) != n_holdout:
+            raise ValueError(
+                f"holdout_stations has {len(holdout_stations)} name(s) but "
+                f"n_holdout={n_holdout}."
+            )
+        unknown = [s for s in holdout_stations if s not in set(station_meta["location"])]
+        if unknown:
+            raise ValueError(f"holdout_stations not found in station_meta: {unknown}")
+        not_in_candidates = [s for s in holdout_stations if s not in candidate_names]
+        if not_in_candidates:
+            raise ValueError(
+                f"holdout_stations {not_in_candidates} fall outside the top "
+                f"{n_training} stations by n_rows; raise n_training or pick "
+                "different holdout stations."
+            )
+        training_stations = tuple(
+            s for s in candidates["location"] if s not in holdout_stations
+        )
+        return training_stations, holdout_stations
+
     if n_holdout != 2:
         raise NotImplementedError(
             f"Only n_holdout=2 is implemented (matching paper Table III); "
             f"got {n_holdout}. Extend pick_training_and_holdout_stations to "
-            f"select a larger holdout set by k-medoids or similar."
+            f"select a larger holdout set by k-medoids or similar, or pass "
+            "holdout_stations explicitly."
         )
     best_distance = -1.0
     holdout_pair: tuple[str, str] = ("", "")
@@ -222,7 +261,6 @@ def pick_training_and_holdout_stations(
         s for s in candidates["location"] if s not in holdout_pair
     )
     return training_stations, holdout_pair
-
 
 # ---------------------------------------------------------------------------
 # Katongole inference frame builder.
