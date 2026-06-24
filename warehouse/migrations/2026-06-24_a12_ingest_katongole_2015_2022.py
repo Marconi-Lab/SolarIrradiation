@@ -1,4 +1,4 @@
-"""A12 — ingest NASA POWER + CAMS at the 54 Katongole 2023 station coordinates over 2017-2022.
+"""A12 — ingest NASA POWER + CAMS at the 54 Katongole 2023 station coordinates over 2015-2022.
 
 What it changes
 ---------------
@@ -6,7 +6,7 @@ For each of the 54 stations listed in
 ``data/external_references/katongole_2023_monthly.csv``:
 
 * Pull NASA POWER for every catalog NASA variable over the fixed window
-  ``2017-01-01 .. 2022-12-31`` — the same 7-year window Katongole et al.
+  ``2015-01-01 .. 2022-12-31`` — the same 8-year window Katongole et al.
   (2023) average over to produce their published monthly climatology.
 * Pull CAMS for every catalog CAMS variable over the same window.
 
@@ -17,8 +17,8 @@ existing :class:`SatelliteJob` routing.
 Why
 ---
 The recomputation notebook validates the bias-corrected model against
-the Katongole 2017–2022 monthly climatology. Before this migration, the
-warehouse only had 2017–2022 NASA + CAMS coverage at the 5 cells that
+the Katongole 2015–2022 monthly climatology. Before this migration, the
+warehouse only had 2015–2022 NASA + CAMS coverage at the 5 cells that
 fell inside Uganda for the 28 training-station ingest (A6). Mapping
 each Katongole site to its nearest of those 5 cells produced a median
 snap distance of 62 km (max 220 km) — coarse enough that the
@@ -26,8 +26,8 @@ satellite-feature column was effectively unrelated to where the station
 actually sits.
 
 After this migration, every Katongole station has NASA + CAMS at its
-own coordinates over the full 2017–2022 window, so the model's
-2017–2022 monthly climatology can be computed and compared to
+own coordinates over the full 2015–2022 window, so the model's
+2015–2022 monthly climatology can be computed and compared to
 Katongole's climatology apples-to-apples.
 
 Expected effect
@@ -35,9 +35,7 @@ Expected effect
 * 54 NASA POWER API calls (one per station, multi-variable per call).
 * 54 CAMS API calls (one per station, multi-variable per call).
 * Combined rate-limit footprint sits within both providers' daily
-  quotas (CAMS ~40/day soft cap may chunk this across 2 days for
-  free-tier users; NASA POWER has no published limit and generally
-  serves 54 calls in a few minutes).
+  quota boundaries.
 * Runtime: a few minutes for NASA, up to a couple of hours for CAMS
   depending on rate-limit interactions.
 * Idempotent: ``SatelliteJob._location_fully_cached`` checks coverage
@@ -84,11 +82,11 @@ from susse.warehouse_ops.population.types import (
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import MigrationResult, run_migration  # noqa: E402
 
-_MIGRATION_ID = "2026-05-11_a12_ingest_katongole_2017_2022"
+_MIGRATION_ID = "2026-06-24_a12_ingest_katongole_2015_2022"
 _log = logging.getLogger(_MIGRATION_ID)
 
 # Hard-coded to the Katongole 2023 climatology window.
-_VAL_START = date(2017, 1, 1)
+_VAL_START = date(2015, 1, 1)
 _VAL_END = date(2022, 12, 31)
 
 # Path to the Katongole CSV, relative to the repository root.
@@ -241,7 +239,7 @@ if __name__ == "__main__":
             fn=migrate,
             description=(
                 "Ingest NASA POWER + CAMS at the 54 Katongole 2023 stations "
-                "over the 2017-2022 climatology window."
+                "over the 2015-2022 climatology window."
             ),
         )
     )

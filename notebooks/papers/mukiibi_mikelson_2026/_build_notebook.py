@@ -165,7 +165,7 @@ preserved under any monotonic rescaling.
 | **Optional output** | If `LOG_TO_WANDB=True`, a W&B run + artifact |
 | **Prerequisite — local** | Application Default Credentials for BigQuery (`gcloud auth application-default login`) |
 | **Prerequisite — Colab** | See the bootstrap cell below |
-| **Prerequisite — warehouse** | Migration A12 must have been applied (`warehouse/migrations/2026-05-11_a12_ingest_katongole_2017_2022.py --apply`). The pre-flight in §6 raises if it hasn't. |
+| **Prerequisite — warehouse** | Migration A12 must have been applied (`warehouse/migrations/2026-06-24_a12_ingest_katongole_2017_2022.py --apply`). The pre-flight in §6 raises if it hasn't. |
 | **Wall time** | ~5 min on a workstation |
 """
     ),

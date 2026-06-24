@@ -105,7 +105,7 @@ def assert_katongole_coverage(
             raise RuntimeError(
                 "No Katongole station has any warehouse coverage. "
                 "Apply migration A12: warehouse/migrations/"
-                "2026-05-11_a12_ingest_katongole_2017_2022.py --apply."
+                "2026-06-24_a12_ingest_katongole_2017_2022.py --apply."
             )
         return
     if not is_full.all():
@@ -114,7 +114,7 @@ def assert_katongole_coverage(
             f"{len(incomplete)} of {len(per_station)} Katongole stations "
             f"have incomplete warehouse coverage for {val_start}..{val_end}.\n"
             f"To fix: .venv/bin/python warehouse/migrations/"
-            f"2026-05-11_a12_ingest_katongole_2017_2022.py --apply\n"
+            f"2026-06-24_a12_ingest_katongole_2017_2022.py --apply\n"
             f"Pass allow_partial=True to bypass this assertion during "
             f"development.\n"
             f"Incomplete stations:\n"
