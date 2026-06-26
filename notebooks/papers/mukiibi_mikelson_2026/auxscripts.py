@@ -105,7 +105,7 @@ def assert_katongole_coverage(
             raise RuntimeError(
                 "No Katongole station has any warehouse coverage. "
                 "Apply migration A12: warehouse/migrations/"
-                "2026-06-24_a12_ingest_katongole_2017_2022.py --apply."
+                "2026-05-11_a12_ingest_katongole_2017_2022.py --apply."
             )
         return
     if not is_full.all():
@@ -114,7 +114,7 @@ def assert_katongole_coverage(
             f"{len(incomplete)} of {len(per_station)} Katongole stations "
             f"have incomplete warehouse coverage for {val_start}..{val_end}.\n"
             f"To fix: .venv/bin/python warehouse/migrations/"
-            f"2026-06-24_a12_ingest_katongole_2017_2022.py --apply\n"
+            f"2026-05-11_a12_ingest_katongole_2017_2022.py --apply\n"
             f"Pass allow_partial=True to bypass this assertion during "
             f"development.\n"
             f"Incomplete stations:\n"
@@ -493,3 +493,223 @@ def score_table_iv(
     ).rename(columns={"prediction": "model"})
     return table.round({"RMSE": 3, "nRMSE_%": 2, "MAE": 3, "nMAE_%": 2,
                         "MBE": 3, "R²": 3, "IOA": 3})
+
+# ---------------------------------------------------------------------------
+# Model comparison — paper Table III.
+# ---------------------------------------------------------------------------
+
+def run_model_comparison(
+    X_train,
+    y_train,
+    X_val,
+    y_val,
+    *,
+    train_stations,
+    sat_val_nasa=None,
+    sat_val_cams=None,
+    # Random Forest Params
+    rf_n_estimators: int = 300,
+    rf_min_samples_leaf: int = 2,
+    rf_max_features: float = 0.5,
+    rf_max_depth = None,
+    # XGBoost Params
+    xgb_n_estimators: int = 200,
+    xgb_learning_rate: float = 0.1,
+    xgb_max_depth: int = 6,
+    xgb_subsample: float = 1.0,
+    xgb_colsample_bytree: float = 1.0,
+    # SVR Params
+    svr_C: float = 10.0,
+    svr_epsilon: float = 0.1,
+    svr_kernel: str = "rbf",
+    # Ridge Params
+    ridge_alpha: float = 0.01,
+    # Global Settings
+    random_state: int = 42,
+    run_grid_search: bool = False,
+) -> tuple[dict, pd.DataFrame]:
+    """Train and evaluate all paper candidate models on the held-out fold."""
+    import time
+    import pandas as pd
+    import numpy as np
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.linear_model import LinearRegression, Ridge
+    from sklearn.metrics import (
+        make_scorer,
+        mean_absolute_error,
+        mean_squared_error,
+        r2_score,
+    )
+    from sklearn.model_selection import (
+        GridSearchCV,
+        GroupKFold,
+        RandomizedSearchCV,
+    )
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.svm import SVR
+    from xgboost import XGBRegressor
+
+    # ── Metric helpers ────────────────────────────────────────────────────────
+    def _rmse(y_true, y_pred):
+        return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+    def _mbe(y_true, y_pred):
+        return float(np.mean(np.asarray(y_pred) - np.asarray(y_true)))
+
+    def _metrics(y_true, y_pred, label=""):
+        r = _rmse(y_true, y_pred)
+        m = float(mean_absolute_error(y_true, y_pred))
+        return {
+            "label": label,
+            "RMSE": r,
+            "MAE": m,
+            "MBE": _mbe(y_true, y_pred),
+            "R2": float(r2_score(y_true, y_pred)),
+        }
+
+    # ── Candidate configs ─────────────────────────────────────────────────────
+    search_configs = {
+        "Random Forest": dict(
+            paper_params=dict(
+                n_estimators=rf_n_estimators,
+                min_samples_leaf=rf_min_samples_leaf,
+                max_features=rf_max_features,
+                max_depth=rf_max_depth,
+                random_state=random_state,
+                n_jobs=-1,
+            ),
+            estimator=RandomForestRegressor(
+                random_state=random_state, n_jobs=-1
+            ),
+            param_grid={
+                "n_estimators": [100, 200, 300],
+                "min_samples_leaf": [1, 2, 5, 10],
+                "max_features": ["sqrt", 0.3, 0.5, 0.7],
+                "max_depth": [None, 20, 30],
+            },
+        ),
+        "XGBoost": dict(
+            paper_params=dict(
+                n_estimators=xgb_n_estimators,
+                learning_rate=xgb_learning_rate,
+                max_depth=xgb_max_depth,
+                subsample=xgb_subsample,
+                colsample_bytree=xgb_colsample_bytree,
+                random_state=random_state,
+                n_jobs=-1,
+                verbosity=0,
+            ),
+            estimator=XGBRegressor(
+                random_state=random_state, n_jobs=-1, verbosity=0
+            ),
+            param_grid={
+                "n_estimators": [100, 200, 300],
+                "learning_rate": [0.01, 0.05, 0.1],
+                "max_depth": [3, 6, 9],
+                "subsample": [0.7, 0.8, 1.0],
+                "colsample_bytree": [0.7, 0.8, 1.0],
+            },
+            use_random_search=True,
+            n_iter=60,
+        ),
+        "SVR": dict(
+            # SVR grid search is prohibitively slow — always use paper params.
+            paper_params=dict(
+                kernel=svr_kernel, 
+                C=svr_C, 
+                epsilon=svr_epsilon
+            ),
+            estimator=Pipeline([("scaler", StandardScaler()), ("svr", SVR())]),
+            param_grid={},
+            skip_search=True,
+        ),
+        "Linear Regression": dict(
+            paper_params=dict(n_jobs=-1),
+            estimator=LinearRegression(n_jobs=-1),
+            param_grid={},
+            skip_search=True,
+        ),
+        "Ridge Regression": dict(
+            paper_params=dict(
+                alpha=ridge_alpha, 
+                random_state=random_state
+            ),
+            estimator=Ridge(random_state=random_state),
+            param_grid={"alpha": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]},
+        ),
+    }
+
+    cv = GroupKFold(n_splits=5)
+    rmse_scorer = make_scorer(
+        _rmse, greater_is_better=False
+    )
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    if run_grid_search:
+        print("=" * 65)
+        print("Hyperparameter search — Spatial CV on training fold only")
+        print("(set RUN_GRID_SEARCH=False to skip and use paper params)")
+        print("=" * 65)
+    else:
+        print("=" * 65)
+        print("Using paper best-known hyperparameters (RUN_GRID_SEARCH=False)")
+        print("Set RUN_GRID_SEARCH=True to re-run the full search (~2-6 hours on consumer laptop)")
+        print("=" * 65)
+
+    # ── Fit models ────────────────────────────────────────────────────────────
+    final_models: dict = {}
+    for name, cfg in search_configs.items():
+        t0 = time.time()
+        skip = cfg.get("skip_search") or not run_grid_search
+
+        if skip:
+            if isinstance(cfg["estimator"], Pipeline):
+                model = Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("svr", SVR(**cfg["paper_params"])),
+                ])
+            else:
+                model = cfg["estimator"].__class__(**cfg["paper_params"])
+            model.fit(X_train, y_train)
+            final_models[name] = model
+            src = "paper params" if not cfg.get("skip_search") else "fixed"
+            print(f"  {name:<22}  fitted with {src}  ({time.time()-t0:.1f}s)")
+
+        elif cfg.get("use_random_search"):
+            search = RandomizedSearchCV(
+                cfg["estimator"], cfg["param_grid"],
+                n_iter=cfg.get("n_iter", 50), scoring=rmse_scorer,
+                cv=cv, n_jobs=-1, refit=True,
+                random_state=random_state, verbose=0,
+            )
+            search.fit(X_train, y_train, groups=train_stations)
+            final_models[name] = search.best_estimator_
+            print(
+                f"  {name:<22}  CV RMSE={-search.best_score_:.4f}  "
+                f"({(time.time()-t0)/60:.1f} min)  best={search.best_params_}"
+            )
+        else:
+            search = GridSearchCV(
+                cfg["estimator"], cfg["param_grid"],
+                scoring=rmse_scorer, cv=cv, n_jobs=-1, refit=True, verbose=0,
+            )
+            search.fit(X_train, y_train, groups=train_stations)
+            final_models[name] = search.best_estimator_
+            print(
+                f"  {name:<22}  CV RMSE={-search.best_score_:.4f}  "
+                f"({(time.time()-t0)/60:.1f} min)  best={search.best_params_}"
+            )
+
+    # ── Score on held-out fold ────────────────────────────────────────────────
+    rows = [
+        _metrics(y_val, model.predict(X_val), label=name)
+        for name, model in final_models.items()
+    ]
+    if sat_val_nasa is not None:
+        rows.append(_metrics(y_val, sat_val_nasa, label="NASA CERES"))
+    if sat_val_cams is not None:
+        rows.append(_metrics(y_val, sat_val_cams, label="CAMS"))
+
+    table3_df = pd.DataFrame(rows).set_index("label")
+    return final_models, table3_df
