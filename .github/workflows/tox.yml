@@ -34,7 +34,7 @@ jobs:
           EARTHDATA_USERNAME: ${{ secrets.EARTHDATA_USERNAME }}
           EARTHDATA_PASSWORD: ${{ secrets.EARTHDATA_PASSWORD }}
           CAMS_EMAIL: ${{ secrets.CAMS_EMAIL }}
-        run: tox -e py${{ matrix.python-version }}
+        run: tox -e py312
 
       - name: Upload coverage report
         if: always()
