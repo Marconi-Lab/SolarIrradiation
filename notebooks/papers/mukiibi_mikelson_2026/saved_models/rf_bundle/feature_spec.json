@@ -1,0 +1,82 @@
+{
+  "cleaners": [
+    {
+      "column": "y_ghi_kwh_m2_day",
+      "kind": "ghi_upper_bound",
+      "threshold": 12.0
+    },
+    {
+      "column": "y_ghi_kwh_m2_day",
+      "kind": "iqr_lower_bound",
+      "multiplier": 1.5
+    },
+    {
+      "date_column": "date",
+      "kind": "high_missing_year",
+      "missing_fraction_threshold": 0.05,
+      "station_column": "location"
+    }
+  ],
+  "derived_features": [
+    {
+      "ghi_clear_column": "cams_ghi_clear",
+      "ghi_column": "sat_ghi_cams_kwh_m2_day",
+      "kind": "clear_sky_index",
+      "output_column": "kt_cams"
+    },
+    {
+      "kind": "cyclical_doy"
+    },
+    {
+      "kind": "altitude",
+      "output_column": "altitude_m"
+    },
+    {
+      "kind": "longitude",
+      "output_column": "longitude"
+    }
+  ],
+  "dropna_features": true,
+  "dropna_target": true,
+  "feature_columns": [
+    "nasa_longwave_downward_irr",
+    "nasa_aod_550_adj",
+    "nasa_cloud_amount",
+    "nasa_precipitable_water",
+    "nasa_airmass",
+    "nasa_zero_plane_displacement",
+    "nasa_surface_albedo",
+    "nasa_clearness_index",
+    "nasa_temperature",
+    "nasa_relative_humidity",
+    "nasa_surface_pressure",
+    "nasa_wind_speed",
+    "nasa_temperature_range",
+    "nasa_precipitation_corrected",
+    "nasa_surface_roughness",
+    "nasa_northern_wind",
+    "nasa_planetary_boundary",
+    "nasa_total_column_ozone",
+    "nasa_surface_air_density",
+    "nasa_surface_soil_wetness",
+    "nasa_evaporation_land",
+    "nasa_evapotranspiration_energy",
+    "cams_ghi_clear",
+    "cams_dhi_clear",
+    "cams_dni_clear",
+    "sat_ghi_nasa_kwh_m2_day",
+    "sat_ghi_cams_kwh_m2_day",
+    "sat_dhi_nasa_kwh_m2_day",
+    "sat_dhi_cams_kwh_m2_day",
+    "sat_dni_nasa_kwh_m2_day",
+    "sat_dni_cams_kwh_m2_day"
+  ],
+  "id_columns": [
+    "date",
+    "location",
+    "geohash5",
+    "lat",
+    "lon"
+  ],
+  "target_column": "y_ghi_kwh_m2_day"
+}

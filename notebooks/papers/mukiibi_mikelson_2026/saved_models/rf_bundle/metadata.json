@@ -1,0 +1,35 @@
+{
+  "baseline_metrics": {
+    "sat_ghi_cams_kwh_m2_day": {
+      "mae": 0.41741637953621036,
+      "n_rows": 1120,
+      "r2": 0.8287409238816488,
+      "rmse": 0.540001692132517
+    },
+    "sat_ghi_nasa_kwh_m2_day": {
+      "mae": 0.5780320118477182,
+      "n_rows": 1120,
+      "r2": 0.6599037823569776,
+      "rmse": 0.760972956905203
+    }
+  },
+  "created_at_utc": "2026-06-13T13:16:26.361394+00:00",
+  "git_sha": "c42d0a6cbf4812e3882fdcf1c726dfd4100bfd19",
+  "holdout_label": "sites_A_B::wadelai,kampala",
+  "n_train_rows": 14403,
+  "n_val_rows": 1120,
+  "splitter_name": "spatial_block[val=wadelai,kampala]",
+  "susse_version": "0.1.dev422+gc42d0a6cb.d20260613",
+  "train_metrics": {
+    "mae": 0.24738469686690734,
+    "n_rows": 14403,
+    "r2": 0.9281552339926855,
+    "rmse": 0.39261564767757334
+  },
+  "val_metrics": {
+    "mae": 0.44751372191495964,
+    "n_rows": 1120,
+    "r2": 0.810658248186057,
+    "rmse": 0.5677949398139226
+  }
+}
